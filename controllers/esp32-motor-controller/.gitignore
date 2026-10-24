@@ -2,3 +2,4 @@
 sdkconfig.esp32dev
 .venv/
 __pycache__/
+docs/*.csv

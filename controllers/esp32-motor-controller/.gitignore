@@ -1,2 +1,4 @@
 .pio/
 sdkconfig.esp32dev
+.venv/
+__pycache__/

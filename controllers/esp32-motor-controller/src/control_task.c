@@ -1,5 +1,8 @@
 #include "control_task.h"
 
+#include "io_sim.h"
+#include "pid.h"
+
 #include "driver/gptimer.h"
 #include "esp_cpu.h"
 #include "freertos/FreeRTOS.h"
@@ -22,6 +25,11 @@ static loop_stats_t s_period, s_exec;
 static uint32_t s_overruns;
 static TaskHandle_t s_task;
 
+/* Scripted demo: 0 -> SETPOINT_RPM after STEP_TICKS (runtime setpoint comes with Phase 4). */
+#define SETPOINT_RPM 3000.0f
+#define STEP_TICKS 500
+static volatile float s_rpm, s_duty;
+
 static bool IRAM_ATTR on_alarm(gptimer_handle_t timer, const gptimer_alarm_event_data_t *ev,
                                void *arg)
 {
@@ -35,8 +43,8 @@ static void control_task(void *arg)
 {
     s_task = xTaskGetCurrentTaskHandle();
 
-    gpio_config_t io = {.pin_bit_mask = TIMING_MASK, .mode = GPIO_MODE_OUTPUT};
-    gpio_config(&io);
+    gpio_config_t gpio_cfg = {.pin_bit_mask = TIMING_MASK, .mode = GPIO_MODE_OUTPUT};
+    gpio_config(&gpio_cfg);
 
     gptimer_handle_t timer;
     gptimer_config_t cfg = {
@@ -56,6 +64,14 @@ static void control_task(void *arg)
     ESP_ERROR_CHECK(gptimer_enable(timer));
     ESP_ERROR_CHECK(gptimer_start(timer));
 
+    plant_params_t params = PLANT_PARAMS_N20;
+    io_sim_t sim;
+    io_t io;
+    pid_ctrl_t pid;
+    io_sim_init(&sim, &io, &params, 1.0f / TICK_HZ);
+    pid_init(&pid, 3.6e-4f, 0.015f, 0.0f, -1.0f, 1.0f, 1.0f / TICK_HZ, 0.0f);
+    uint32_t tick = 0;
+
     uint32_t prev = 0;
     bool have_prev = false;
     for (;;) {
@@ -63,7 +79,12 @@ static void control_task(void *arg)
         uint32_t t0 = esp_cpu_get_cycle_count();
         GPIO.out_w1ts = TIMING_MASK;
 
-        /* control body goes here (Phase 3+) */
+        float rpm = io.sensor_read(io.ctx);
+        float duty = pid_update(&pid, tick++ >= STEP_TICKS ? SETPOINT_RPM : 0.0f, rpm);
+        io.actuator_write(io.ctx, duty);
+        io_sim_step(&sim);
+        s_rpm = rpm;
+        s_duty = duty;
 #if CONTROL_BUSY_US > 0
         while (esp_cpu_get_cycle_count() - t0 < CONTROL_BUSY_US * CYCLES_PER_US) {
         }
@@ -100,4 +121,10 @@ void control_task_get_stats(loop_stats_t *period, loop_stats_t *exec, uint32_t *
     loop_stats_reset(&s_exec);
     s_overruns = 0;
     portEXIT_CRITICAL(&s_mux);
+}
+
+void control_task_get_state(float *rpm, float *duty)
+{
+    *rpm = s_rpm;
+    *duty = s_duty;
 }

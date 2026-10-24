@@ -10,8 +10,9 @@ deterministic 1 kHz loop. It is the device under test for the Krumpir HIL bench.
 - Planned: runtime config and CSV telemetry over the USB console, measured loop timing, and
   step-response results.
 
-**Status:** Phase 1 done (portable PID library + I/O interface, unit tested). The firmware still only
-prints a hello line; the real-time loop, plant model and console come in later phases.
+**Status:** Phase 3 done: portable PID, simulated DC motor and I/O backend, unit tested on the PC.
+The firmware runs the closed loop on the ESP32 against the simulated motor (scripted 0 -> 3000 rpm
+step). On-target timing measurements (Phase 2) and the console/telemetry (Phase 4) are still open.
 
 ## Layout
 
@@ -20,9 +21,11 @@ platformio.ini     envs: esp32dev (firmware), native (PC tests)
 CMakeLists.txt     ESP-IDF top level
 sdkconfig.defaults tick 1000 Hz, console 115200 baud, task watchdog on
 src/               ESP32-specific code (main.c)
-lib/control/       portable C library: pid.c/h, io.h
+lib/control/       portable C library: pid, plant_sim, io_sim, loop_stats, io.h
 test/              Unity tests
-tools/  docs/      host scripts and results (empty for now)
+tools/             host tools: step_response.c (CSV), plot.py (plot)
+docs/              results (step response CSV and plot)
+requirements.txt   Python packages for tools/
 ```
 
 ## Initial setup (Windows)
@@ -47,6 +50,29 @@ pio device monitor                    # serial monitor, 115200 baud
 ```
 
 Expected output on the monitor: `esp32-motor-controller: hello` once per second.
+
+## Python (host tools)
+
+Python 3.13 (developed with 3.13.5). Packages are listed in `requirements.txt` (currently only
+`matplotlib==3.10.3`). Set up a virtual environment in this folder:
+
+```
+python -m venv .venv
+.venv\Scripts\activate           # Windows (bash: source .venv/Scripts/activate)
+pip install -r requirements.txt
+```
+
+`.venv/` is git-ignored. Python is not needed for the firmware or the unit tests.
+
+## Step response
+
+Simulates PID + motor on the PC and plots it (needs gcc and the venv above):
+
+```
+gcc -Ilib/control/include tools/step_response.c lib/control/src/pid.c lib/control/src/plant_sim.c lib/control/src/io_sim.c -lm -o .pio/step_response.exe
+.pio/step_response.exe > docs/step_response.csv
+python tools/plot.py docs/step_response.csv docs/step_response.png
+```
 
 ## Pinned versions
 

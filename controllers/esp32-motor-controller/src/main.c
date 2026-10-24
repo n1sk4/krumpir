@@ -23,10 +23,12 @@ void app_main(void)
         uint32_t overruns;
         control_task_get_stats(&period, &exec, &overruns);
         if (!period.count) continue;
+        float rpm, duty;
+        control_task_get_state(&rpm, &duty);
         printf("period ns min/mean/max %llu/%llu/%llu  exec ns min/mean/max %llu/%llu/%llu  "
-               "overruns %u  n=%u\n",
+               "overruns %u  n=%u  rpm %d duty_permille %d\n",
                NS(period.min), NS(loop_stats_mean(&period)), NS(period.max), NS(exec.min),
                NS(loop_stats_mean(&exec)), NS(exec.max), (unsigned)overruns,
-               (unsigned)period.count);
+               (unsigned)period.count, (int)rpm, (int)(duty * 1000));
     }
 }

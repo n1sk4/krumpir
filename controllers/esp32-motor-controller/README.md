@@ -10,8 +10,8 @@ deterministic 1 kHz loop. It is the device under test for the Krumpir HIL bench.
 - Planned: runtime config and CSV telemetry over the USB console, measured loop timing, and
   step-response results.
 
-**Status:** Phase 0 (project foundation). The firmware only prints a hello line; the control
-library, plant model and console come in later phases.
+**Status:** Phase 1 done (portable PID library + I/O interface, unit tested). The firmware still only
+prints a hello line; the real-time loop, plant model and console come in later phases.
 
 ## Layout
 
@@ -20,7 +20,7 @@ platformio.ini     envs: esp32dev (firmware), native (PC tests)
 CMakeLists.txt     ESP-IDF top level
 sdkconfig.defaults tick 1000 Hz, console 115200 baud, task watchdog on
 src/               ESP32-specific code (main.c)
-lib/control/       portable C library (to be filled in Phase 1)
+lib/control/       portable C library: pid.c/h, io.h
 test/              Unity tests
 tools/  docs/      host scripts and results (empty for now)
 ```

@@ -8,6 +8,9 @@
 #include "param_parse.h"
 #include "telemetry.h"
 
+#define SIM_LOAD_MAX_NM 0.1f
+#define SIM_INERTIA_MIN 0.1f
+#define SIM_INERTIA_MAX 10.0f
 #define NS(cycles) ((uint64_t)(cycles) * 1000 / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ)
 
 /* Parses argv[1] into *out within [lo, hi]; prints the reason and returns false on failure. */
@@ -47,6 +50,28 @@ static int cmd_gain(int argc, char **argv)
     return 0;
 }
 
+static int cmd_load(int argc, char **argv)
+{
+    float v;
+    if (!arg_float(argc, argv, -SIM_LOAD_MAX_NM, SIM_LOAD_MAX_NM, &v)) return 1;
+    control_task_set_load(v);
+    return 0;
+}
+
+static int cmd_inertia(int argc, char **argv)
+{
+    float v;
+    if (!arg_float(argc, argv, SIM_INERTIA_MIN, SIM_INERTIA_MAX, &v)) return 1;
+    control_task_set_inertia_scale(v);
+    return 0;
+}
+
+static int cmd_clear(int argc, char **argv)
+{
+    control_task_clear_fault();
+    return 0;
+}
+
 static int set_run(bool run)
 {
     ctrl_params_t p;
@@ -56,7 +81,15 @@ static int set_run(bool run)
     return 0;
 }
 
-static int cmd_start(int argc, char **argv) { return set_run(true); }
+static int cmd_start(int argc, char **argv)
+{
+    fault_t fault = control_task_get_fault();
+    if (fault != FAULT_NONE) {
+        printf("error: fault (%s) is latched, use clear first\n", fault_name(fault));
+        return 1;
+    }
+    return set_run(true);
+}
 static int cmd_stop(int argc, char **argv) { return set_run(false); }
 
 static int cmd_log(int argc, char **argv)
@@ -79,8 +112,12 @@ static int cmd_status(int argc, char **argv)
     uint32_t overruns;
     control_task_get_stats(&period, &exec, &overruns);
 
+    float load, inertia;
+    control_task_get_sim(&load, &inertia);
     printf("%s  sp %g rpm  kp %g ki %g kd %g\n", p.run ? "running" : "stopped", p.sp, p.kp, p.ki,
            p.kd);
+    printf("fault %s  sim load %g N*m  inertia x%g\n", fault_name(control_task_get_fault()),
+           load, inertia);
     printf("speed %.1f rpm  duty %.3f  log %s  telemetry dropped %u\n", rpm, duty,
            telemetry_log() ? "on" : "off", (unsigned)telemetry_dropped());
     if (period.count) {
@@ -113,6 +150,9 @@ void console_start(void)
     reg("kp", "Set proportional gain", "<value>", cmd_gain);
     reg("ki", "Set integral gain", "<value>", cmd_gain);
     reg("kd", "Set derivative gain", "<value>", cmd_gain);
+    reg("load", "Simulation only: load torque on the shaft [N*m]", "<Nm>", cmd_load);
+    reg("inertia", "Simulation only: rotor inertia scale (1 = nominal)", "<scale>", cmd_inertia);
+    reg("clear", "Clear a latched fault", NULL, cmd_clear);
     reg("start", "Start the controller", NULL, cmd_start);
     reg("stop", "Stop: duty 0, PID reset", NULL, cmd_stop);
     reg("status", "Show state and loop timing", NULL, cmd_status);

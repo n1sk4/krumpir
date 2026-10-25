@@ -1,6 +1,7 @@
 #include <math.h>
 #include <unity.h>
 
+#include "ctrl_params.h"
 #include "io_sim.h"
 #include "pid.h"
 
@@ -26,11 +27,11 @@ static void test_rpm_clamp_and_safe_state(void)
     TEST_ASSERT_EQUAL_FLOAT(0.0f, sim.duty);
 }
 
-/* Demo gains by hand: plant gain ~5560 rpm/duty, tau_mech ~24 ms. */
 static void loop_init(io_sim_t *sim, io_t *io, pid_ctrl_t *pid)
 {
     io_sim_init(sim, io, &P, DT);
-    pid_init(pid, 3.6e-4f, 0.015f, 0.0f, -1.0f, 1.0f, DT, 0.0f);
+    const ctrl_params_t gains = CTRL_PARAMS_DEFAULT;
+    pid_init(pid, gains.kp, gains.ki, gains.kd, -1.0f, 1.0f, DT, 0.0f);
 }
 
 static float run_loop(io_sim_t *sim, io_t *io, pid_ctrl_t *pid, float sp, int steps,
@@ -68,7 +69,7 @@ static void test_saturation_recovers(void)
     float min_rpm = 1e9f;
     float rpm = run_loop(&sim, &io, &pid, 3000.0f, 1000, &min_rpm);
     TEST_ASSERT_FLOAT_WITHIN(90.0f, 3000.0f, rpm);
-    TEST_ASSERT_TRUE(min_rpm > 1500.0f); /* windup would drag this toward 0; tight bound is Phase 5 */
+    TEST_ASSERT_TRUE(min_rpm > 1500.0f); /* windup would drag this toward 0 */
 }
 
 int main(void)

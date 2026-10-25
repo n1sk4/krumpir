@@ -61,7 +61,10 @@ Open the serial monitor (`pio device monitor -p COM4`) and type commands at the 
 | `sp <rpm>` | setpoint, within +-10000 |
 | `kp` / `ki` / `kd <value>` | gains, finite and >= 0 |
 | `start` / `stop` | run the controller / duty 0 and PID reset |
-| `status` | state, gains, speed, duty, loop timing since the last `status` |
+| `load <Nm>` | simulation only: load torque on the shaft, within +-0.1 |
+| `inertia <scale>` | simulation only: rotor inertia scale, 0.1 to 10 (1 = nominal) |
+| `clear` | clear a latched fault (overspeed, sensor timeout); `start` is refused until then |
+| `status` | state, fault, gains, speed, duty, loop timing since the last `status` |
 | `log on` / `log off` | CSV telemetry at 100 Hz: `t_ms,setpoint_rpm,speed_rpm,duty_permille` |
 
 The firmware boots stopped. Capture a step response from the PC (close the monitor first, the port
@@ -71,3 +74,5 @@ can only be open once) and plot it:
 python tools/capture.py --port COM4 --duration 3 --cmd "start" "sp 3000" -o docs/capture.csv
 python tools/plot.py docs/capture.csv docs/step_response_target.png
 ```
+
+Gain selection, scenario targets and fault behavior are described in `docs/tuning.md`.

@@ -79,6 +79,25 @@ static void test_set_params_keeps_state_and_reset_zeroes(void)
     TEST_ASSERT_EQUAL_FLOAT(0.0f, s.i);
 }
 
+static void test_coeffs_path_matches_set_params(void)
+{
+    plant_params_t heavy = P;
+    heavy.J *= 2.0f;
+    plant_sim_t a, b;
+    plant_sim_init(&a, &P, 1e-3f);
+    plant_sim_init(&b, &P, 1e-3f);
+    run(&a, 10, 6.0f, 0.0f);
+    run(&b, 10, 6.0f, 0.0f);
+    plant_coeffs_t c;
+    plant_sim_set_params(&a, &heavy, 1e-3f);
+    plant_sim_coeffs(&heavy, 1e-3f, &c);
+    plant_sim_set_coeffs(&b, &c);
+    run(&a, 50, 6.0f, 0.0f);
+    run(&b, 50, 6.0f, 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(a.w, b.w);
+    TEST_ASSERT_EQUAL_FLOAT(a.i, b.i);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -87,5 +106,6 @@ int main(void)
     RUN_TEST(test_independent_of_step_size);
     RUN_TEST(test_load_torque);
     RUN_TEST(test_set_params_keeps_state_and_reset_zeroes);
+    RUN_TEST(test_coeffs_path_matches_set_params);
     return UNITY_END();
 }

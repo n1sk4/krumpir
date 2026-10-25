@@ -12,7 +12,7 @@ typedef struct {
 
 #define CTRL_SP_MAX_RPM 10000.0f
 #define CTRL_GAIN_MAX 1000000.0f
-/* Boot state: stopped, demo gains (hand-picked in Phase 3, tuned in Phase 5). */
-#define CTRL_PARAMS_DEFAULT {0.0f, 3.6e-4f, 0.015f, 0.0f, false}
+/* Boot state: stopped, with the tuned gains (method and results in docs/tuning.md). */
+#define CTRL_PARAMS_DEFAULT {0.0f, 7.2e-4f, 0.03f, 0.0f, false}
 
 #endif

@@ -8,6 +8,7 @@ Host-side scripts. Python ones need the venv from the main README (`pip install 
 | `capture.py` | record the console CSV telemetry into a file |
 | `plot.py` | plot a step-response CSV to PNG |
 | `step_response.c` | PC simulation of PID + motor, prints CSV |
+| `scenarios.c` | closed-loop scenarios (CSV per scenario) and the gain sweep table |
 
 ## timing_check.py
 
@@ -40,3 +41,13 @@ python tools/plot.py docs/capture.csv docs/step_response_target.png
 ## step_response.c
 
 Build and run commands are in the main README ("Step response").
+
+## scenarios.c
+
+Runs the closed-loop scenarios from `lib/control/src/scenario.c` on the PC. Usage and the build
+command are in `docs/tuning.md`:
+
+```
+.pio/scenarios.exe sweep                       # markdown table for several gain scales
+.pio/scenarios.exe step|load|saturation|inertia > docs/scenario_x.csv
+```

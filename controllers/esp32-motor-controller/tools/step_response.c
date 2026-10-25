@@ -2,6 +2,7 @@
  * Build/run: see README ("Step response"). */
 #include <stdio.h>
 
+#include "ctrl_params.h"
 #include "io_sim.h"
 #include "pid.h"
 
@@ -17,7 +18,8 @@ int main(void)
     io_t io;
     pid_ctrl_t pid;
     io_sim_init(&sim, &io, &p, DT);
-    pid_init(&pid, 3.6e-4f, 0.015f, 0.0f, -1.0f, 1.0f, DT, 0.0f);
+    const ctrl_params_t gains = CTRL_PARAMS_DEFAULT;
+    pid_init(&pid, gains.kp, gains.ki, gains.kd, -1.0f, 1.0f, DT, 0.0f);
 
     printf("t_s,setpoint_rpm,speed_rpm,duty,error_rpm\n");
     for (int k = 0; k < STEPS; k++) {

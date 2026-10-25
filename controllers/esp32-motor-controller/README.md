@@ -7,26 +7,6 @@ deterministic 1 kHz loop. It is the device under test for the Krumpir HIL bench.
   unit tested on the PC with Unity and reused unchanged on the target.
 - A small I/O abstraction lets the same controller run against a simulated plant, a real motor,
   or Krumpir.
-- Planned: runtime config and CSV telemetry over the USB console, measured loop timing, and
-  step-response results.
-
-**Status:** Phase 3 done: portable PID, simulated DC motor and I/O backend, unit tested on the PC.
-The firmware runs the closed loop on the ESP32 against the simulated motor (scripted 0 -> 3000 rpm
-step). On-target timing measurements (Phase 2) and the console/telemetry (Phase 4) are still open.
-
-## Layout
-
-```
-platformio.ini     envs: esp32dev (firmware), native (PC tests)
-CMakeLists.txt     ESP-IDF top level
-sdkconfig.defaults tick 1000 Hz, console 115200 baud, task watchdog on
-src/               ESP32-specific code (main.c)
-lib/control/       portable C library: pid, plant_sim, io_sim, loop_stats, io.h
-test/              Unity tests
-tools/             host tools: step_response.c (CSV), plot.py (plot)
-docs/              results (step response CSV and plot)
-requirements.txt   Python packages for tools/
-```
 
 ## Initial setup (Windows)
 
@@ -53,16 +33,14 @@ Expected output on the monitor: `esp32-motor-controller: hello` once per second.
 
 ## Python (host tools)
 
-Python 3.13 (developed with 3.13.5). Packages are listed in `requirements.txt` (currently only
-`matplotlib==3.10.3`). Set up a virtual environment in this folder:
+Python 3.13. Packages are listed in `requirements.txt`. Set up a virtual environment in this folder:
 
 ```
+cd krumpir\controllers\esp32-motor-controller
 python -m venv .venv
 .venv\Scripts\activate           # Windows (bash: source .venv/Scripts/activate)
 pip install -r requirements.txt
 ```
-
-`.venv/` is git-ignored. Python is not needed for the firmware or the unit tests.
 
 ## Step response
 
@@ -73,14 +51,3 @@ gcc -Ilib/control/include tools/step_response.c lib/control/src/pid.c lib/contro
 .pio/step_response.exe > docs/step_response.csv
 python tools/plot.py docs/step_response.csv docs/step_response.png
 ```
-
-## Pinned versions
-
-- `espressif32` platform 6.9.0 (bundles ESP-IDF 5.3.1)
-- Unity 2.6.1 (fetched by PlatformIO for the `native` env)
-
-## Notes
-
-- Without a first git commit, the ESP-IDF build fails looking up the git revision, which is why
-  `CMakeLists.txt` sets `PROJECT_VER`.
-- Keep `lib/control/` free of ESP-IDF includes.

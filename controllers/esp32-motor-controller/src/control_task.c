@@ -2,6 +2,7 @@
 
 #include "io_sim.h"
 #include "pid.h"
+#include "telemetry.h"
 
 #include "driver/gptimer.h"
 #include "esp_cpu.h"
@@ -14,20 +15,19 @@
 #define TIMING_GPIO 23
 #define TIMING_MASK (1u << TIMING_GPIO)
 #define CYCLES_PER_US CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ
+#define TELEMETRY_DECIMATION 10 /* 1 kHz -> 100 Hz */
 
 /* Test load inside the loop body; override with -DCONTROL_BUSY_US=200. */
 #ifndef CONTROL_BUSY_US
 #define CONTROL_BUSY_US 0
 #endif
 
-static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
+static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;       /* stats */
+static portMUX_TYPE s_param_mux = portMUX_INITIALIZER_UNLOCKED; /* params */
 static loop_stats_t s_period, s_exec;
 static uint32_t s_overruns;
 static TaskHandle_t s_task;
-
-/* Scripted demo: 0 -> SETPOINT_RPM after STEP_TICKS (runtime setpoint comes with Phase 4). */
-#define SETPOINT_RPM 3000.0f
-#define STEP_TICKS 500
+static ctrl_params_t s_params = CTRL_PARAMS_DEFAULT;
 static volatile float s_rpm, s_duty;
 
 static bool IRAM_ATTR on_alarm(gptimer_handle_t timer, const gptimer_alarm_event_data_t *ev,
@@ -69,7 +69,8 @@ static void control_task(void *arg)
     io_t io;
     pid_ctrl_t pid;
     io_sim_init(&sim, &io, &params, 1.0f / TICK_HZ);
-    pid_init(&pid, 3.6e-4f, 0.015f, 0.0f, -1.0f, 1.0f, 1.0f / TICK_HZ, 0.0f);
+    ctrl_params_t applied = CTRL_PARAMS_DEFAULT;
+    pid_init(&pid, applied.kp, applied.ki, applied.kd, -1.0f, 1.0f, 1.0f / TICK_HZ, 0.0f);
     uint32_t tick = 0;
 
     uint32_t prev = 0;
@@ -79,12 +80,34 @@ static void control_task(void *arg)
         uint32_t t0 = esp_cpu_get_cycle_count();
         GPIO.out_w1ts = TIMING_MASK;
 
+        /* Take the settings for this cycle in one short critical section (no tearing). */
+        portENTER_CRITICAL(&s_param_mux);
+        ctrl_params_t p = s_params;
+        portEXIT_CRITICAL(&s_param_mux);
+
+        if (p.kp != applied.kp || p.ki != applied.ki || p.kd != applied.kd) {
+            pid_set_gains(&pid, p.kp, p.ki, p.kd);
+        }
+        if (p.run != applied.run) pid_reset(&pid); /* start and stop both begin from zero */
+        applied = p;
+
         float rpm = io.sensor_read(io.ctx);
-        float duty = pid_update(&pid, tick++ >= STEP_TICKS ? SETPOINT_RPM : 0.0f, rpm);
-        io.actuator_write(io.ctx, duty);
+        float duty = 0.0f;
+        if (p.run) {
+            duty = pid_update(&pid, p.sp, rpm);
+            io.actuator_write(io.ctx, duty);
+        } else {
+            io.safe_state(io.ctx); /* motor coasts down in the simulation */
+        }
         io_sim_step(&sim);
         s_rpm = rpm;
         s_duty = duty;
+
+        if (tick % TELEMETRY_DECIMATION == 0) {
+            telem_sample_t s = {tick, p.sp, rpm, duty};
+            telemetry_push(&s);
+        }
+        tick++;
 #if CONTROL_BUSY_US > 0
         while (esp_cpu_get_cycle_count() - t0 < CONTROL_BUSY_US * CYCLES_PER_US) {
         }
@@ -109,6 +132,20 @@ void control_task_start(void)
     loop_stats_reset(&s_exec);
     xTaskCreatePinnedToCore(control_task, "control", 4096, NULL, configMAX_PRIORITIES - 2, NULL,
                             1);
+}
+
+void control_task_set_params(const ctrl_params_t *p)
+{
+    portENTER_CRITICAL(&s_param_mux);
+    s_params = *p;
+    portEXIT_CRITICAL(&s_param_mux);
+}
+
+void control_task_get_params(ctrl_params_t *p)
+{
+    portENTER_CRITICAL(&s_param_mux);
+    *p = s_params;
+    portEXIT_CRITICAL(&s_param_mux);
 }
 
 void control_task_get_stats(loop_stats_t *period, loop_stats_t *exec, uint32_t *overruns)

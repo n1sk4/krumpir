@@ -51,3 +51,23 @@ gcc -Ilib/control/include tools/step_response.c lib/control/src/pid.c lib/contro
 .pio/step_response.exe > docs/step_response.csv
 python tools/plot.py docs/step_response.csv docs/step_response.png
 ```
+
+## Console and telemetry
+
+Open the serial monitor (`pio device monitor -p COM4`) and type commands at the `motor>` prompt:
+
+| Command | Effect |
+|---|---|
+| `sp <rpm>` | setpoint, within +-10000 |
+| `kp` / `ki` / `kd <value>` | gains, finite and >= 0 |
+| `start` / `stop` | run the controller / duty 0 and PID reset |
+| `status` | state, gains, speed, duty, loop timing since the last `status` |
+| `log on` / `log off` | CSV telemetry at 100 Hz: `t_ms,setpoint_rpm,speed_rpm,duty_permille` |
+
+The firmware boots stopped. Capture a step response from the PC (close the monitor first, the port
+can only be open once) and plot it:
+
+```
+python tools/capture.py --port COM4 --duration 3 --cmd "start" "sp 3000" -o docs/capture.csv
+python tools/plot.py docs/capture.csv docs/step_response_target.png
+```

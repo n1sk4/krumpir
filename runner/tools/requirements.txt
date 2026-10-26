@@ -1,0 +1,3 @@
+fmpy
+numpy
+matplotlib

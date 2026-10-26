@@ -84,6 +84,27 @@ python tools/plot.py docs/step_response.csv docs/step_response.png
 Closed-loop scenarios (step, load, saturation, inertia) and the gain sweep are described in
 [docs/tuning.md](docs/tuning.md).
 
+## Results
+
+Step to 3000 rpm:
+
+| Measured on the board | Simulated on the PC |
+|:---:|:---:|
+| ![Step response on the board](docs/step_response_target.png) | ![Step response in simulation](docs/step_response.png) |
+
+Closed-loop scenarios (simulation):
+
+| Load step | Saturation | Inertia change |
+|:---:|:---:|:---:|
+| ![Load step](docs/scenario_load.png) | ![Saturation](docs/scenario_saturation.png) | ![Inertia change](docs/scenario_inertia.png) |
+
+## Hardware
+
+Intended wiring (the firmware currently simulates the motor; details and pin table in
+[hardware/README.md](hardware/README.md)):
+
+![Schematic](hardware/motor-controller.svg)
+
 ## Documentation
 
 - [docs/tuning.md](docs/tuning.md): motor model, gain selection, scenarios and targets, fault behavior.

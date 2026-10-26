@@ -5,8 +5,8 @@
 
 /* Running min / max / mean over uint32_t samples (e.g. CPU cycles). */
 typedef struct {
-    uint32_t min, max, count;
-    uint64_t sum;
+  uint32_t min, max, count;
+  uint64_t sum;
 } loop_stats_t;
 
 void loop_stats_reset(loop_stats_t *s);

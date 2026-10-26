@@ -6,8 +6,8 @@
 typedef enum { FAULT_NONE = 0, FAULT_OVERSPEED, FAULT_SENSOR_TIMEOUT } fault_t;
 
 typedef struct {
-    float max_speed_rpm;       /* fault when |speed| exceeds this */
-    uint32_t max_invalid_ticks; /* fault after this many consecutive non-finite readings */
+  float max_speed_rpm;        /* fault when |speed| exceeds this */
+  uint32_t max_invalid_ticks; /* fault after this many consecutive non-finite readings */
 } safety_cfg_t;
 
 /* The N20 gearmotor model has a no-load speed of about 5600 rpm. */
@@ -15,9 +15,9 @@ typedef struct {
 
 /* Latching supervisor: the first fault stays until safety_clear(). */
 typedef struct {
-    safety_cfg_t cfg;
-    uint32_t invalid_ticks;
-    fault_t latched;
+  safety_cfg_t cfg;
+  uint32_t invalid_ticks;
+  fault_t latched;
 } safety_t;
 
 void safety_init(safety_t *s, const safety_cfg_t *cfg);

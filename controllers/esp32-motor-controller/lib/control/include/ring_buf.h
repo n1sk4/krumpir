@@ -7,8 +7,8 @@
 
 /* Telemetry sample; units as in the CSV: ms, rpm, rpm, duty -1..+1. */
 typedef struct {
-    uint32_t t_ms;
-    float sp, rpm, duty;
+  uint32_t t_ms;
+  float sp, rpm, duty;
 } telem_sample_t;
 
 #define RING_BUF_CAP 128 /* power of two */
@@ -16,10 +16,10 @@ typedef struct {
 /* Lock-free single-producer / single-consumer ring. Push never blocks: a full ring drops the
  * sample and counts it. */
 typedef struct {
-    telem_sample_t buf[RING_BUF_CAP];
-    atomic_uint head; /* written by the producer */
-    atomic_uint tail; /* written by the consumer */
-    atomic_uint dropped;
+  telem_sample_t buf[RING_BUF_CAP];
+  atomic_uint head; /* written by the producer */
+  atomic_uint tail; /* written by the consumer */
+  atomic_uint dropped;
 } ring_buf_t;
 
 void ring_buf_init(ring_buf_t *r);

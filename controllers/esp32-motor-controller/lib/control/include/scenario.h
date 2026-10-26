@@ -11,18 +11,18 @@
 typedef enum { SCN_STEP, SCN_LOAD_STEP, SCN_SATURATION, SCN_HEAVY_INERTIA, SCN_COUNT } scenario_t;
 
 typedef struct {
-    float t_s, setpoint_rpm, speed_rpm, duty, load_nm;
+  float t_s, setpoint_rpm, speed_rpm, duty, load_nm;
 } scn_sample_t;
 
 /* Figures for the response after the setpoint change or disturbance (3000 rpm target,
  * 2 % settling band). */
 typedef struct {
-    float overshoot_pct;
-    float undershoot_pct; /* dip below the target */
-    float settling_s;
-    float final_error_rpm;
-    float min_rpm;
-    float duty_saturated; /* duty while saturated (SATURATION only, else 0) */
+  float overshoot_pct;
+  float undershoot_pct; /* dip below the target */
+  float settling_s;
+  float final_error_rpm;
+  float min_rpm;
+  float duty_saturated; /* duty while saturated (SATURATION only, else 0) */
 } scn_result_t;
 
 typedef void (*scn_sink_t)(void *ctx, const scn_sample_t *s);

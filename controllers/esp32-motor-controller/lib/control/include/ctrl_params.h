@@ -5,9 +5,9 @@
 
 /* Runtime-adjustable controller settings, handed from the console to the control task. */
 typedef struct {
-    float sp; /* setpoint [rpm] */
-    float kp, ki, kd;
-    bool run;
+  float sp; /* setpoint [rpm] */
+  float kp, ki, kd;
+  bool run;
 } ctrl_params_t;
 
 #define CTRL_SP_MAX_RPM 10000.0f

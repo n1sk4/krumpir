@@ -122,5 +122,6 @@ The speed measurement and the duty output go through the `io_t` interface in
 | `safe_state` | outputs to a safe state (duty 0) |
 
 The firmware currently uses the simulated motor (`io_sim`). Physical pins for a real motor driver,
-a speed sensor or Krumpir-injected signals are not defined yet; adding them means writing another
-`io_t` backend, with the controller and the tests unchanged.
+a speed sensor or Krumpir-injected signals are not implemented yet. The intended wiring and the
+proposed pins are in the schematic ([../hardware/README.md](../hardware/README.md)); using them
+means writing another `io_t` backend, with the controller and the tests unchanged.

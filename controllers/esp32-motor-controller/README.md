@@ -89,5 +89,6 @@ Closed-loop scenarios (step, load, saturation, inertia) and the gain sweep are d
 - [docs/tuning.md](docs/tuning.md): motor model, gain selection, scenarios and targets, fault behavior.
 - [docs/timing.md](docs/timing.md): measured 1 kHz loop timing on the board.
 - [docs/krumpir-interface.md](docs/krumpir-interface.md): what a test bench needs to drive and observe the controller.
+- [hardware/README.md](hardware/README.md): KiCad schematic and pin table for the motor driver, encoder and Krumpir connections.
 - [tools/README.md](tools/README.md): host scripts, including the timing check.
 

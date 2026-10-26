@@ -1,0 +1,60 @@
+name: esp32-motor-controller
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: controllers/esp32-motor-controller
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: controllers/esp32-motor-controller/requirements.txt
+
+      - name: Install tools
+        run: pip install platformio -r requirements.txt
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('controllers/esp32-motor-controller/platformio.ini') }}
+
+      - name: Unit tests (native)
+        run: pio test -e native
+
+      - name: Build firmware
+        run: pio run -e esp32dev
+
+      - name: Timing tool self-check
+        run: python tools/timing_check.py --selftest
+
+      - name: Simulation CSVs and plots
+        run: |
+          mkdir -p .pio out
+          lib="lib/control/src"
+          gcc -Ilib/control/include tools/step_response.c $lib/pid.c $lib/plant_sim.c $lib/io_sim.c -lm -o .pio/step_response
+          gcc -Ilib/control/include tools/scenarios.c $lib/pid.c $lib/plant_sim.c $lib/io_sim.c $lib/step_metrics.c $lib/scenario.c -lm -o .pio/scenarios
+          .pio/step_response > out/step_response.csv
+          python tools/plot.py out/step_response.csv out/step_response.png
+          for s in step load saturation inertia; do
+            .pio/scenarios $s > out/scenario_$s.csv
+            python tools/plot.py out/scenario_$s.csv out/scenario_$s.png
+          done
+          .pio/scenarios sweep > out/gain_sweep.md
+
+      - name: Collect firmware
+        run: cp .pio/build/esp32dev/firmware.bin .pio/build/esp32dev/firmware.elf out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32-motor-controller
+          path: controllers/esp32-motor-controller/out/

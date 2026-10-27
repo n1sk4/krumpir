@@ -2,6 +2,9 @@
 
 Hardware-in-the-loop test bench for embedded controllers.
 
+[![esp32-motor-controller](https://github.com/n1sk4/krumpir/actions/workflows/esp32-motor-controller.yml/badge.svg)](https://github.com/n1sk4/krumpir/actions/workflows/esp32-motor-controller.yml)
+[![runner](https://github.com/n1sk4/krumpir/actions/workflows/runner.yml/badge.svg)](https://github.com/n1sk4/krumpir/actions/workflows/runner.yml)
+
 ![C](https://img.shields.io/badge/C-A8B9CC?logo=c&logoColor=black)
 ![ESP32](https://img.shields.io/badge/ESP32-E7352C?logo=espressif&logoColor=white)
 ![PlatformIO](https://img.shields.io/badge/PlatformIO-F5822A?logo=platformio&logoColor=white)

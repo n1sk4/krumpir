@@ -41,6 +41,25 @@ at the end of the step, the inputs are the values applied at its start (`n*step`
 are read after it. `wake_ns` is how late the tick started (0 when `wait = "none"`), `step_ns` is the
 time spent in the FMU's step, and `flags` bit 0 marks an overrun.
 
+The full list of scenario keys is in [docs/scenario-reference.md](docs/scenario-reference.md).
+
+## Golden files
+
+`tests/golden/` has three short scenarios and the CSVs they must reproduce (the `n`, `t`, input and
+output columns; the timing columns are dropped). CTest runs them as `golden_*` and compares with a
+tolerance of 1e-12, because the last bits of a floating-point result can differ between CPUs. After
+an intended change, regenerate a file from the `runner/` directory:
+
+```sh
+python3 tools/check_golden.py ~/build/krumpir/krumpir tests/golden/dahlquist.toml \
+  tests/golden/dahlquist.csv --update
+```
+
+## Continuous integration
+
+`.github/workflows/runner.yml` (manual dispatch) builds the runner and runs all tests twice, plain
+and with AddressSanitizer/UndefinedBehaviorSanitizer, and uploads the FMPy overlay plots.
+
 ## Compare with FMPy
 
 ```sh

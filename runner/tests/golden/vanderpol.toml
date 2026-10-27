@@ -1,0 +1,17 @@
+# Golden scenario: short, deterministic (unpaced) run compared against vanderpol.csv.
+# Paths are relative to the runner/ directory.
+[model]
+fmu = "fmus/VanDerPol.fmu"
+step = 0.001
+duration = 1
+params = { mu = 2.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+outputs = ["x0", "x1"]
+
+[log]
+file = "runs/golden_vanderpol.csv"

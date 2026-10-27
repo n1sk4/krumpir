@@ -68,6 +68,23 @@ else()
   message(STATUS "FMPy comparison tests not added: ${KRUMPIR_PYTHON} not found (tools/setup_wsl.sh)")
 endif()
 
+# Golden files (tests/golden): the deterministic columns of short runs, compared with a tolerance.
+# Regenerate after an intended change with:
+#   cd runner && python3 tools/check_golden.py <build>/krumpir tests/golden/<name>.toml
+#                tests/golden/<name>.csv --update
+find_package(Python3 3.11 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  foreach(name feedthrough dahlquist vanderpol)
+    add_test(NAME golden_${name}
+      COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_golden.py
+              $<TARGET_FILE:krumpir> tests/golden/${name}.toml tests/golden/${name}.csv
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+    set_tests_properties(golden_${name} PROPERTIES SKIP_RETURN_CODE 77)
+  endforeach()
+else()
+  message(STATUS "Golden tests not added: Python 3.11+ not found")
+endif()
+
 add_executable(test_writer test_writer.c)
 target_link_libraries(test_writer PRIVATE krumpir_core)
 add_test(NAME writer COMMAND test_writer)

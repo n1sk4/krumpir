@@ -1,0 +1,18 @@
+# Golden scenario: short, deterministic (unpaced) run compared against feedthrough.csv.
+# Paths are relative to the runner/ directory.
+[model]
+fmu = "fmus/Feedthrough.fmu"
+step = 0.001
+duration = 1
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+inputs = ["Float64_continuous_input"]
+outputs = ["Float64_continuous_output"]
+stimulus = [{ input = "Float64_continuous_input", kind = "step", t = 0.5, from = 0, to = 2.5 }]
+
+[log]
+file = "runs/golden_feedthrough.csv"

@@ -1,0 +1,59 @@
+name: runner
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: runner
+
+jobs:
+  build-test:
+    name: build-test (sanitizers ${{ matrix.sanitize }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        sanitize: ["OFF", "ON"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: runner/tools/requirements.txt
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libexpat1-dev unzip curl
+          pip install -r tools/requirements.txt
+
+      - name: Reference FMUs
+        run: bash tools/fetch_fmus.sh
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DKRUMPIR_SANITIZE=${{ matrix.sanitize }}
+          -DKRUMPIR_PYTHON=$(which python)
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: FMPy overlay plots
+        if: matrix.sanitize == 'OFF'
+        run: |
+          mkdir -p out
+          for s in feedthrough dahlquist vanderpol; do
+            python tools/compare_fmpy.py scenarios/$s.toml --run build/krumpir --plot out/$s.png
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.sanitize == 'OFF'
+        with:
+          name: runner-fmpy-plots
+          path: runner/out/

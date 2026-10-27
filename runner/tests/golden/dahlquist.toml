@@ -1,0 +1,17 @@
+# Golden scenario: short, deterministic (unpaced) run compared against dahlquist.csv.
+# Paths are relative to the runner/ directory.
+[model]
+fmu = "fmus/Dahlquist.fmu"
+step = 0.001
+duration = 1
+params = { k = 2.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+outputs = ["x"]
+
+[log]
+file = "runs/golden_dahlquist.csv"

@@ -4,13 +4,12 @@
 
 #include "modeldesc.h"
 
-#define HEAD                                                                                    \
-  "<?xml version=\"1.0\"?>\n<fmiModelDescription fmiVersion=\"3.0\" modelName=\"m\" "          \
+#define HEAD                                                                                       \
+  "<?xml version=\"1.0\"?>\n<fmiModelDescription fmiVersion=\"3.0\" modelName=\"m\" "              \
   "instantiationToken=\"{1234-ABCD}\">\n"
 #define COSIM "<CoSimulation modelIdentifier=\"m\"/>\n"
 
-static const char VALID[] =
-    HEAD COSIM
+static const char VALID[] = HEAD COSIM
     "<ModelVariables>\n"
     " <Float64 name=\"time\" valueReference=\"0\" causality=\"independent\" "
     "variability=\"continuous\"/>\n"
@@ -25,7 +24,8 @@ static const char VALID[] =
     "<ModelStructure><Output valueReference=\"2\"/></ModelStructure>\n"
     "</fmiModelDescription>\n";
 
-static void expect_err(const char *xml, const char *substr) {
+static void expect_err(const char *xml, const char *substr)
+{
   modeldesc_t md;
   char err[256] = "";
   int rc = modeldesc_parse(xml, strlen(xml), &md, err, sizeof err);
@@ -37,7 +37,8 @@ static void expect_err(const char *xml, const char *substr) {
   assert(md.vars == NULL && md.n_vars == 0); /* nothing left allocated on failure */
 }
 
-static void test_valid(void) {
+static void test_valid(void)
+{
   modeldesc_t md;
   char err[256] = "";
   assert(modeldesc_parse(VALID, strlen(VALID), &md, err, sizeof err) == 0);
@@ -63,7 +64,8 @@ static void test_valid(void) {
   assert(md.vars == NULL);
 }
 
-static void test_rejected(void) {
+static void test_rejected(void)
+{
   expect_err("<fmiModelDescription fmiVersion=\"2.0\"><CoSimulation modelIdentifier=\"m\"/>"
              "</fmiModelDescription>",
              "unsupported fmiVersion");
@@ -76,16 +78,16 @@ static void test_rejected(void) {
   expect_err("<fmiModelDescription fmiVersion=\"3.0\"", "line 1");
   expect_err("", "line 1");
   expect_err(HEAD COSIM "<ModelVariables><Float64 valueReference=\"1\"/></ModelVariables>"
-                  "</fmiModelDescription>",
+                        "</fmiModelDescription>",
              "needs name and valueReference");
   expect_err(HEAD COSIM "<ModelVariables><Float64 name=\"a\" valueReference=\"x1\"/>"
-                  "</ModelVariables></fmiModelDescription>",
+                        "</ModelVariables></fmiModelDescription>",
              "invalid valueReference");
   expect_err(HEAD COSIM "<ModelVariables><Float64 name=\"a\" valueReference=\"4294967296\"/>"
-                  "</ModelVariables></fmiModelDescription>",
+                        "</ModelVariables></fmiModelDescription>",
              "invalid valueReference");
   expect_err(HEAD COSIM "<ModelVariables><Float64 name=\"a\" valueReference=\"-1\"/>"
-                  "</ModelVariables></fmiModelDescription>",
+                        "</ModelVariables></fmiModelDescription>",
              "invalid valueReference");
   expect_err("<?xml version=\"1.0\"?><!DOCTYPE x [<!ENTITY a \"b\">]>"
              "<fmiModelDescription fmiVersion=\"3.0\"><CoSimulation modelIdentifier=\"m\"/>"
@@ -93,14 +95,15 @@ static void test_rejected(void) {
              "entity declaration");
 }
 
-static void test_long_names(void) {
+static void test_long_names(void)
+{
   char xml[1024];
   char longname[100];
   memset(longname, 'a', sizeof longname - 1);
   longname[sizeof longname - 1] = '\0';
   snprintf(xml, sizeof xml,
            HEAD COSIM "<ModelVariables><Float64 name=\"%s\" valueReference=\"1\"/>"
-                "</ModelVariables></fmiModelDescription>",
+                      "</ModelVariables></fmiModelDescription>",
            longname);
   expect_err(xml, "longer than");
   snprintf(xml, sizeof xml, HEAD "<CoSimulation modelIdentifier=\"%s\"/></fmiModelDescription>",
@@ -108,7 +111,8 @@ static void test_long_names(void) {
   expect_err(xml, "needs a modelIdentifier");
 }
 
-int main(void) {
+int main(void)
+{
   test_valid();
   test_rejected();
   test_long_names();

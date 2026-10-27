@@ -22,7 +22,8 @@ typedef struct {
   char msg[256]; /* last warning or error reported by the FMU */
 } fmi3_t;
 
-const char *fmu_result_str(fmu_result_t r) {
+const char *fmu_result_str(fmu_result_t r)
+{
   switch (r) {
   case FMU_OK:
     return "ok";
@@ -42,7 +43,8 @@ const char *fmu_result_str(fmu_result_t r) {
   return "?";
 }
 
-static fmu_result_t map_status(fmi3Status s) {
+static fmu_result_t map_status(fmi3Status s)
+{
   switch (s) {
   case fmi3OK:
   case fmi3Warning:
@@ -59,7 +61,8 @@ static fmu_result_t map_status(fmi3Status s) {
 
 /* The FMU may call this from the step loop; it only copies text, no I/O. */
 static void log_message(fmi3InstanceEnvironment env, fmi3Status status, fmi3String category,
-                        fmi3String message) {
+                        fmi3String message)
+{
   fmi3_t *f = env;
   if (status >= fmi3Warning) {
     snprintf(f->msg, sizeof f->msg, "%s: %s", category != NULL ? category : "fmu",
@@ -67,7 +70,8 @@ static void log_message(fmi3InstanceEnvironment env, fmi3Status status, fmi3Stri
   }
 }
 
-static fmu_result_t f_init(fmu_t *m, double t0) {
+static fmu_result_t f_init(fmu_t *m, double t0)
+{
   fmi3_t *f = (fmi3_t *)m;
   fmu_result_t r = map_status(f->enter_init(f->inst, fmi3False, 0.0, t0, fmi3False, 0.0));
   if (r != FMU_OK) {
@@ -78,17 +82,20 @@ static fmu_result_t f_init(fmu_t *m, double t0) {
   return r;
 }
 
-static fmu_result_t f_set_real(fmu_t *m, const uint32_t *vr, size_t n, const double *v) {
+static fmu_result_t f_set_real(fmu_t *m, const uint32_t *vr, size_t n, const double *v)
+{
   fmi3_t *f = (fmi3_t *)m;
   return map_status(f->set_float64(f->inst, vr, n, v, n));
 }
 
-static fmu_result_t f_get_real(fmu_t *m, const uint32_t *vr, size_t n, double *v) {
+static fmu_result_t f_get_real(fmu_t *m, const uint32_t *vr, size_t n, double *v)
+{
   fmi3_t *f = (fmi3_t *)m;
   return map_status(f->get_float64(f->inst, vr, n, v, n));
 }
 
-static fmu_result_t f_step(fmu_t *m, double t, double h) {
+static fmu_result_t f_step(fmu_t *m, double t, double h)
+{
   fmi3_t *f = (fmi3_t *)m;
   fmi3Boolean event = fmi3False, terminate = fmi3False, early = fmi3False;
   fmi3Float64 last = 0.0;
@@ -108,7 +115,8 @@ static fmu_result_t f_step(fmu_t *m, double t, double h) {
 
 static const char *f_last_message(const fmu_t *m) { return ((const fmi3_t *)m)->msg; }
 
-static void f_destroy(fmu_t *m) {
+static void f_destroy(fmu_t *m)
+{
   fmi3_t *f = (fmi3_t *)m;
   if (f->inst != NULL) {
     if (f->in_step_mode) {
@@ -121,17 +129,18 @@ static void f_destroy(fmu_t *m) {
 
 static const fmu_api_t api = {f_init, f_set_real, f_get_real, f_step, f_last_message, f_destroy};
 
-#define BIND(field, sym)                                                                         \
-  do {                                                                                           \
-    f->field = (void *)fmu_sym(pkg, sym);                                                        \
-    if (f->field == NULL) {                                                                      \
-      snprintf(err, errlen, "FMU does not export %s", sym);                                      \
-      free(f);                                                                                   \
-      return NULL;                                                                               \
-    }                                                                                            \
+#define BIND(field, sym)                                                                           \
+  do {                                                                                             \
+    f->field = (void *)fmu_sym(pkg, sym);                                                          \
+    if (f->field == NULL) {                                                                        \
+      snprintf(err, errlen, "FMU does not export %s", sym);                                        \
+      free(f);                                                                                     \
+      return NULL;                                                                                 \
+    }                                                                                              \
   } while (0)
 
-fmu_t *fmi3_create(const fmu_pkg_t *pkg, char *err, size_t errlen) {
+fmu_t *fmi3_create(const fmu_pkg_t *pkg, char *err, size_t errlen)
+{
   if (pkg->md.instantiation_token[0] == '\0') {
     snprintf(err, errlen, "modelDescription.xml has no instantiationToken");
     return NULL;

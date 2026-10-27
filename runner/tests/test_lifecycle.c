@@ -4,7 +4,8 @@
 
 #include "lifecycle.h"
 
-int main(void) {
+int main(void)
+{
   /* allowed[from][to]: the whole 6x6 matrix spelled out. */
   static const bool allowed[LC_COUNT][LC_COUNT] = {
       /*                IDLE   LOADED INIT   RUN    STOP   FAULT */

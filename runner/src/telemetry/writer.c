@@ -17,7 +17,8 @@ struct writer {
   uint64_t rows;
 };
 
-static void write_row(writer_t *w, const telem_rec_t *rec) {
+static void write_row(writer_t *w, const telem_rec_t *rec)
+{
   fprintf(w->fp, "%" PRIu64 ",%.17g", rec->n, rec->t);
   for (size_t i = 0; i < w->n_in; i++) {
     fprintf(w->fp, ",%.17g", rec->in[i]);
@@ -29,7 +30,8 @@ static void write_row(writer_t *w, const telem_rec_t *rec) {
   w->rows++;
 }
 
-static void *drain(void *arg) {
+static void *drain(void *arg)
+{
   writer_t *w = arg;
   telem_rec_t rec;
   for (;;) {
@@ -52,7 +54,8 @@ static void *drain(void *arg) {
 }
 
 writer_t *writer_start(ring_t *ring, const char *path, const char *const *in_names, size_t n_in,
-                       const char *const *out_names, size_t n_out) {
+                       const char *const *out_names, size_t n_out)
+{
   if (n_in > TELEM_MAX_CH || n_out > TELEM_MAX_CH) {
     return NULL;
   }
@@ -85,7 +88,8 @@ writer_t *writer_start(ring_t *ring, const char *path, const char *const *in_nam
   return w;
 }
 
-uint64_t writer_stop(writer_t *w) {
+uint64_t writer_stop(writer_t *w)
+{
   atomic_store(&w->stop, true);
   pthread_join(w->thread, NULL);
   fclose(w->fp);

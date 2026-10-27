@@ -14,7 +14,8 @@ typedef struct {
   bool has_stim[TELEM_MAX_CH];
 } null_io_t;
 
-double stimulus_value(const stimulus_t *s, double t) {
+double stimulus_value(const stimulus_t *s, double t)
+{
   switch (s->kind) {
   case STIM_CONSTANT:
     return s->value;
@@ -26,7 +27,8 @@ double stimulus_value(const stimulus_t *s, double t) {
   return 0.0;
 }
 
-static int null_read(io_t *io, double t, double *in, size_t n) {
+static int null_read(io_t *io, double t, double *in, size_t n)
+{
   null_io_t *s = (null_io_t *)io;
   for (size_t i = 0; i < n; i++) {
     in[i] = s->has_stim[i] ? stimulus_value(&s->stim[i], t) : 0.0;
@@ -34,7 +36,8 @@ static int null_read(io_t *io, double t, double *in, size_t n) {
   return 0;
 }
 
-static int null_write(io_t *io, double t, const double *out, size_t n) {
+static int null_write(io_t *io, double t, const double *out, size_t n)
+{
   (void)io, (void)t, (void)out, (void)n;
   return 0;
 }
@@ -45,7 +48,8 @@ static void null_close(io_t *io) { free(io); }
 
 static const io_api_t api = {"null", null_read, null_write, null_safe_state, null_close};
 
-io_t *null_io_open(const scenario_t *sc, char *err, size_t errlen) {
+io_t *null_io_open(const scenario_t *sc, char *err, size_t errlen)
+{
   (void)err, (void)errlen;
   null_io_t *s = calloc(1, sizeof *s);
   if (s == NULL) {

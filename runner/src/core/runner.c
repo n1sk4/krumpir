@@ -20,7 +20,8 @@ static volatile sig_atomic_t g_stop;
 void runner_request_stop(void) { g_stop = 1; }
 
 /* Creates the log file's directory if it is a single missing level (e.g. runs/). */
-static void ensure_parent_dir(const char *path) {
+static void ensure_parent_dir(const char *path)
+{
   char dir[CFG_MAX_PATH];
   snprintf(dir, sizeof dir, "%s", path);
   char *slash = strrchr(dir, '/');
@@ -31,7 +32,8 @@ static void ensure_parent_dir(const char *path) {
 }
 
 static void describe_failure(const loop_stats_t *ls, const scenario_t *sc, const fmu_t *fmu,
-                             char *err, size_t errlen) {
+                             char *err, size_t errlen)
+{
   switch (ls->end) {
   case LOOP_FMU_FAIL: {
     const char *msg = fmu_last_message(fmu);
@@ -44,7 +46,8 @@ static void describe_failure(const loop_stats_t *ls, const scenario_t *sc, const
     snprintf(err, errlen, "io backend failed after %llu steps", (unsigned long long)ls->steps);
     break;
   case LOOP_TOO_MANY_OVERRUNS:
-    snprintf(err, errlen, "%llu overruns (rt.max_overruns = %d): the step did not finish within "
+    snprintf(err, errlen,
+             "%llu overruns (rt.max_overruns = %d): the step did not finish within "
              "%g s",
              (unsigned long long)ls->overruns, sc->max_overruns, sc->step);
     break;
@@ -53,7 +56,8 @@ static void describe_failure(const loop_stats_t *ls, const scenario_t *sc, const
   }
 }
 
-int runner_run(const scenario_t *sc, runner_result_t *res, char *err, size_t errlen) {
+int runner_run(const scenario_t *sc, runner_result_t *res, char *err, size_t errlen)
+{
   memset(res, 0, sizeof *res);
   err[0] = '\0';
   g_stop = 0;

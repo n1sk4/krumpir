@@ -6,7 +6,8 @@
 #include "loader.h"
 #include "runner.h"
 
-static int cmd_info(const char *path) {
+static int cmd_info(const char *path)
+{
   fmu_pkg_t pkg;
   char err[512];
   if (fmu_open(path, &pkg, err, sizeof err) < 0) {
@@ -26,12 +27,14 @@ static int cmd_info(const char *path) {
   return 0;
 }
 
-static void on_signal(int sig) {
+static void on_signal(int sig)
+{
   (void)sig;
   runner_request_stop();
 }
 
-static int cmd_run(const char *path) {
+static int cmd_run(const char *path)
+{
   scenario_t sc;
   char err[512];
   if (config_load(path, &sc, err, sizeof err) < 0) {
@@ -56,7 +59,8 @@ static int cmd_run(const char *path) {
   if (rc == RUNNER_SETUP_ERROR) {
     return rc;
   }
-  printf("state:     %s%s\n", lifecycle_name(res.state), res.stopped_early ? " (stopped early)" : "");
+  printf("state:     %s%s\n", lifecycle_name(res.state),
+         res.stopped_early ? " (stopped early)" : "");
   printf("steps:     %llu of %llu\n", (unsigned long long)res.steps,
          (unsigned long long)sc.n_steps);
   printf("overruns:  %llu\n", (unsigned long long)res.overruns);
@@ -67,15 +71,15 @@ static int cmd_run(const char *path) {
   return rc;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   if (argc == 3 && strcmp(argv[1], "info") == 0) {
     return cmd_info(argv[2]);
   }
   if (argc == 3 && strcmp(argv[1], "run") == 0) {
     return cmd_run(argv[2]);
   }
-  fprintf(stderr,
-          "usage: krumpir run <scenario.toml>\n"
-          "       krumpir info <model.fmu>\n");
+  fprintf(stderr, "usage: krumpir run <scenario.toml>\n"
+                  "       krumpir info <model.fmu>\n");
   return 2;
 }

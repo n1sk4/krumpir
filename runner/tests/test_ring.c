@@ -5,7 +5,8 @@
 
 #include "ring.h"
 
-static telem_rec_t make(uint64_t n) {
+static telem_rec_t make(uint64_t n)
+{
   telem_rec_t r = {0};
   r.n = n;
   r.t = (double)n * 0.001;
@@ -13,7 +14,8 @@ static telem_rec_t make(uint64_t n) {
   return r;
 }
 
-static void test_init_rejects_bad_capacity(void) {
+static void test_init_rejects_bad_capacity(void)
+{
   ring_t r;
   assert(ring_init(&r, 0) == -1);
   assert(ring_init(&r, 1) == -1);
@@ -22,7 +24,8 @@ static void test_init_rejects_bad_capacity(void) {
   ring_free(&r);
 }
 
-static void test_fifo_order_and_wraparound(void) {
+static void test_fifo_order_and_wraparound(void)
+{
   ring_t r;
   assert(ring_init(&r, 4) == 0);
   telem_rec_t rec;
@@ -44,7 +47,8 @@ static void test_fifo_order_and_wraparound(void) {
   ring_free(&r);
 }
 
-static void test_full_ring_drops_and_counts(void) {
+static void test_full_ring_drops_and_counts(void)
+{
   ring_t r;
   assert(ring_init(&r, 4) == 0);
   telem_rec_t rec;
@@ -65,7 +69,8 @@ static void test_full_ring_drops_and_counts(void) {
   ring_free(&r);
 }
 
-static void test_full_query(void) {
+static void test_full_query(void)
+{
   ring_t r;
   assert(ring_init(&r, 4) == 0);
   telem_rec_t rec = make(0);
@@ -82,7 +87,8 @@ static void test_full_query(void) {
 
 #define STRESS_COUNT 1000000u
 
-static void *producer(void *arg) {
+static void *producer(void *arg)
+{
   ring_t *r = arg;
   for (uint64_t i = 0; i < STRESS_COUNT; i++) {
     telem_rec_t rec = make(i);
@@ -94,7 +100,8 @@ static void *producer(void *arg) {
   return NULL;
 }
 
-static void test_two_thread_stress(void) {
+static void test_two_thread_stress(void)
+{
   ring_t r;
   assert(ring_init(&r, 1024) == 0);
   pthread_t th;
@@ -112,7 +119,8 @@ static void test_two_thread_stress(void) {
   ring_free(&r);
 }
 
-int main(void) {
+int main(void)
+{
   test_init_rejects_bad_capacity();
   test_fifo_order_and_wraparound();
   test_full_ring_drops_and_counts();

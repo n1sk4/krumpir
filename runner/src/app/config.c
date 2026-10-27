@@ -16,7 +16,8 @@ typedef struct {
   size_t errlen;
 } ctx_t;
 
-static int fail(ctx_t *c, const char *fmt, ...) {
+static int fail(ctx_t *c, const char *fmt, ...)
+{
   va_list ap;
   va_start(ap, fmt);
   vsnprintf(c->err, c->errlen, fmt, ap);
@@ -24,7 +25,8 @@ static int fail(ctx_t *c, const char *fmt, ...) {
   return -1;
 }
 
-static bool in_list(const char *s, const char *const *list) {
+static bool in_list(const char *s, const char *const *list)
+{
   for (; *list != NULL; list++) {
     if (strcmp(s, *list) == 0) {
       return true;
@@ -34,7 +36,8 @@ static bool in_list(const char *s, const char *const *list) {
 }
 
 static int check_keys(ctx_t *c, const toml_table_t *tab, const char *where,
-                      const char *const *allowed) {
+                      const char *const *allowed)
+{
   for (int i = 0; toml_key_in(tab, i) != NULL; i++) {
     const char *k = toml_key_in(tab, i);
     if (!in_list(k, allowed)) {
@@ -46,7 +49,8 @@ static int check_keys(ctx_t *c, const toml_table_t *tab, const char *where,
 
 /* Returns 1 if present and copied, 0 if absent and optional, -1 on error. */
 static int get_string(ctx_t *c, const toml_table_t *tab, const char *where, const char *key,
-                      char *dst, size_t cap, bool required) {
+                      char *dst, size_t cap, bool required)
+{
   toml_datum_t d = toml_string_in(tab, key);
   if (!d.ok) {
     if (toml_key_exists(tab, key)) {
@@ -66,7 +70,8 @@ static int get_string(ctx_t *c, const toml_table_t *tab, const char *where, cons
 }
 
 static int get_number(ctx_t *c, const toml_table_t *tab, const char *where, const char *key,
-                      double *dst, bool required) {
+                      double *dst, bool required)
+{
   toml_datum_t d = toml_double_in(tab, key);
   if (d.ok) {
     *dst = d.u.d;
@@ -87,7 +92,8 @@ static int get_number(ctx_t *c, const toml_table_t *tab, const char *where, cons
 }
 
 static int get_int(ctx_t *c, const toml_table_t *tab, const char *where, const char *key, int *dst,
-                   int lo, int hi) {
+                   int lo, int hi)
+{
   toml_datum_t d = toml_int_in(tab, key);
   if (!d.ok) {
     return toml_key_exists(tab, key) ? fail(c, "%s.%s must be an integer", where, key) : 0;
@@ -100,7 +106,8 @@ static int get_int(ctx_t *c, const toml_table_t *tab, const char *where, const c
 }
 
 static int get_names(ctx_t *c, const toml_table_t *tab, const char *where, const char *key,
-                     char names[][CFG_MAX_NAME], size_t *n) {
+                     char names[][CFG_MAX_NAME], size_t *n)
+{
   *n = 0;
   if (!toml_key_exists(tab, key)) {
     return 0;
@@ -134,7 +141,8 @@ static int get_names(ctx_t *c, const toml_table_t *tab, const char *where, const
   return 0;
 }
 
-static int parse_params(ctx_t *c, const toml_table_t *model, scenario_t *sc) {
+static int parse_params(ctx_t *c, const toml_table_t *model, scenario_t *sc)
+{
   if (!toml_key_exists(model, "params")) {
     return 0;
   }
@@ -160,7 +168,8 @@ static int parse_params(ctx_t *c, const toml_table_t *model, scenario_t *sc) {
   return 0;
 }
 
-static bool has_input(const scenario_t *sc, const char *name) {
+static bool has_input(const scenario_t *sc, const char *name)
+{
   for (size_t i = 0; i < sc->n_inputs; i++) {
     if (strcmp(sc->inputs[i], name) == 0) {
       return true;
@@ -169,9 +178,10 @@ static bool has_input(const scenario_t *sc, const char *name) {
   return false;
 }
 
-static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc) {
-  static const char *const keys[] = {"input",  "kind",      "value",   "t",   "from",
-                                     "to",     "offset",    "amplitude", "freq_hz", NULL};
+static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc)
+{
+  static const char *const keys[] = {"input", "kind",   "value",     "t",       "from",
+                                     "to",    "offset", "amplitude", "freq_hz", NULL};
   if (!toml_key_exists(tab, "stimulus")) {
     return 0;
   }
@@ -234,7 +244,8 @@ static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc) {
   return 0;
 }
 
-static int parse_model(ctx_t *c, const toml_table_t *model, scenario_t *sc) {
+static int parse_model(ctx_t *c, const toml_table_t *model, scenario_t *sc)
+{
   static const char *const keys[] = {"fmu", "step", "duration", "params", NULL};
   if (check_keys(c, model, "[model]", keys) < 0 ||
       get_string(c, model, "model", "fmu", sc->fmu, sizeof sc->fmu, true) < 0 ||
@@ -257,7 +268,8 @@ static int parse_model(ctx_t *c, const toml_table_t *model, scenario_t *sc) {
   return 0;
 }
 
-static int parse_rt(ctx_t *c, const toml_table_t *rt, scenario_t *sc) {
+static int parse_rt(ctx_t *c, const toml_table_t *rt, scenario_t *sc)
+{
   static const char *const keys[] = {"wait", "max_overruns", "cpu", "priority", NULL};
   char wait[CFG_MAX_NAME] = "none";
   if (check_keys(c, rt, "[rt]", keys) < 0 ||
@@ -279,7 +291,8 @@ static int parse_rt(ctx_t *c, const toml_table_t *rt, scenario_t *sc) {
   return 0;
 }
 
-static int parse_io(ctx_t *c, const toml_table_t *io, scenario_t *sc) {
+static int parse_io(ctx_t *c, const toml_table_t *io, scenario_t *sc)
+{
   static const char *const keys[] = {"backend", "inputs", "outputs", "stimulus", NULL};
   if (check_keys(c, io, "[io]", keys) < 0 ||
       get_string(c, io, "io", "backend", sc->backend, sizeof sc->backend, true) < 0 ||
@@ -294,7 +307,8 @@ static int parse_io(ctx_t *c, const toml_table_t *io, scenario_t *sc) {
   return 0;
 }
 
-static int parse_root(ctx_t *c, const toml_table_t *root, scenario_t *sc) {
+static int parse_root(ctx_t *c, const toml_table_t *root, scenario_t *sc)
+{
   static const char *const root_keys[] = {"model", "rt", "io", "log", NULL};
   static const char *const log_keys[] = {"file", NULL};
   if (check_keys(c, root, "the top level", root_keys) < 0) {
@@ -321,7 +335,8 @@ static int parse_root(ctx_t *c, const toml_table_t *root, scenario_t *sc) {
   return 0;
 }
 
-int config_parse(const char *text, scenario_t *sc, char *err, size_t errlen) {
+int config_parse(const char *text, scenario_t *sc, char *err, size_t errlen)
+{
   ctx_t c = {err, errlen};
   char parse_err[200];
   *sc = (scenario_t){0};
@@ -343,7 +358,8 @@ int config_parse(const char *text, scenario_t *sc, char *err, size_t errlen) {
   return rc;
 }
 
-int config_load(const char *path, scenario_t *sc, char *err, size_t errlen) {
+int config_load(const char *path, scenario_t *sc, char *err, size_t errlen)
+{
   ctx_t c = {err, errlen};
   FILE *fp = fopen(path, "rb");
   if (fp == NULL) {

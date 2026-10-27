@@ -18,7 +18,8 @@ static const char MD_XML[] =
     "</ModelVariables></fmiModelDescription>";
 
 /* Builds a scenario with the given io/params text on top of a fixed [model] and [log]. */
-static void scenario(const char *params, const char *inputs, const char *outputs, scenario_t *sc) {
+static void scenario(const char *params, const char *inputs, const char *outputs, scenario_t *sc)
+{
   char text[1024];
   snprintf(text, sizeof text,
            "[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 1\nparams = { %s }\n"
@@ -32,7 +33,8 @@ static void scenario(const char *params, const char *inputs, const char *outputs
   assert(rc == 0);
 }
 
-static void expect_err(const modeldesc_t *md, const scenario_t *sc, const char *substr) {
+static void expect_err(const modeldesc_t *md, const scenario_t *sc, const char *substr)
+{
   varmap_t vm;
   char err[256] = "";
   int rc = varmap_build(md, sc, &vm, err, sizeof err);
@@ -43,7 +45,8 @@ static void expect_err(const modeldesc_t *md, const scenario_t *sc, const char *
   assert(strstr(err, substr) != NULL);
 }
 
-int main(void) {
+int main(void)
+{
   modeldesc_t md;
   char err[256];
   assert(modeldesc_parse(MD_XML, strlen(MD_XML), &md, err, sizeof err) == 0);

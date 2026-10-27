@@ -5,7 +5,8 @@
 
 #include "io.h"
 
-static void parse(const char *text, scenario_t *sc) {
+static void parse(const char *text, scenario_t *sc)
+{
   char err[256];
   int rc = config_parse(text, sc, err, sizeof err);
   if (rc != 0) {
@@ -14,7 +15,8 @@ static void parse(const char *text, scenario_t *sc) {
   assert(rc == 0);
 }
 
-static void test_stimulus_values(void) {
+static void test_stimulus_values(void)
+{
   stimulus_t s = {0};
   s.kind = STIM_CONSTANT;
   s.value = 3.0;
@@ -41,7 +43,8 @@ static void test_stimulus_values(void) {
   assert(fabs(stimulus_value(&s, 3.0) - -1.0) < 1e-12);
 }
 
-static void test_null_backend(void) {
+static void test_null_backend(void)
+{
   scenario_t sc;
   parse("[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 1\n"
         "[io]\nbackend = \"null\"\ninputs = [\"a\", \"b\", \"c\", \"d\"]\n"
@@ -72,7 +75,8 @@ static void test_null_backend(void) {
   io->api->close(io);
 }
 
-static void test_unknown_backend(void) {
+static void test_unknown_backend(void)
+{
   scenario_t sc;
   parse("[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 1\n"
         "[io]\nbackend = \"null\"\n[log]\nfile = \"o.csv\"\n",
@@ -83,7 +87,8 @@ static void test_unknown_backend(void) {
   assert(strstr(err, "'uart' is not supported") != NULL);
 }
 
-int main(void) {
+int main(void)
+{
   test_stimulus_values();
   test_null_backend();
   test_unknown_backend();

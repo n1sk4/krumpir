@@ -14,7 +14,8 @@ double loop_time(uint64_t n, double step) { return (double)n * step; }
 
 /* Waits for the absolute time `target` and returns the time it woke up. A stop request ends the
  * wait early. */
-static int64_t wait_until(wait_mode_t mode, int64_t target, const volatile sig_atomic_t *stop) {
+static int64_t wait_until(wait_mode_t mode, int64_t target, const volatile sig_atomic_t *stop)
+{
   if (mode == WAIT_SLEEP) {
     while (plat_sleep_until_ns(target) == EINTR) {
       if (*stop) {
@@ -31,7 +32,8 @@ static int64_t wait_until(wait_mode_t mode, int64_t target, const volatile sig_a
   return plat_now_ns();
 }
 
-void loop_run(const loop_ctx_t *c, loop_stats_t *st) {
+void loop_run(const loop_ctx_t *c, loop_stats_t *st)
+{
   const scenario_t *sc = c->sc;
   const varmap_t *vm = c->vm;
   const int64_t step_ns = loop_step_ns(sc->step);

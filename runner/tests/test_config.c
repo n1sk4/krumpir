@@ -8,7 +8,8 @@
 #define IO "[io]\nbackend = \"null\"\ninputs = [\"u\"]\noutputs = [\"y\"]\n"
 #define LOG "[log]\nfile = \"out.csv\"\n"
 
-static void expect_ok(const char *text, scenario_t *sc) {
+static void expect_ok(const char *text, scenario_t *sc)
+{
   char err[256] = "";
   int rc = config_parse(text, sc, err, sizeof err);
   if (rc != 0) {
@@ -17,7 +18,8 @@ static void expect_ok(const char *text, scenario_t *sc) {
   assert(rc == 0);
 }
 
-static void expect_err(const char *text, const char *substr) {
+static void expect_err(const char *text, const char *substr)
+{
   scenario_t sc;
   char err[256] = "";
   int rc = config_parse(text, &sc, err, sizeof err);
@@ -28,7 +30,8 @@ static void expect_err(const char *text, const char *substr) {
   assert(strstr(err, substr) != NULL);
 }
 
-static void test_minimal_defaults(void) {
+static void test_minimal_defaults(void)
+{
   scenario_t sc;
   expect_ok(MODEL IO LOG, &sc);
   assert(strcmp(sc.fmu, "fmus/a.fmu") == 0);
@@ -41,7 +44,8 @@ static void test_minimal_defaults(void) {
   assert(strcmp(sc.log_file, "out.csv") == 0);
 }
 
-static void test_full(void) {
+static void test_full(void)
+{
   scenario_t sc;
   expect_ok("[model]\nfmu = \"fmus/b.fmu\"\nstep = 0.001\nduration = 3600\n"
             "params = { k = 1.5, n = 2 }\n"
@@ -67,7 +71,8 @@ static void test_full(void) {
          sc.stimuli[2].amplitude == 2.0 && sc.stimuli[2].freq_hz == 5.0);
 }
 
-static void test_wait_modes(void) {
+static void test_wait_modes(void)
+{
   scenario_t sc;
   expect_ok(MODEL "[rt]\nwait = \"busy\"\n" IO LOG, &sc);
   assert(sc.wait == WAIT_BUSY);
@@ -75,7 +80,8 @@ static void test_wait_modes(void) {
   assert(sc.wait == WAIT_NONE);
 }
 
-static void test_missing_pieces(void) {
+static void test_missing_pieces(void)
+{
   expect_err(IO LOG, "missing [model]");
   expect_err(MODEL LOG, "missing [io]");
   expect_err(MODEL IO, "missing [log]");
@@ -85,7 +91,8 @@ static void test_missing_pieces(void) {
   expect_err(MODEL IO "[log]\n", "missing log.file");
 }
 
-static void test_bad_values(void) {
+static void test_bad_values(void)
+{
   expect_err("[model]\nfmu = \"a.fmu\"\nstep = 0\nduration = 1\n" IO LOG, "model.step");
   expect_err("[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 0.0005\n" IO LOG,
              "at least one step");
@@ -94,8 +101,9 @@ static void test_bad_values(void) {
   expect_err("[model]\nfmu = 3\nstep = 0.001\nduration = 1\n" IO LOG, "model.fmu must be a string");
   expect_err("[model]\nfmu = \"a.fmu\"\nstep = \"x\"\nduration = 1\n" IO LOG,
              "model.step must be a number");
-  expect_err("[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 1\nparams = { k = \"x\" }\n" IO LOG,
-             "must be a number");
+  expect_err(
+      "[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 1\nparams = { k = \"x\" }\n" IO LOG,
+      "must be a number");
   expect_err(MODEL "[rt]\nwait = \"fast\"\n" IO LOG, "rt.wait");
   expect_err(MODEL "[rt]\nmax_overruns = -1\n" IO LOG, "rt.max_overruns must be between");
   expect_err(MODEL "[rt]\npriority = 100\n" IO LOG, "rt.priority must be between");
@@ -104,7 +112,8 @@ static void test_bad_values(void) {
   expect_err(MODEL "[io]\nbackend = \"null\"\ninputs = [1]\n" LOG, "only strings");
 }
 
-static void test_too_many_channels(void) {
+static void test_too_many_channels(void)
+{
   char text[2048] = MODEL "[io]\nbackend = \"null\"\ninputs = [";
   for (int i = 0; i < 17; i++) {
     char one[16];
@@ -115,7 +124,8 @@ static void test_too_many_channels(void) {
   expect_err(text, "more than 16");
 }
 
-static void test_stimulus_errors(void) {
+static void test_stimulus_errors(void)
+{
   expect_err(MODEL IO "stimulus = [{ input = \"nope\", kind = \"constant\", value = 1 }]\n" LOG,
              "not listed in io.inputs");
   expect_err(MODEL IO "stimulus = [{ input = \"u\", kind = \"ramp\" }]\n" LOG, "is not constant");
@@ -136,7 +146,8 @@ static void test_stimulus_errors(void) {
   expect_err(MODEL IO "stimulus = 3\n" LOG, "array of tables");
 }
 
-static void test_unknown_keys_and_bad_toml(void) {
+static void test_unknown_keys_and_bad_toml(void)
+{
   expect_err("bogus = 1\n" MODEL IO LOG, "unknown key 'bogus' in the top level");
   expect_err("[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 1\nfoo = 1\n" IO LOG,
              "unknown key 'foo' in [model]");
@@ -147,7 +158,8 @@ static void test_unknown_keys_and_bad_toml(void) {
   expect_err("", "missing [model]");
 }
 
-static void test_load(void) {
+static void test_load(void)
+{
   scenario_t sc;
   char err[256] = "";
   assert(config_load("/nonexistent/scenario.toml", &sc, err, sizeof err) == -1);
@@ -162,7 +174,8 @@ static void test_load(void) {
   remove("test_config_tmp.toml");
 }
 
-int main(void) {
+int main(void)
+{
   test_minimal_defaults();
   test_full();
   test_wait_modes();

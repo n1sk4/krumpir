@@ -6,7 +6,8 @@
 
 #include "writer.h"
 
-int main(void) {
+int main(void)
+{
   char path[] = "/tmp/krumpir_test_writer_XXXXXX";
   int fd = mkstemp(path);
   assert(fd >= 0);

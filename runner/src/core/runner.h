@@ -17,8 +17,8 @@ typedef struct {
   bool stopped_early;
   uint64_t steps;
   uint64_t overruns;
-  uint64_t dropped;  /* telemetry records lost because the log writer fell behind */
-  uint64_t rows;     /* rows written to the CSV */
+  uint64_t dropped; /* telemetry records lost because the log writer fell behind */
+  uint64_t rows;    /* rows written to the CSV */
   int64_t max_wake_ns;
   int64_t max_step_ns;
   double mean_step_ns;

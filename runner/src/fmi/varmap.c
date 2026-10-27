@@ -3,7 +3,8 @@
 #include <stdio.h>
 
 static int resolve(const modeldesc_t *md, const char *role, const char *name, causality_t want,
-                   uint32_t *vr, char *err, size_t errlen) {
+                   uint32_t *vr, char *err, size_t errlen)
+{
   const mvar_t *v = modeldesc_find(md, name);
   if (v == NULL) {
     snprintf(err, errlen, "%s '%s' is not a variable of the model", role, name);
@@ -14,8 +15,7 @@ static int resolve(const modeldesc_t *md, const char *role, const char *name, ca
     return -1;
   }
   if (v->causality != want) {
-    snprintf(err, errlen, "%s '%s' has causality '%s' in the model", role, name,
-             v->causality_str);
+    snprintf(err, errlen, "%s '%s' has causality '%s' in the model", role, name, v->causality_str);
     return -1;
   }
   *vr = v->vr;
@@ -23,7 +23,8 @@ static int resolve(const modeldesc_t *md, const char *role, const char *name, ca
 }
 
 int varmap_build(const modeldesc_t *md, const scenario_t *sc, varmap_t *vm, char *err,
-                 size_t errlen) {
+                 size_t errlen)
+{
   *vm = (varmap_t){0};
   for (size_t i = 0; i < sc->n_inputs; i++) {
     if (resolve(md, "input", sc->inputs[i], CAUS_INPUT, &vm->in_vr[i], err, errlen) < 0) {

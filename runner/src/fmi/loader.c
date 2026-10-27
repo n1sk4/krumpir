@@ -17,17 +17,17 @@
 #define MAX_TOTAL_BYTES (512ull << 20)
 #define MAX_XML_BYTES (16u << 20)
 
-static int rm_cb(const char *p, const struct stat *sb, int type, struct FTW *f) {
+static int rm_cb(const char *p, const struct stat *sb, int type, struct FTW *f)
+{
   (void)sb, (void)type, (void)f;
   return remove(p);
 }
 
-static void rmtree(const char *dir) {
-  nftw(dir, rm_cb, 16, FTW_DEPTH | FTW_PHYS);
-}
+static void rmtree(const char *dir) { nftw(dir, rm_cb, 16, FTW_DEPTH | FTW_PHYS); }
 
 /* mkdir -p for `path`. */
-static int mkdir_p(const char *path) {
+static int mkdir_p(const char *path)
+{
   char tmp[1024];
   size_t n = strlen(path);
   if (n == 0 || n >= sizeof tmp) {
@@ -47,7 +47,8 @@ static int mkdir_p(const char *path) {
 }
 
 /* Archive member names must be relative and must not climb out of the directory. */
-static bool safe_name(const char *name) {
+static bool safe_name(const char *name)
+{
   if (name[0] == '/' || strchr(name, '\\') != NULL) {
     return false;
   }
@@ -62,14 +63,16 @@ static bool safe_name(const char *name) {
   return true;
 }
 
-static bool wanted(const char *name) {
+static bool wanted(const char *name)
+{
   static const char bin_prefix[] = "binaries/" KRUMPIR_FMI_PLATFORM "/";
   return strcmp(name, "modelDescription.xml") == 0 ||
          strncmp(name, bin_prefix, sizeof bin_prefix - 1) == 0 ||
          strncmp(name, "resources/", 10) == 0;
 }
 
-static int extract(mz_zip_archive *zip, const char *dir, char *err, size_t errlen) {
+static int extract(mz_zip_archive *zip, const char *dir, char *err, size_t errlen)
+{
   mz_uint count = mz_zip_reader_get_num_files(zip);
   if (count > MAX_ENTRIES) {
     snprintf(err, errlen, "archive has more than %d entries", MAX_ENTRIES);
@@ -121,7 +124,8 @@ static int extract(mz_zip_archive *zip, const char *dir, char *err, size_t errle
   return 0;
 }
 
-static int read_file(const char *path, char **out, size_t *len) {
+static int read_file(const char *path, char **out, size_t *len)
+{
   FILE *fp = fopen(path, "rb");
   if (fp == NULL) {
     return -1;
@@ -141,7 +145,8 @@ static int read_file(const char *path, char **out, size_t *len) {
   return 0;
 }
 
-static bool safe_identifier(const char *s) {
+static bool safe_identifier(const char *s)
+{
   for (; *s != '\0'; s++) {
     bool ok = (*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || (*s >= '0' && *s <= '9') ||
               *s == '_' || *s == '-' || *s == '.';
@@ -152,7 +157,8 @@ static bool safe_identifier(const char *s) {
   return true;
 }
 
-int fmu_open(const char *path, fmu_pkg_t *pkg, char *err, size_t errlen) {
+int fmu_open(const char *path, fmu_pkg_t *pkg, char *err, size_t errlen)
+{
   *pkg = (fmu_pkg_t){0};
 
   mz_zip_archive zip;
@@ -217,7 +223,8 @@ done:
   return rc;
 }
 
-void fmu_close(fmu_pkg_t *pkg) {
+void fmu_close(fmu_pkg_t *pkg)
+{
   if (pkg->lib != NULL) {
     dlclose(pkg->lib);
   }
@@ -228,6 +235,7 @@ void fmu_close(fmu_pkg_t *pkg) {
   *pkg = (fmu_pkg_t){0};
 }
 
-void *fmu_sym(const fmu_pkg_t *pkg, const char *name) {
+void *fmu_sym(const fmu_pkg_t *pkg, const char *name)
+{
   return pkg->lib != NULL ? dlsym(pkg->lib, name) : NULL;
 }

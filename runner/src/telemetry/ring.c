@@ -2,7 +2,8 @@
 
 #include <stdlib.h>
 
-int ring_init(ring_t *r, size_t capacity) {
+int ring_init(ring_t *r, size_t capacity)
+{
   if (capacity < 2 || (capacity & (capacity - 1)) != 0) {
     return -1;
   }
@@ -17,12 +18,14 @@ int ring_init(ring_t *r, size_t capacity) {
   return 0;
 }
 
-void ring_free(ring_t *r) {
+void ring_free(ring_t *r)
+{
   free(r->buf);
   r->buf = NULL;
 }
 
-bool ring_push(ring_t *r, const telem_rec_t *rec) {
+bool ring_push(ring_t *r, const telem_rec_t *rec)
+{
   size_t head = atomic_load_explicit(&r->head, memory_order_relaxed);
   size_t tail = atomic_load_explicit(&r->tail, memory_order_acquire);
   if (head - tail > r->mask) {
@@ -34,13 +37,15 @@ bool ring_push(ring_t *r, const telem_rec_t *rec) {
   return true;
 }
 
-bool ring_full(const ring_t *r) {
+bool ring_full(const ring_t *r)
+{
   size_t head = atomic_load_explicit(&r->head, memory_order_relaxed);
   size_t tail = atomic_load_explicit(&r->tail, memory_order_acquire);
   return head - tail > r->mask;
 }
 
-bool ring_pop(ring_t *r, telem_rec_t *rec) {
+bool ring_pop(ring_t *r, telem_rec_t *rec)
+{
   size_t tail = atomic_load_explicit(&r->tail, memory_order_relaxed);
   size_t head = atomic_load_explicit(&r->head, memory_order_acquire);
   if (tail == head) {
@@ -51,6 +56,7 @@ bool ring_pop(ring_t *r, telem_rec_t *rec) {
   return true;
 }
 
-uint64_t ring_dropped(const ring_t *r) {
+uint64_t ring_dropped(const ring_t *r)
+{
   return atomic_load_explicit(&r->dropped, memory_order_relaxed);
 }

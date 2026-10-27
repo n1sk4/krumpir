@@ -22,7 +22,8 @@ typedef struct {
   fmu_t *fmu;
   io_t *io;
   ring_t *ring;
-  const volatile sig_atomic_t *stop; /* set from a signal handler or another thread to end the run */
+  const volatile sig_atomic_t
+      *stop; /* set from a signal handler or another thread to end the run */
 } loop_ctx_t;
 
 typedef enum {

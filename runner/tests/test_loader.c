@@ -24,7 +24,8 @@ typedef struct {
 static char base[256]; /* private TMPDIR for fmu_open */
 static char zip_path[300];
 
-static void make_zip(const entry_t *entries, size_t n) {
+static void make_zip(const entry_t *entries, size_t n)
+{
   mz_zip_archive z;
   memset(&z, 0, sizeof z);
   assert(mz_zip_writer_init_file(&z, zip_path, 0));
@@ -36,7 +37,8 @@ static void make_zip(const entry_t *entries, size_t n) {
   assert(mz_zip_writer_end(&z));
 }
 
-static int count_entries(const char *dir) {
+static int count_entries(const char *dir)
+{
   DIR *d = opendir(dir);
   assert(d != NULL);
   int n = 0;
@@ -50,7 +52,8 @@ static int count_entries(const char *dir) {
 }
 
 /* fmu_open must fail with a message containing `substr` and leave nothing behind. */
-static void expect_fail(const char *path, const char *substr) {
+static void expect_fail(const char *path, const char *substr)
+{
   fmu_pkg_t pkg;
   char err[512] = "";
   int rc = fmu_open(path, &pkg, err, sizeof err);
@@ -63,12 +66,14 @@ static void expect_fail(const char *path, const char *substr) {
   assert(count_entries(base) == 0); /* temp dir removed, nothing escaped into base */
 }
 
-static void expect_fail_zip(const entry_t *entries, size_t n, const char *substr) {
+static void expect_fail_zip(const entry_t *entries, size_t n, const char *substr)
+{
   make_zip(entries, n);
   expect_fail(zip_path, substr);
 }
 
-int main(void) {
+int main(void)
+{
   snprintf(base, sizeof base, "/tmp/krumpir_test_loader_XXXXXX");
   assert(mkdtemp(base) != NULL);
   assert(setenv("TMPDIR", base, 1) == 0);
@@ -84,17 +89,18 @@ int main(void) {
 
   /* Missing or wrong content. */
   expect_fail_zip((entry_t[]){{"other.txt", "x"}}, 1, "no readable modelDescription.xml");
-  expect_fail_zip((entry_t[]){{"modelDescription.xml", "<fmiModelDescription fmiVersion=\"2.0\"/>"}},
-                  1, "unsupported fmiVersion");
   expect_fail_zip(
-      (entry_t[]){{"modelDescription.xml", MD_PREFIX "<ModelExchange modelIdentifier=\"m\"/>" MD_SUFFIX}},
-      1, "no <CoSimulation>");
+      (entry_t[]){{"modelDescription.xml", "<fmiModelDescription fmiVersion=\"2.0\"/>"}}, 1,
+      "unsupported fmiVersion");
+  expect_fail_zip((entry_t[]){{"modelDescription.xml",
+                               MD_PREFIX "<ModelExchange modelIdentifier=\"m\"/>" MD_SUFFIX}},
+                  1, "no <CoSimulation>");
   expect_fail_zip((entry_t[]){{"modelDescription.xml", MD_COSIM("m")}}, 1,
                   "no binary for " KRUMPIR_FMI_PLATFORM);
   /* A binary for another platform does not count. */
-  expect_fail_zip((entry_t[]){{"modelDescription.xml", MD_COSIM("m")},
-                              {"binaries/other-platform/m.so", "x"}},
-                  2, "no binary for " KRUMPIR_FMI_PLATFORM);
+  expect_fail_zip(
+      (entry_t[]){{"modelDescription.xml", MD_COSIM("m")}, {"binaries/other-platform/m.so", "x"}},
+      2, "no binary for " KRUMPIR_FMI_PLATFORM);
   /* Binary present but not a loadable library. */
   expect_fail_zip((entry_t[]){{"modelDescription.xml", MD_COSIM("m")},
                               {"binaries/" KRUMPIR_FMI_PLATFORM "/m.so", "not an ELF file"}},

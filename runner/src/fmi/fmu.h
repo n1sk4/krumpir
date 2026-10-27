@@ -41,10 +41,12 @@ struct fmu {
 fmu_t *fmi3_create(const fmu_pkg_t *pkg, char *err, size_t errlen);
 
 static inline fmu_result_t fmu_init(fmu_t *m, double t0) { return m->api->init(m, t0); }
-static inline fmu_result_t fmu_set_real(fmu_t *m, const uint32_t *vr, size_t n, const double *v) {
+static inline fmu_result_t fmu_set_real(fmu_t *m, const uint32_t *vr, size_t n, const double *v)
+{
   return m->api->set_real(m, vr, n, v);
 }
-static inline fmu_result_t fmu_get_real(fmu_t *m, const uint32_t *vr, size_t n, double *v) {
+static inline fmu_result_t fmu_get_real(fmu_t *m, const uint32_t *vr, size_t n, double *v)
+{
   return m->api->get_real(m, vr, n, v);
 }
 static inline fmu_result_t fmu_step(fmu_t *m, double t, double h) { return m->api->step(m, t, h); }

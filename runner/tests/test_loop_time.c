@@ -3,7 +3,8 @@
 
 #include "loop.h"
 
-int main(void) {
+int main(void)
+{
   /* Step period in whole nanoseconds. */
   assert(loop_step_ns(0.001) == 1000000);
   assert(loop_step_ns(0.0005) == 500000);

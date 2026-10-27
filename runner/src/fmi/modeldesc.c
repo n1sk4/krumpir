@@ -20,7 +20,8 @@ typedef struct {
   bool failed;
 } pctx_t;
 
-static void set_fail(pctx_t *c, const char *fmt, ...) {
+static void set_fail(pctx_t *c, const char *fmt, ...)
+{
   if (c->failed) {
     return;
   }
@@ -32,7 +33,8 @@ static void set_fail(pctx_t *c, const char *fmt, ...) {
   XML_StopParser(c->parser, XML_FALSE);
 }
 
-static const char *attr(const XML_Char **atts, const char *key) {
+static const char *attr(const XML_Char **atts, const char *key)
+{
   for (; atts[0] != NULL; atts += 2) {
     if (strcmp(atts[0], key) == 0) {
       return atts[1];
@@ -42,7 +44,8 @@ static const char *attr(const XML_Char **atts, const char *key) {
 }
 
 /* Copies src into dst if it fits. Returns false otherwise. */
-static bool copy_str(char *dst, size_t cap, const char *src) {
+static bool copy_str(char *dst, size_t cap, const char *src)
+{
   size_t n = strlen(src);
   if (n == 0 || n >= cap) {
     return false;
@@ -51,7 +54,8 @@ static bool copy_str(char *dst, size_t cap, const char *src) {
   return true;
 }
 
-static causality_t map_causality(const char *s) {
+static causality_t map_causality(const char *s)
+{
   if (strcmp(s, "parameter") == 0) {
     return CAUS_PARAMETER;
   }
@@ -64,7 +68,8 @@ static causality_t map_causality(const char *s) {
   return CAUS_OTHER;
 }
 
-static void add_variable(pctx_t *c, const char *type, const XML_Char **atts) {
+static void add_variable(pctx_t *c, const char *type, const XML_Char **atts)
+{
   modeldesc_t *md = c->md;
   const char *name = attr(atts, "name");
   const char *vr_str = attr(atts, "valueReference");
@@ -105,7 +110,8 @@ static void add_variable(pctx_t *c, const char *type, const XML_Char **atts) {
   md->n_vars++;
 }
 
-static void XMLCALL on_start(void *ud, const XML_Char *name, const XML_Char **atts) {
+static void XMLCALL on_start(void *ud, const XML_Char *name, const XML_Char **atts)
+{
   pctx_t *c = ud;
   if (c->failed) {
     return;
@@ -120,8 +126,8 @@ static void XMLCALL on_start(void *ud, const XML_Char *name, const XML_Char **at
       set_fail(c, "fmiVersion is too long");
     }
     const char *token = attr(atts, "instantiationToken");
-    if (token != NULL && !copy_str(c->md->instantiation_token, sizeof c->md->instantiation_token,
-                                   token)) {
+    if (token != NULL &&
+        !copy_str(c->md->instantiation_token, sizeof c->md->instantiation_token, token)) {
       set_fail(c, "instantiationToken is empty or longer than %zu characters",
                sizeof c->md->instantiation_token - 1);
     }
@@ -142,7 +148,8 @@ static void XMLCALL on_start(void *ud, const XML_Char *name, const XML_Char **at
   c->depth++;
 }
 
-static void XMLCALL on_end(void *ud, const XML_Char *name) {
+static void XMLCALL on_end(void *ud, const XML_Char *name)
+{
   pctx_t *c = ud;
   (void)name;
   c->depth--;
@@ -155,13 +162,15 @@ static void XMLCALL on_end(void *ud, const XML_Char *name) {
 static void XMLCALL on_entity_decl(void *ud, const XML_Char *name, int is_param,
                                    const XML_Char *value, int value_len, const XML_Char *base,
                                    const XML_Char *system_id, const XML_Char *public_id,
-                                   const XML_Char *notation) {
+                                   const XML_Char *notation)
+{
   (void)is_param, (void)value, (void)value_len, (void)base, (void)system_id, (void)public_id,
       (void)notation;
   set_fail(ud, "entity declaration '%s' is not allowed in modelDescription.xml", name);
 }
 
-int modeldesc_parse(const char *xml, size_t len, modeldesc_t *md, char *err, size_t errlen) {
+int modeldesc_parse(const char *xml, size_t len, modeldesc_t *md, char *err, size_t errlen)
+{
   *md = (modeldesc_t){0};
   if (len > MAX_XML_BYTES) {
     snprintf(err, errlen, "modelDescription.xml is larger than %u bytes", MAX_XML_BYTES);
@@ -197,12 +206,14 @@ int modeldesc_parse(const char *xml, size_t len, modeldesc_t *md, char *err, siz
   return 0;
 }
 
-void modeldesc_free(modeldesc_t *md) {
+void modeldesc_free(modeldesc_t *md)
+{
   free(md->vars);
   *md = (modeldesc_t){0};
 }
 
-const mvar_t *modeldesc_find(const modeldesc_t *md, const char *name) {
+const mvar_t *modeldesc_find(const modeldesc_t *md, const char *name)
+{
   for (size_t i = 0; i < md->n_vars; i++) {
     if (strcmp(md->vars[i].name, name) == 0) {
       return &md->vars[i];

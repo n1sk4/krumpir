@@ -15,12 +15,14 @@
 
 #define SKIP 77
 
-static bool dir_exists(const char *p) {
+static bool dir_exists(const char *p)
+{
   struct stat st;
   return stat(p, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
-static void open_ok(const char *name, fmu_pkg_t *pkg) {
+static void open_ok(const char *name, fmu_pkg_t *pkg)
+{
   char path[512], err[512] = "";
   snprintf(path, sizeof path, "%s/%s.fmu", KRUMPIR_FMU_DIR, name);
   int rc = fmu_open(path, pkg, err, sizeof err);
@@ -37,14 +39,16 @@ static void open_ok(const char *name, fmu_pkg_t *pkg) {
   assert(fmu_sym(pkg, "no_such_symbol") == NULL);
 }
 
-static void expect_var(const fmu_pkg_t *pkg, const char *name, causality_t caus) {
+static void expect_var(const fmu_pkg_t *pkg, const char *name, causality_t caus)
+{
   const mvar_t *v = modeldesc_find(&pkg->md, name);
   assert(v != NULL);
   assert(mvar_is_float64(v));
   assert(v->causality == caus);
 }
 
-static void close_and_check(fmu_pkg_t *pkg) {
+static void close_and_check(fmu_pkg_t *pkg)
+{
   char dir[512];
   snprintf(dir, sizeof dir, "%s", pkg->dir);
   fmu_close(pkg);
@@ -53,7 +57,8 @@ static void close_and_check(fmu_pkg_t *pkg) {
   fmu_close(pkg); /* closing twice is harmless */
 }
 
-int main(void) {
+int main(void)
+{
   char probe[512];
   snprintf(probe, sizeof probe, "%s/Dahlquist.fmu", KRUMPIR_FMU_DIR);
   if (access(probe, R_OK) != 0) {
@@ -84,11 +89,10 @@ int main(void) {
   /* The scenario names map onto the real model description. */
   scenario_t sc;
   char err[256];
-  const char *text =
-      "[model]\nfmu = \"Feedthrough.fmu\"\nstep = 0.001\nduration = 1\n"
-      "params = { Float64_tunable_parameter = 3 }\n"
-      "[io]\nbackend = \"null\"\ninputs = [\"Float64_continuous_input\"]\n"
-      "outputs = [\"Float64_continuous_output\"]\n[log]\nfile = \"o.csv\"\n";
+  const char *text = "[model]\nfmu = \"Feedthrough.fmu\"\nstep = 0.001\nduration = 1\n"
+                     "params = { Float64_tunable_parameter = 3 }\n"
+                     "[io]\nbackend = \"null\"\ninputs = [\"Float64_continuous_input\"]\n"
+                     "outputs = [\"Float64_continuous_output\"]\n[log]\nfile = \"o.csv\"\n";
   assert(config_parse(text, &sc, err, sizeof err) == 0);
   varmap_t vm;
   assert(varmap_build(&pkg.md, &sc, &vm, err, sizeof err) == 0);

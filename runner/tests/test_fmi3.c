@@ -15,7 +15,8 @@
 #define SKIP 77
 #define H 0.001
 
-static void open_pkg(const char *name, fmu_pkg_t *pkg) {
+static void open_pkg(const char *name, fmu_pkg_t *pkg)
+{
   char path[512], err[512] = "";
   snprintf(path, sizeof path, "%s/%s.fmu", KRUMPIR_FMU_DIR, name);
   int rc = fmu_open(path, pkg, err, sizeof err);
@@ -25,7 +26,8 @@ static void open_pkg(const char *name, fmu_pkg_t *pkg) {
   assert(rc == 0);
 }
 
-static fmu_t *create(const fmu_pkg_t *pkg) {
+static fmu_t *create(const fmu_pkg_t *pkg)
+{
   char err[512] = "";
   fmu_t *m = fmi3_create(pkg, err, sizeof err);
   if (m == NULL) {
@@ -35,14 +37,16 @@ static fmu_t *create(const fmu_pkg_t *pkg) {
   return m;
 }
 
-static uint32_t vr_of(const fmu_pkg_t *pkg, const char *name) {
+static uint32_t vr_of(const fmu_pkg_t *pkg, const char *name)
+{
   const mvar_t *v = modeldesc_find(&pkg->md, name);
   assert(v != NULL);
   return v->vr;
 }
 
 /* Dahlquist: dx/dt = -k x, x(0) = 1. Runs n steps of H and returns x, checking it never grows. */
-static double run_dahlquist(const fmu_pkg_t *pkg, double k, int n) {
+static double run_dahlquist(const fmu_pkg_t *pkg, double k, int n)
+{
   uint32_t vr_x = vr_of(pkg, "x"), vr_k = vr_of(pkg, "k");
   fmu_t *m = create(pkg);
 
@@ -69,7 +73,8 @@ static double run_dahlquist(const fmu_pkg_t *pkg, double k, int n) {
   return x;
 }
 
-static void test_dahlquist(void) {
+static void test_dahlquist(void)
+{
   fmu_pkg_t pkg;
   open_pkg("Dahlquist", &pkg);
   double x1 = run_dahlquist(&pkg, 1.0, 1000); /* t = 1 s */
@@ -80,7 +85,8 @@ static void test_dahlquist(void) {
   fmu_close(&pkg);
 }
 
-static void test_feedthrough(void) {
+static void test_feedthrough(void)
+{
   fmu_pkg_t pkg;
   open_pkg("Feedthrough", &pkg);
   uint32_t vr_in = vr_of(&pkg, "Float64_continuous_input");
@@ -119,7 +125,8 @@ static void test_feedthrough(void) {
   fmu_close(&pkg);
 }
 
-static void test_step_before_init(void) {
+static void test_step_before_init(void)
+{
   fmu_pkg_t pkg;
   open_pkg("Feedthrough", &pkg);
   fmu_t *m = create(&pkg);
@@ -130,7 +137,8 @@ static void test_step_before_init(void) {
   fmu_close(&pkg);
 }
 
-static void test_vanderpol(void) {
+static void test_vanderpol(void)
+{
   fmu_pkg_t pkg;
   open_pkg("VanDerPol", &pkg);
   uint32_t vr[2] = {vr_of(&pkg, "x0"), vr_of(&pkg, "x1")};
@@ -148,7 +156,8 @@ static void test_vanderpol(void) {
   fmu_close(&pkg);
 }
 
-static void test_missing_token(void) {
+static void test_missing_token(void)
+{
   fmu_pkg_t pkg;
   open_pkg("Dahlquist", &pkg);
   pkg.md.instantiation_token[0] = '\0';
@@ -158,7 +167,8 @@ static void test_missing_token(void) {
   fmu_close(&pkg);
 }
 
-int main(void) {
+int main(void)
+{
   char probe[512];
   snprintf(probe, sizeof probe, "%s/Dahlquist.fmu", KRUMPIR_FMU_DIR);
   if (access(probe, R_OK) != 0) {

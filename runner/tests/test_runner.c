@@ -23,12 +23,14 @@
 static char dir[128];
 static char logp[300];
 
-static const char *log_path(const char *name) {
+static const char *log_path(const char *name)
+{
   snprintf(logp, sizeof logp, "%s/%s", dir, name);
   return logp;
 }
 
-static int run_text(const char *text, runner_result_t *res, char *err, size_t errlen) {
+static int run_text(const char *text, runner_result_t *res, char *err, size_t errlen)
+{
   scenario_t sc;
   char cerr[256];
   int rc = config_parse(text, &sc, cerr, sizeof cerr);
@@ -40,8 +42,9 @@ static int run_text(const char *text, runner_result_t *res, char *err, size_t er
 }
 
 /* Feedthrough with a step on its input at t = 0.5 s. */
-static void feed_text(char *buf, size_t cap, const char *step, const char *duration,
-                      const char *rt, const char *log) {
+static void feed_text(char *buf, size_t cap, const char *step, const char *duration, const char *rt,
+                      const char *log)
+{
   snprintf(buf, cap,
            "[model]\nfmu = \"%s/Feedthrough.fmu\"\nstep = %s\nduration = %s\n[rt]\n%s\n"
            "[io]\nbackend = \"null\"\ninputs = [\"Float64_continuous_input\"]\n"
@@ -51,7 +54,8 @@ static void feed_text(char *buf, size_t cap, const char *step, const char *durat
            KRUMPIR_FMU_DIR, step, duration, rt, log);
 }
 
-static void dahl_text(char *buf, size_t cap, const char *k, const char *log) {
+static void dahl_text(char *buf, size_t cap, const char *k, const char *log)
+{
   snprintf(buf, cap,
            "[model]\nfmu = \"%s/Dahlquist.fmu\"\nstep = 0.001\nduration = 2\n"
            "params = { k = %s }\n[rt]\nwait = \"none\"\n"
@@ -61,7 +65,8 @@ static void dahl_text(char *buf, size_t cap, const char *k, const char *log) {
 
 /* Reads a log CSV into numbers. Returns the row count and sets *ncols. */
 static double rows[MAXROWS][MAXC];
-static size_t read_csv(const char *path, size_t *ncols) {
+static size_t read_csv(const char *path, size_t *ncols)
+{
   FILE *fp = fopen(path, "r");
   assert(fp != NULL);
   char line[512];
@@ -87,7 +92,8 @@ static size_t read_csv(const char *path, size_t *ncols) {
   return n;
 }
 
-static void test_unpaced_feedthrough(void) {
+static void test_unpaced_feedthrough(void)
+{
   char text[2048], err[256] = "";
   runner_result_t res;
   feed_text(text, sizeof text, "0.001", "1", "wait = \"none\"", log_path("feed.csv"));
@@ -105,7 +111,7 @@ static void test_unpaced_feedthrough(void) {
   assert(n == 1000 && nc == 7); /* n,t,in,out,wake_ns,step_ns,flags */
   for (size_t i = 0; i < n; i++) {
     assert(rows[i][0] == (double)i);
-    assert(rows[i][1] == (double)(i + 1) * 0.001); /* t is the time after the step */
+    assert(rows[i][1] == (double)(i + 1) * 0.001);       /* t is the time after the step */
     double expect = (double)i * 0.001 < 0.5 ? 0.0 : 2.5; /* input applied at the start of step i */
     assert(rows[i][2] == expect);
     assert(rows[i][3] == expect); /* the output follows the input */
@@ -116,7 +122,8 @@ static void test_unpaced_feedthrough(void) {
   remove(logp);
 }
 
-static void test_dahlquist_deterministic_and_parametrized(void) {
+static void test_dahlquist_deterministic_and_parametrized(void)
+{
   char text[2048], err[256] = "";
   runner_result_t res;
 
@@ -148,7 +155,8 @@ static void test_dahlquist_deterministic_and_parametrized(void) {
   remove(logp);
 }
 
-static void test_paced(const char *mode, const char *duration, size_t steps, int64_t min_ns) {
+static void test_paced(const char *mode, const char *duration, size_t steps, int64_t min_ns)
+{
   char text[2048], rt[128], err[256] = "";
   runner_result_t res;
   snprintf(rt, sizeof rt, "wait = \"%s\"\nmax_overruns = 1000", mode);
@@ -178,7 +186,8 @@ static void test_paced(const char *mode, const char *duration, size_t steps, int
   remove(logp);
 }
 
-static void test_overrun_faults(void) {
+static void test_overrun_faults(void)
+{
   /* A 100 ns step cannot be met: the first late step is an overrun and max_overruns is 0. */
   char text[2048], err[256] = "";
   runner_result_t res;
@@ -192,7 +201,8 @@ static void test_overrun_faults(void) {
   remove(logp);
 }
 
-static void *stopper(void *arg) {
+static void *stopper(void *arg)
+{
   (void)arg;
   struct timespec ts = {0, 100000000};
   nanosleep(&ts, NULL);
@@ -200,7 +210,8 @@ static void *stopper(void *arg) {
   return NULL;
 }
 
-static void test_stop_request(void) {
+static void test_stop_request(void)
+{
   char text[2048], err[256] = "";
   runner_result_t res;
   feed_text(text, sizeof text, "0.001", "5", "wait = \"sleep\"\nmax_overruns = 1000000",
@@ -216,7 +227,8 @@ static void test_stop_request(void) {
   remove(logp);
 }
 
-static void expect_setup_error(const char *text, const char *substr) {
+static void expect_setup_error(const char *text, const char *substr)
+{
   runner_result_t res;
   char err[256] = "";
   int rc = run_text(text, &res, err, sizeof err);
@@ -228,7 +240,8 @@ static void expect_setup_error(const char *text, const char *substr) {
   assert(res.state == LC_FAULT && res.steps == 0);
 }
 
-static void test_setup_errors(void) {
+static void test_setup_errors(void)
+{
   char text[2048];
 
   snprintf(text, sizeof text,
@@ -256,7 +269,8 @@ static void test_setup_errors(void) {
   expect_setup_error(text, "cannot create log file");
 }
 
-int main(void) {
+int main(void)
+{
   char probe[512];
   snprintf(probe, sizeof probe, "%s/Feedthrough.fmu", KRUMPIR_FMU_DIR);
   if (access(probe, R_OK) != 0) {

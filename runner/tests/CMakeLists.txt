@@ -52,6 +52,22 @@ target_compile_definitions(test_runner PRIVATE KRUMPIR_FMU_DIR="${PROJECT_SOURCE
 add_test(NAME runner COMMAND test_runner)
 set_tests_properties(runner PROPERTIES SKIP_RETURN_CODE 77)
 
+# FMPy reference comparison (tools/compare_fmpy.py): runs each example scenario and checks the log
+# against FMPy. Needs the Python venv from tools/setup_wsl.sh; reports SKIPPED if the FMUs are
+# missing.
+set(KRUMPIR_PYTHON "$ENV{HOME}/.venvs/krumpir/bin/python" CACHE FILEPATH "Python with fmpy")
+if(EXISTS "${KRUMPIR_PYTHON}")
+  foreach(name feedthrough dahlquist vanderpol)
+    add_test(NAME fmpy_${name}
+      COMMAND ${KRUMPIR_PYTHON} ${PROJECT_SOURCE_DIR}/tools/compare_fmpy.py scenarios/${name}.toml
+              --run $<TARGET_FILE:krumpir>
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+    set_tests_properties(fmpy_${name} PROPERTIES SKIP_RETURN_CODE 77)
+  endforeach()
+else()
+  message(STATUS "FMPy comparison tests not added: ${KRUMPIR_PYTHON} not found (tools/setup_wsl.sh)")
+endif()
+
 add_executable(test_writer test_writer.c)
 target_link_libraries(test_writer PRIVATE krumpir_core)
 add_test(NAME writer COMMAND test_writer)

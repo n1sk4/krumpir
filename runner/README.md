@@ -11,6 +11,46 @@ bash runner/tools/setup_wsl.sh     # build tools, Python venv with FMPy (in ~/.v
 bash runner/tools/fetch_fmus.sh    # Reference FMUs, see fmus/README.md
 ```
 
+## Build and test
+
+```sh
+cmake -S runner -B ~/build/krumpir -G Ninja
+cmake --build ~/build/krumpir
+ctest --test-dir ~/build/krumpir --output-on-failure
+```
+
+Add `-DKRUMPIR_SANITIZE=ON` for an AddressSanitizer/UndefinedBehaviorSanitizer build. Tests that
+need the Reference FMUs report SKIPPED until `tools/fetch_fmus.sh` has been run. The `fmpy_*` tests
+need the Python venv from `tools/setup_wsl.sh`.
+
+## Run
+
+```sh
+cd runner
+~/build/krumpir/krumpir info fmus/Dahlquist.fmu       # model description and variables
+~/build/krumpir/krumpir run scenarios/dahlquist.toml  # run a scenario, write runs/dahlquist.csv
+```
+
+Paths in a scenario are relative to the directory `krumpir` is started from. Ctrl-C stops a run
+cleanly after the current step. Exit status: 0 ok, 1 setup error, 2 fault during the run.
+
+### Log columns
+
+`n,t,<inputs>,<outputs>,wake_ns,step_ns,flags`. Row `n` is one step: `t = (n+1)*step` is the time
+at the end of the step, the inputs are the values applied at its start (`n*step`), and the outputs
+are read after it. `wake_ns` is how late the tick started (0 when `wait = "none"`), `step_ns` is the
+time spent in the FMU's step, and `flags` bit 0 marks an overrun.
+
+## Compare with FMPy
+
+```sh
+~/.venvs/krumpir/bin/python tools/compare_fmpy.py scenarios/dahlquist.toml --run ~/build/krumpir/krumpir
+```
+
+Runs the scenario, simulates the same FMU, parameters and inputs with FMPy, and compares every
+logged output (default tolerance 1e-9, `--tol` to change it, `--plot out.png` for an overlay).
+Exit status: 0 pass, 1 mismatch, 2 error, 77 FMU not installed.
+
 ## Signals in the first scenarios
 
 | FMU | Inputs | Outputs | Parameters |

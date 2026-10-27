@@ -62,16 +62,20 @@ typedef struct io_backend {
 ```
 
 ```c
-/* fmi/fmu.h: hides the FMI version */
+/* fmi/fmu.h: hides the FMI version. The instance is made by fmi3_create(). */
 typedef struct fmu_api {
-  int (*instantiate)(fmu_t *m);
-  int (*init)(fmu_t *m, double t0);
-  int (*set_real)(fmu_t *m, const uint32_t *vr, size_t n, const double *v);
-  int (*step)(fmu_t *m, double t, double h);
-  int (*get_real)(fmu_t *m, const uint32_t *vr, size_t n, double *v);
-  void (*terminate)(fmu_t *m);
+  fmu_result_t (*init)(fmu_t *m, double t0);
+  fmu_result_t (*set_real)(fmu_t *m, const uint32_t *vr, size_t n, const double *v);
+  fmu_result_t (*get_real)(fmu_t *m, const uint32_t *vr, size_t n, double *v);
+  fmu_result_t (*step)(fmu_t *m, double t, double h);
+  const char *(*last_message)(const fmu_t *m);
+  void (*destroy)(fmu_t *m); /* terminate if needed, free the instance */
 } fmu_api_t;
 ```
+
+`fmu_result_t` is a plain code (`FMU_OK`, `FMU_ERROR`, `FMU_FATAL`, `FMU_DISCARD`, `FMU_EVENT`,
+`FMU_EARLY_RETURN`, `FMU_TERMINATE_REQUEST`), so the real-time loop never formats text. The FMU's
+last warning or error message is kept in a fixed buffer and read outside the loop.
 
 ## Configuration
 

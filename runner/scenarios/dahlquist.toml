@@ -1,0 +1,16 @@
+# First-order decay dx/dt = -k x, x(0) = 1.
+[model]
+fmu = "fmus/Dahlquist.fmu"
+step = 0.001
+duration = 10
+params = { k = 1.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+outputs = ["x"]
+
+[log]
+file = "runs/dahlquist.csv"

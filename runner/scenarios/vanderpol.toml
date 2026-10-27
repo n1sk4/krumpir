@@ -1,0 +1,16 @@
+# Van der Pol oscillator, x0(0) = 2, x1(0) = 0.
+[model]
+fmu = "fmus/VanDerPol.fmu"
+step = 0.001
+duration = 20
+params = { mu = 1.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+outputs = ["x0", "x1"]
+
+[log]
+file = "runs/vanderpol.csv"

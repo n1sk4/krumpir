@@ -25,7 +25,7 @@ All values are plain model units (the Reference FMUs are unitless).
 
 ```
 src/         app, core, fmi, io, telemetry
-third_party/ vendored FMI headers, miniz, tomlc99
+vendor/      vendored FMI headers, miniz, tomlc99
 fmus/        Reference FMUs (not in git, see fmus/README.md)
 scenarios/   scenario.toml files
 tests/       unit tests and golden CSVs

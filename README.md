@@ -14,3 +14,5 @@ Hardware-in-the-loop test bench for embedded controllers.
 ![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-A22846?logo=raspberrypi&logoColor=white)
 ![KiCad](https://img.shields.io/badge/KiCad-314CB0?logo=kicad&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+
+![The Krumpir bench](docs/img/bench-iso.svg)

@@ -11,10 +11,12 @@ uses only GPIO 23 (loop timing) and UART0. The other pins below are proposed and
 | `motor-controller.pdf` / `.svg` | rendered schematic, viewable without KiCad |
 | `motor-controller.kicad_sch` | schematic (open `motor-controller.kicad_pro` in KiCad 10) |
 | `sym-lib-table`, `fp-lib-table` | point the project at the Espressif symbol and footprint libraries |
-| `generate_schematic.py` | writes the files above from the part and net tables in the script |
+| `generate_schematic.py` | the part and net tables of this board; writes the files above through the shared writer in `../../../tools/kicad/kicadgen.py` |
 
 The schematic files are generated: change the tables in `generate_schematic.py` and rerun. If you
-edit the schematic in KiCad instead, do not regenerate over it.
+edit the schematic in KiCad instead, do not regenerate over it. The generator only writes
+`motor-controller.kicad_pro` when it does not exist, so the project settings KiCad stores there are
+never overwritten. `--out DIR` writes the generated files into another folder, for comparing.
 
 **Libraries:** the ESP32 DevKit uses the symbol and footprint `ESP32-DevKitC` (38-pin board) from
 the [Espressif KiCad libraries](https://github.com/espressif/kicad-libraries). Install them once

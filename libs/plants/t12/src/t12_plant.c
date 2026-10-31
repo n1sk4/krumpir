@@ -71,6 +71,7 @@ void t12_plant_init(t12_plant_t *s, const t12_params_t *p, double dt, double amb
 {
   t12_plant_set_params(s, p, dt);
   s->fault = T12_FAULT_NONE;
+  s->series_on = true;
   s->t_h = s->t_t = s->t_c = ambient;
   s->i_heater = 0.0;
   s->v_amp = clamp(p->amp_gain * p->amp_offset, 0.0, p->v_clamp);
@@ -79,7 +80,7 @@ void t12_plant_init(t12_plant_t *s, const t12_params_t *p, double dt, double amb
 void t12_plant_step(t12_plant_t *s, bool heater_on, double ambient)
 {
   const t12_params_t *p = &s->p;
-  bool on = heater_on || s->fault == T12_FAULT_STUCK_ON;
+  bool on = s->series_on && (heater_on || s->fault == T12_FAULT_STUCK_ON);
 
   double current = 0.0, power = 0.0;
   if (on && s->fault != T12_FAULT_OPEN) {

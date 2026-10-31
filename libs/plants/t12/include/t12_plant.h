@@ -58,6 +58,7 @@ typedef struct {
   t12_params_t p;
   t12_coeffs_t c;
   t12_fault_t fault;    /* set directly to inject a fault */
+  bool series_on;       /* second switch in series (Q3): off blocks the heater whatever Q1 does */
   double t_h, t_t, t_c; /* heater, tip, handle [degC]; the handle NTC reads t_c */
   double v_amp;         /* thermocouple amplifier output [V] */
   double i_heater;      /* heater current of the last step [A] */
@@ -71,7 +72,7 @@ void t12_plant_set_coeffs(t12_plant_t *s, const t12_coeffs_t *c); /* keeps state
 void t12_plant_init(t12_plant_t *s, const t12_params_t *p, double dt, double ambient);
 void t12_plant_set_params(t12_plant_t *s, const t12_params_t *p, double dt); /* keeps state */
 
-/* Advance one step with the heater switch commanded on or off. */
+/* Advance one step with the heater switch (Q1) commanded on or off. */
 void t12_plant_step(t12_plant_t *s, bool heater_on, double ambient);
 
 #endif

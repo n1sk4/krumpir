@@ -173,6 +173,17 @@ static void test_stuck_on_heats_when_commanded_off(void)
   TEST_ASSERT_TRUE(s.t_t > AMB + 20.0);
 }
 
+static void test_series_switch_blocks_a_stuck_switch(void)
+{
+  t12_plant_t s;
+  t12_plant_init(&s, &P, 1e-3, AMB);
+  s.fault = T12_FAULT_STUCK_ON;
+  s.series_on = false;
+  run(&s, 100, true);
+  NEAR(0.0, s.i_heater, 0.0);
+  NEAR(AMB, s.t_t, 1e-9);
+}
+
 static void test_set_params_keeps_state_and_load_cools_the_tip(void)
 {
   t12_plant_t s;
@@ -229,6 +240,7 @@ int main(void)
   RUN_TEST(test_open_tip);
   RUN_TEST(test_shorted_tip);
   RUN_TEST(test_stuck_on_heats_when_commanded_off);
+  RUN_TEST(test_series_switch_blocks_a_stuck_switch);
   RUN_TEST(test_set_params_keeps_state_and_load_cools_the_tip);
   RUN_TEST(test_matches_independent_reference);
   return UNITY_END();

@@ -1,6 +1,6 @@
 # Krumpir
 
-Hardware-in-the-loop test bench for embedded controllers.
+X-in-the-loop test bench for embedded controllers.
 
 [![esp32-motor-controller](https://github.com/n1sk4/krumpir/actions/workflows/esp32-motor-controller.yml/badge.svg)](https://github.com/n1sk4/krumpir/actions/workflows/esp32-motor-controller.yml)
 [![runner](https://github.com/n1sk4/krumpir/actions/workflows/runner.yml/badge.svg)](https://github.com/n1sk4/krumpir/actions/workflows/runner.yml)

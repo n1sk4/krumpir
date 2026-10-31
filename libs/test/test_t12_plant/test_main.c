@@ -1,6 +1,7 @@
 #include <math.h>
 #include <unity.h>
 
+#include "golden.h"
 #include "t12_plant.h"
 
 #define AMB 25.0
@@ -191,6 +192,28 @@ static void test_set_params_keeps_state_and_load_cools_the_tip(void)
   TEST_ASSERT_TRUE(s.t_t < free_air.t_t - 10.0);
 }
 
+static void test_matches_independent_reference(void)
+{
+  t12_plant_t s;
+  t12_plant_init(&s, &P, 1e-3, AMB);
+  int next = 0;
+  for (int k = 0; next < GOLDEN_N; k++) {
+    if (k == GOLDEN_LOAD_STEP) {
+      t12_params_t touching = P;
+      touching.g_load = GOLDEN_LOAD_G;
+      t12_plant_set_params(&s, &touching, 1e-3);
+    }
+    t12_plant_step(&s, k % 100 < 90, AMB);
+    if (k + 1 == GOLDEN[next].step) {
+      NEAR(GOLDEN[next].t_h, s.t_h, 1e-6);
+      NEAR(GOLDEN[next].t_t, s.t_t, 1e-6);
+      NEAR(GOLDEN[next].t_c, s.t_c, 1e-6);
+      NEAR(GOLDEN[next].v_amp, s.v_amp, 0.003); /* the plant holds the target for one step */
+      next++;
+    }
+  }
+}
+
 int main(void)
 {
   UNITY_BEGIN();
@@ -207,5 +230,6 @@ int main(void)
   RUN_TEST(test_shorted_tip);
   RUN_TEST(test_stuck_on_heats_when_commanded_off);
   RUN_TEST(test_set_params_keeps_state_and_load_cools_the_tip);
+  RUN_TEST(test_matches_independent_reference);
   return UNITY_END();
 }

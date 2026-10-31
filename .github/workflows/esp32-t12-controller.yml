@@ -1,0 +1,64 @@
+name: esp32-t12-controller
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: controllers/esp32-t12-controller
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: controllers/esp32-t12-controller/requirements.txt
+
+      - name: Install tools
+        run: pip install platformio -r requirements.txt
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ hashFiles('controllers/esp32-t12-controller/platformio.ini') }}
+
+      - name: Library tests (native)
+        working-directory: libs
+        run: pio test -e native
+
+      - name: Unit tests (native)
+        run: pio test -e native
+
+      - name: Build firmware
+        run: pio run -e esp32dev
+
+      - name: Scenario CSVs, plots and tables
+        run: |
+          mkdir -p .pio out
+          lib="lib/t12ctrl/src"
+          core="../../libs/ctrlcore/src"
+          plant="../../libs/plants/t12"
+          gcc -Ilib/t12ctrl/include -I../../libs/ctrlcore/include -I$plant/include \
+            tools/scenarios.c $lib/t12_scenario.c $lib/t12_loop.c $lib/t12_ctrl.c $lib/t12_cycle.c \
+            $lib/t12_convert.c $lib/t12_safety.c $lib/t12_io_sim.c $core/pid.c $core/step_metrics.c \
+            $plant/src/t12_plant.c -lm -o .pio/scenarios
+          for s in cold load ambient open short stuck runaway; do
+            .pio/scenarios $s > out/scenario_$s.csv
+            python tools/plot.py out/scenario_$s.csv out/scenario_$s.png
+          done
+          .pio/scenarios summary > out/scenarios.md
+          .pio/scenarios sweep > out/gain_sweep.md
+
+      - name: Collect firmware
+        run: cp .pio/build/esp32dev/firmware.bin .pio/build/esp32dev/firmware.elf out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: esp32-t12-controller
+          path: controllers/esp32-t12-controller/out/

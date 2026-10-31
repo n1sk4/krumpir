@@ -1,2 +1,4 @@
 /temp
 /docs/temp
+__pycache__/
+/tools/kicad/__pycache__

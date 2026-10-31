@@ -162,6 +162,6 @@ The measurements and the heater command go through the `t12_io_t` port in
 | `safe_state` | heater off |
 
 The firmware currently uses the simulated tip (`t12_io_sim`). Physical pins for the heater driver,
-the sensors and the heartbeat are not implemented yet. The intended circuit is described in
+the sensors and the heartbeat are not implemented yet. The intended circuit is the schematic in [../hardware/README.md](../hardware/README.md), described in
 [../../../docs/T12 Controller Design.md](../../../docs/T12%20Controller%20Design.md); using it means
 writing another `t12_io_t` backend, with the controller and the tests unchanged.

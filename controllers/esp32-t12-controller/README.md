@@ -5,7 +5,8 @@ its thermocouple front end and the protected 24 V power stage are described in
 [../../docs/T12 Controller Design.md](../../docs/T12%20Controller%20Design.md).
 
 **Status:** the controller runs against a simulated tip inside the firmware. No heater, thermocouple
-or power stage is connected yet; the pins for them are not driven.
+or power stage is connected yet; the pins for them are not driven. The intended
+circuit is the KiCad schematic in [hardware/](hardware/README.md).
 
 - The control logic lives in `lib/t12ctrl/` as portable C (no ESP-IDF or FreeRTOS includes), so it
   is unit tested on the PC with Unity and reused unchanged on the target. The shared building blocks

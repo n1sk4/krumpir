@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "loop_stats.h"
 #include "t12_plant.h"
 #include "t12_safety.h"
 
@@ -40,8 +39,5 @@ typedef struct {
   float temp, handle, amps, duty;
 } control_state_t;
 void control_task_get_state(control_state_t *s);
-
-/* Snapshot of period / exec-time stats (in CPU cycles) and missed ticks, then resets them. */
-void control_task_get_stats(loop_stats_t *period, loop_stats_t *exec, uint32_t *overruns);
 
 #endif

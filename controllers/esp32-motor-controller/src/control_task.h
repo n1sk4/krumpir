@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 #include "ctrl_params.h"
-#include "loop_stats.h"
 #include "safety.h"
 
 /* Starts the 1 kHz control task on core 1. */
@@ -22,9 +21,6 @@ void control_task_get_sim(float *load_nm, float *inertia_scale);
 /* A fault stops the controller and stays latched until cleared. */
 fault_t control_task_get_fault(void);
 void control_task_clear_fault(void);
-
-/* Snapshot of period / exec-time stats (in CPU cycles) and missed ticks, then resets them. */
-void control_task_get_stats(loop_stats_t *period, loop_stats_t *exec, uint32_t *overruns);
 
 /* Latest simulated speed [rpm] and duty (-1..+1). */
 void control_task_get_state(float *rpm, float *duty);

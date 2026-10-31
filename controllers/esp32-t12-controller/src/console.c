@@ -3,9 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "console_util.h"
 #include "control_task.h"
-#include "esp_console.h"
-#include "param_parse.h"
 #include "telemetry.h"
 
 #define GAIN_MAX 1000.0f
@@ -13,21 +12,7 @@
 #define LOAD_MAX_W_PER_K 1.0f
 #define AMBIENT_MIN_C (-20.0f)
 #define AMBIENT_MAX_C 60.0f
-#define NS(cycles) ((uint64_t)(cycles) * 1000 / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ)
-
-/* Parses argv[1] into *out within [lo, hi]; prints the reason and returns false on failure. */
-static bool arg_float(int argc, char **argv, float lo, float hi, float *out)
-{
-  if (argc != 2) {
-    printf("usage: %s <value>\n", argv[0]);
-    return false;
-  }
-  if (!parse_float(argv[1], lo, hi, out)) {
-    printf("error: %s is not a number in [%g, %g]\n", argv[1], lo, hi);
-    return false;
-  }
-  return true;
-}
+#define arg_float console_arg_float
 
 static int cmd_sp(int argc, char **argv)
 {
@@ -133,25 +118,12 @@ static int cmd_start(int argc, char **argv)
 }
 static int cmd_stop(int argc, char **argv) { return set_run(false); }
 
-static int cmd_log(int argc, char **argv)
-{
-  if (argc != 2 || (strcmp(argv[1], "on") && strcmp(argv[1], "off"))) {
-    printf("usage: log on|off\n");
-    return 1;
-  }
-  telemetry_set_log(!strcmp(argv[1], "on"));
-  return 0;
-}
-
 static int cmd_status(int argc, char **argv)
 {
   ctrl_params_t p;
   control_task_get_params(&p);
   control_state_t st;
   control_task_get_state(&st);
-  loop_stats_t period, exec;
-  uint32_t overruns;
-  control_task_get_stats(&period, &exec, &overruns);
 
   float load, ambient;
   t12_fault_t fault;
@@ -163,31 +135,15 @@ static int cmd_status(int argc, char **argv)
   printf("tip %.1f C  handle %.1f C  duty %.3f  heater %.2f A  log %s  telemetry dropped %u\n",
          st.temp, st.handle, st.duty, st.amps, telemetry_log() ? "on" : "off",
          (unsigned)telemetry_dropped());
-  if (period.count) {
-    printf("loop (since last status): period ns min/mean/max %llu/%llu/%llu  "
-           "exec ns min/mean/max %llu/%llu/%llu  overruns %u  n=%u\n",
-           NS(period.min), NS(loop_stats_mean(&period)), NS(period.max), NS(exec.min),
-           NS(loop_stats_mean(&exec)), NS(exec.max), (unsigned)overruns, (unsigned)period.count);
-  }
+  console_print_loop_stats();
   return 0;
 }
 
-static void reg(const char *name, const char *help, const char *hint, esp_console_cmd_func_t fn)
-{
-  esp_console_cmd_t cmd = {.command = name, .help = help, .hint = hint, .func = fn};
-  ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
-}
+#define reg console_register
 
 void console_start(void)
 {
-  esp_console_repl_t *repl = NULL;
-  esp_console_repl_config_t repl_cfg = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
-  repl_cfg.prompt = "t12> ";
-  repl_cfg.task_core_id = 0; /* keep the console off the control core */
-  esp_console_dev_uart_config_t uart_cfg = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
-  ESP_ERROR_CHECK(esp_console_new_repl_uart(&uart_cfg, &repl_cfg, &repl));
-
-  esp_console_register_help_command();
+  console_init("t12> ");
   reg("sp", "Set temperature setpoint [degC]", "<degC>", cmd_sp);
   reg("kp", "Set proportional gain", "<value>", cmd_gain);
   reg("ki", "Set integral gain", "<value>", cmd_gain);
@@ -200,7 +156,6 @@ void console_start(void)
   reg("start", "Start the controller", NULL, cmd_start);
   reg("stop", "Stop: duty 0, PID reset", NULL, cmd_stop);
   reg("status", "Show state and loop timing", NULL, cmd_status);
-  reg("log", "CSV telemetry on or off", "on|off", cmd_log);
 
-  ESP_ERROR_CHECK(esp_console_start_repl(repl));
+  console_run();
 }

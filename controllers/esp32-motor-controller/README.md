@@ -3,8 +3,9 @@
 A PID speed controller for a DC motor, running on an ESP32 (ESP32-WROOM-32 DevKit) in a
 deterministic 1 kHz control loop. It is the device under test for the Krumpir HIL bench.
 
-- The control logic lives in `lib/control/` as portable C (no ESP-IDF or FreeRTOS includes), so it
-  is unit tested on the PC with Unity and reused unchanged on the target.
+- The control logic lives in `lib/control/` and the shared building blocks (PID, ring buffer, loop
+  statistics, parameter parsing, step metrics) in `libs/ctrlcore/`, as portable C (no ESP-IDF or
+  FreeRTOS includes), so they are unit tested on the PC with Unity and reused unchanged on the target.
 - A small I/O abstraction (`io_t`) lets the same controller run against a simulated motor, a real
   motor, or Krumpir. The firmware currently ships with the simulated motor.
 - A serial console sets the setpoint and gains and starts/stops the controller. CSV telemetry
@@ -76,7 +77,7 @@ python tools/plot.py docs/capture.csv docs/step_response_target.png
 The same PID and motor model run on the PC (needs gcc and the venv above):
 
 ```
-gcc -Ilib/control/include tools/step_response.c lib/control/src/pid.c lib/control/src/plant_sim.c lib/control/src/io_sim.c -lm -o .pio/step_response.exe
+gcc -Ilib/control/include -I../../libs/ctrlcore/include tools/step_response.c ../../libs/ctrlcore/src/pid.c lib/control/src/plant_sim.c lib/control/src/io_sim.c -lm -o .pio/step_response.exe
 .pio/step_response.exe > docs/step_response.csv
 python tools/plot.py docs/step_response.csv docs/step_response.png
 ```

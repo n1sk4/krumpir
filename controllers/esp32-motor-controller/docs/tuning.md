@@ -55,7 +55,7 @@ Plots: `scenario_step.png`, `scenario_load.png`, `scenario_saturation.png`,
 `scenario_inertia.png`. To regenerate them (needs gcc and the Python venv):
 
 ```
-gcc -Ilib/control/include tools/scenarios.c lib/control/src/pid.c lib/control/src/plant_sim.c lib/control/src/io_sim.c lib/control/src/step_metrics.c lib/control/src/scenario.c -lm -o .pio/scenarios.exe
+gcc -Ilib/control/include -I../../libs/ctrlcore/include tools/scenarios.c ../../libs/ctrlcore/src/pid.c lib/control/src/plant_sim.c lib/control/src/io_sim.c ../../libs/ctrlcore/src/step_metrics.c lib/control/src/scenario.c -lm -o .pio/scenarios.exe
 .pio/scenarios.exe step > docs/scenario_step.csv
 python tools/plot.py docs/scenario_step.csv docs/scenario_step.png
 ```

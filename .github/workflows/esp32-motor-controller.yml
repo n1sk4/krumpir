@@ -46,8 +46,9 @@ jobs:
           mkdir -p .pio out
           lib="lib/control/src"
           core="../../libs/ctrlcore/src"
-          gcc -Ilib/control/include -I../../libs/ctrlcore/include tools/step_response.c $core/pid.c $lib/plant_sim.c $lib/io_sim.c -lm -o .pio/step_response
-          gcc -Ilib/control/include -I../../libs/ctrlcore/include tools/scenarios.c $core/pid.c $lib/plant_sim.c $lib/io_sim.c $core/step_metrics.c $lib/scenario.c -lm -o .pio/scenarios
+          plant="../../libs/plants/dcmotor/src"
+          gcc -Ilib/control/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/step_response.c $core/pid.c $plant/plant_sim.c $lib/io_sim.c -lm -o .pio/step_response
+          gcc -Ilib/control/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/scenarios.c $core/pid.c $plant/plant_sim.c $lib/io_sim.c $core/step_metrics.c $lib/scenario.c -lm -o .pio/scenarios
           .pio/step_response > out/step_response.csv
           python tools/plot.py out/step_response.csv out/step_response.png
           for s in step load saturation inertia; do

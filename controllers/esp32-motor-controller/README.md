@@ -77,7 +77,7 @@ python tools/plot.py docs/capture.csv docs/step_response_target.png
 The same PID and motor model run on the PC (needs gcc and the venv above):
 
 ```
-gcc -Ilib/control/include -I../../libs/ctrlcore/include tools/step_response.c ../../libs/ctrlcore/src/pid.c lib/control/src/plant_sim.c lib/control/src/io_sim.c -lm -o .pio/step_response.exe
+gcc -Ilib/control/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/step_response.c ../../libs/ctrlcore/src/pid.c ../../libs/plants/dcmotor/src/plant_sim.c lib/control/src/io_sim.c -lm -o .pio/step_response.exe
 .pio/step_response.exe > docs/step_response.csv
 python tools/plot.py docs/step_response.csv docs/step_response.png
 ```

@@ -44,8 +44,10 @@ bool t12_cycle_tick(t12_cycle_t *c, const t12_io_t *io, t12_meas_t *meas)
       meas->tc = (uint16_t)((c->acc + c->n / 2) / c->n);
       meas->ntc = io->ntc_read(io->ctx);
       meas->current = c->current;
+      meas->current_off = io->current_read(io->ctx); /* heater off for settle + samples ticks */
       meas->current_valid = c->heat >= 2;
       meas->heat_ticks = (uint16_t)c->heat;
+      meas->duty = (float)c->heat / (float)c->max_heat;
       done = true;
     }
   }

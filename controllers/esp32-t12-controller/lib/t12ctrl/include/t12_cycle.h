@@ -20,8 +20,10 @@ typedef struct {
   uint16_t tc;         /* thermocouple counts, averaged */
   uint16_t ntc;        /* handle NTC counts at the end of the window */
   uint16_t current;    /* heater current counts at the last heating tick */
+  uint16_t current_off; /* heater current counts at the end of the off window */
   bool current_valid;  /* false when the cycle heated for fewer than two ticks */
   uint16_t heat_ticks; /* ticks the heater was on in this cycle */
+  float duty;          /* heat_ticks as a fraction of the longest possible heating phase */
 } t12_meas_t;
 
 typedef struct {

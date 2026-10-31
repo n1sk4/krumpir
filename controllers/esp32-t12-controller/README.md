@@ -27,6 +27,9 @@ or power stage is connected yet; the pins for them are not driven.
 | Console | UART0 through the USB-serial bridge, 115200 baud, prompt `t12> ` |
 
 ## Console
+The full protocol, telemetry format and safety behavior for a test bench are in
+[docs/krumpir-interface.md](docs/krumpir-interface.md).
+
 | Command | Effect |
 |---|---|
 | `sp <degC>` | setpoint, 100 to 450 |

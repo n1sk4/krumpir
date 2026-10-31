@@ -147,7 +147,7 @@ static void control_task(void *arg)
     s_duty = duty;
 
     if (tick % TELEMETRY_DECIMATION == 0) {
-      telem_sample_t s = {tick, p.sp, rpm, duty};
+      telem_sample_t s = {tick, {p.sp, rpm, duty}};
       telemetry_push(&s);
     }
     if (tick % WATCHDOG_FEED_TICKS == 0)

@@ -18,8 +18,8 @@ static void drain_task(void *arg)
   for (;;) {
     while (ring_buf_pop(&s_ring, &s)) {
       if (s_log) {
-        printf("%u,%d,%d,%d\n", (unsigned)s.t_ms, rounded(s.sp), rounded(s.rpm),
-               rounded(s.duty * 1000.0f));
+        printf("%u,%d,%d,%d\n", (unsigned)s.t_ms, rounded(s.v[0]), rounded(s.v[1]),
+               rounded(s.v[2] * 1000.0f));
       }
     }
     vTaskDelay(pdMS_TO_TICKS(DRAIN_PERIOD_MS));

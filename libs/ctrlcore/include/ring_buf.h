@@ -5,10 +5,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-/* Telemetry sample; units as in the CSV: ms, rpm, rpm, duty -1..+1. */
+/* Telemetry sample: a timestamp and up to four values. What they mean is up to the controller. */
+#define TELEM_VALUES 4
 typedef struct {
   uint32_t t_ms;
-  float sp, rpm, duty;
+  float v[TELEM_VALUES];
 } telem_sample_t;
 
 #define RING_BUF_CAP 128 /* power of two */

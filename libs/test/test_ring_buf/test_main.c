@@ -9,7 +9,7 @@ void tearDown(void) {}
 
 static telem_sample_t sample(uint32_t t)
 {
-  telem_sample_t s = {t, 1.0f, 2.0f, 0.5f};
+  telem_sample_t s = {t, {1.0f, 2.0f, 0.5f}};
   return s;
 }
 

@@ -107,6 +107,8 @@ static void add_variable(pctx_t *c, const char *type, const XML_Char **atts)
   }
   nv->vr = (uint32_t)vr;
   nv->causality = map_causality(nv->causality_str);
+  const char *variability = attr(atts, "variability");
+  nv->tunable = variability != NULL && strcmp(variability, "tunable") == 0;
   md->n_vars++;
 }
 

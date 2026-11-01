@@ -38,7 +38,9 @@ add_library(krumpir_core STATIC
   src/core/lifecycle.c
   src/core/loop.c
   src/core/platform.c
+  src/core/cmdq.c
   src/core/runner.c
+  src/core/session.c
   src/fmi/fmi3.c
   src/fmi/loader.c
   src/fmi/modeldesc.c

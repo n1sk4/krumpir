@@ -10,6 +10,36 @@
 
 int64_t loop_step_ns(double step) { return (int64_t)llround(step * 1e9); }
 
+/* Handles the queued commands at the start of step n. Never allocates or blocks; a full reply
+ * queue drops the reply (the control thread then times out). */
+static void handle_commands(const loop_ctx_t *c, uint64_t n)
+{
+  cmd_t cmd;
+  while (cmdq_pop(c->cmd, &cmd)) {
+    cmd.status = 0;
+    cmd.step = n;
+    switch (cmd.kind) {
+    case CMD_WRITE_INPUT:
+      if (c->override_on != NULL && cmd.index >= 0 && (size_t)cmd.index < c->vm->n_in) {
+        c->override_value[cmd.index] = cmd.value;
+        c->override_on[cmd.index] = true;
+      } else {
+        cmd.status = FMU_ERROR;
+      }
+      break;
+    case CMD_WRITE_PARAM:
+      cmd.status = (int)fmu_set_real(c->fmu, &cmd.vr, 1, &cmd.value);
+      break;
+    case CMD_READ:
+      cmd.status = (int)fmu_get_real(c->fmu, &cmd.vr, 1, &cmd.value);
+      break;
+    }
+    if (c->reply != NULL) {
+      cmdq_push(c->reply, &cmd);
+    }
+  }
+}
+
 double loop_time(uint64_t n, double step) { return (double)n * step; }
 
 /* Waits for the absolute time `target` and returns the time it woke up. A stop request ends the
@@ -61,10 +91,21 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
       }
     }
 
+    if (c->cmd != NULL) {
+      handle_commands(c, n);
+    }
+
     const double t = loop_time(n, sc->step);
     if (c->io->api->read(c->io, t, in, vm->n_in) != 0) {
       st->end = LOOP_IO_FAIL;
       return;
+    }
+    if (c->override_on != NULL) {
+      for (size_t i = 0; i < vm->n_in; i++) {
+        if (c->override_on[i]) {
+          in[i] = c->override_value[i];
+        }
+      }
     }
     fmu_result_t r = FMU_OK;
     if (vm->n_in > 0) {

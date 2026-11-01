@@ -17,6 +17,7 @@ typedef struct {
   char causality_str[24];
   uint32_t vr;
   causality_t causality;
+  bool tunable; /* variability="tunable": a parameter that may change while the model runs */
 } mvar_t;
 
 typedef struct {

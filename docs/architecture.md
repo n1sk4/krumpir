@@ -37,6 +37,8 @@ FMU is freed cleanly.
 | `app/` | CLI parsing, loading `scenario.toml`, wiring modules together | Linux cores |
 | `core/rt_setup` | CPU affinity, `SCHED_FIFO`, `mlockall`, stack prefault | setup only |
 | `core/loop` | Tick timing, step sequence, overrun monitor | isolated core |
+| `core/session` | One run with explicit phases (load, start, stop, unload); the loop runs on its own thread; reads and writes while it runs | Linux cores |
+| `core/cmdq` | Lock-free command and reply queues: input overrides, tunable parameters and reads, handled at the start of a step | shared |
 | `fmi/loader` | Unzip, parse `modelDescription.xml`, `dlopen` | setup only |
 | `fmi/backend` | One interface over the FMI calls | isolated core |
 | `io/*` | One backend per I/O type behind a common interface | isolated core |

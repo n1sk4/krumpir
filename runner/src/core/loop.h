@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <stdint.h>
 
+#include "cmdq.h"
 #include "config.h"
 #include "fmu.h"
 #include "io.h"
@@ -24,6 +25,13 @@ typedef struct {
   ring_t *ring;
   const volatile sig_atomic_t
       *stop; /* set from a signal handler or another thread to end the run */
+  /* Optional (NULL for none): commands handled at the start of each step, and their replies */
+  cmdq_t *cmd;
+  cmdq_t *reply;
+  /* Optional (NULL for none): input slot i takes override_value[i] instead of the I/O backend's
+   * value while override_on[i] is set. CMD_WRITE_INPUT sets them while the loop runs. */
+  bool *override_on;
+  double *override_value;
 } loop_ctx_t;
 
 typedef enum {
@@ -46,8 +54,10 @@ typedef struct {
 } loop_stats_t;
 
 /* Runs the step loop of a scenario (the RUNNING state):
- *   wait for the tick, read inputs, set them on the FMU, fmu_step(), get outputs, write them to the
- *   io backend, push one telemetry record.
+ *   wait for the tick, handle the queued commands, read inputs, set them on the FMU, fmu_step(),
+ *   get outputs, write them to the io backend, push one telemetry record.
+ * A command that fails (the FMU refuses a value) is answered with its status; it does not end the
+ * run.
  * With wait = none the run is unpaced and lossless (it waits for the log writer instead of
  * dropping). With sleep or busy the ticks are absolute (start + n*step), a late step is counted as
  * an overrun, and the run ends with LOOP_TOO_MANY_OVERRUNS past max_overruns. The telemetry

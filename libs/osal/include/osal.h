@@ -7,6 +7,7 @@
  *
  *   osal.h          critical section, from the port's osal_port.h:
  *                     osal_crit_t      lock type,  OSAL_CRIT_INIT  its static initializer
+ *                     osal_crit_init(osal_crit_t *)  for a lock that is not static
  *                     osal_crit_enter(osal_crit_t *), osal_crit_exit(osal_crit_t *)
  *                   Short sections only (copying a settings struct); usable from the tick task
  *                   and from other tasks, on any core.

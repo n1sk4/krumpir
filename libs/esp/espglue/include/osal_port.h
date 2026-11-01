@@ -9,6 +9,7 @@
 typedef portMUX_TYPE osal_crit_t;
 #define OSAL_CRIT_INIT portMUX_INITIALIZER_UNLOCKED
 
+static inline void osal_crit_init(osal_crit_t *c) { portMUX_INITIALIZE(c); }
 static inline void osal_crit_enter(osal_crit_t *c) { portENTER_CRITICAL(c); }
 static inline void osal_crit_exit(osal_crit_t *c) { portEXIT_CRITICAL(c); }
 

@@ -7,7 +7,9 @@ FMUs.
 |---------|----------|
 | `ctrlcore/` | PID, ring buffer, loop statistics, step-response figures, parameter parsing |
 | `plants/dcmotor/`, `plants/t12/` | plant models; also packaged as FMUs (`plants/README.md`) |
-| `osal/` | OS abstraction contract, headers only: critical section, tick task, telemetry, console |
+| `osal/` | OS abstraction contract (critical section, tick task, telemetry, console) and its platform-independent parts |
+| `osal_host/` | host (PC) port of the OSAL contract: spinlock and a table-driven console, for host tests |
+| `rte/` | controller runtime: parameter table with limits, run/stop/clear and trip handling, hand-over to the tick, calibration page mapping, console commands |
 | `esp/` | ESP-IDF ports: `espglue` implements the OSAL contract, `xcpglue` adds XCP over Wi-Fi |
 | `vendor/` | third-party code (see below) |
 

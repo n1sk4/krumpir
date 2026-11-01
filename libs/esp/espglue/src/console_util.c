@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "esp_console.h"
-#include "param_parse.h"
 #include "sdkconfig.h"
 #include "telemetry.h"
 #include "tick_task.h"
@@ -12,19 +11,6 @@
 #define NS(cycles) ((uint64_t)(cycles) * 1000 / CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ)
 
 static esp_console_repl_t *s_repl;
-
-bool console_arg_float(int argc, char **argv, float lo, float hi, float *out)
-{
-  if (argc != 2) {
-    printf("usage: %s <value>\n", argv[0]);
-    return false;
-  }
-  if (!parse_float(argv[1], lo, hi, out)) {
-    printf("error: %s is not a number in [%g, %g]\n", argv[1], lo, hi);
-    return false;
-  }
-  return true;
-}
 
 static int cmd_log(int argc, char **argv)
 {

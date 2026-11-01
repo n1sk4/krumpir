@@ -1,0 +1,7 @@
+{
+  "name": "rte",
+  "version": "0.1.0",
+  "description": "Controller runtime: parameters, run control, calibration and console glue; platform independent (OSAL)",
+  "dependencies": [{ "name": "osal" }],
+  "build": { "srcDir": "src", "includeDir": "include" }
+}

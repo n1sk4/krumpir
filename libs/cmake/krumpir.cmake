@@ -1,7 +1,8 @@
 # Host builds of the portable libraries and their Unity tests, without PlatformIO.
 #
 #   include(<repo>/libs/cmake/krumpir.cmake)
-#   krumpir_add_libs()                         # targets ctrlcore, dcmotor, t12, unity
+#   krumpir_add_libs()                         # targets ctrlcore, dcmotor, t12, osal, osal_host
+#                                              # (alias osal_port), rte, unity
 #   krumpir_unity_tests(<dir> <libraries...>)  # each <dir>/test_*/test_main.c -> one CTest test
 #
 # Each library's own CMakeLists.txt also works as an ESP-IDF component, and PlatformIO keeps
@@ -9,7 +10,7 @@
 get_filename_component(KRUMPIR_LIBS_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 macro(krumpir_add_libs)
-  foreach(lib ctrlcore plants/dcmotor plants/t12)
+  foreach(lib ctrlcore plants/dcmotor plants/t12 osal osal_host rte)
     get_filename_component(_name ${lib} NAME)
     if(NOT TARGET ${_name})
       add_subdirectory("${KRUMPIR_LIBS_DIR}/${lib}" "${CMAKE_BINARY_DIR}/krumpir_libs/${_name}")

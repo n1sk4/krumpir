@@ -190,8 +190,13 @@ int modeldesc_parse(const char *xml, size_t len, modeldesc_t *md, char *err, siz
 
   enum XML_Status st = XML_Parse(c.parser, xml, (int)len, 1);
   if (!c.failed && st == XML_STATUS_ERROR) {
-    snprintf(err, errlen, "modelDescription.xml line %lu: %s",
-             (unsigned long)XML_GetCurrentLineNumber(c.parser),
+    /* expat >= 2.7.2 deprecates this in favour of the 64-bit variant, which older expat lacks;
+       the deprecated call works on both. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    unsigned long line = (unsigned long)XML_GetCurrentLineNumber(c.parser);
+#pragma GCC diagnostic pop
+    snprintf(err, errlen, "modelDescription.xml line %lu: %s", line,
              XML_ErrorString(XML_GetErrorCode(c.parser)));
     c.failed = true;
   }

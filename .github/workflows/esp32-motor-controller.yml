@@ -35,6 +35,15 @@ jobs:
       - name: Unit tests (native)
         run: pio test -e native
 
+      - name: Library and unit tests (CMake, without PlatformIO)
+        run: |
+          for p in ../../libs test; do
+            b="${{ runner.temp }}/ctest/$(basename "$(realpath "$p")")"
+            cmake -S "$p" -B "$b"
+            cmake --build "$b"
+            ctest --test-dir "$b" --output-on-failure
+          done
+
       - name: Build firmware
         run: pio run -e esp32dev
 

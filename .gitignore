@@ -6,3 +6,5 @@ __pycache__/
 .venv/
 /tools/kicad/__pycache__
 /*.py
+/runs
+/docs/img/temp

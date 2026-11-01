@@ -8,7 +8,7 @@ add_compile_options(-Wall -Wextra)
 
 include(../../../libs/cmake/krumpir.cmake)
 krumpir_add_libs()
-add_subdirectory(../lib/control control)
+add_subdirectory(../lib/motorctrl motorctrl)
 
 enable_testing()
-krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" control)
+krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" motorctrl)

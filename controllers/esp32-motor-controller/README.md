@@ -3,15 +3,15 @@
 A PID speed controller for a DC motor, running on an ESP32 (ESP32-WROOM-32 DevKit) in a
 deterministic 1 kHz control loop. It is the device under test for the Krumpir HIL bench.
 
-- The control logic lives in `lib/control/` and the shared building blocks (PID, ring buffer, loop
+- The control logic lives in `lib/motorctrl/` (`motor_loop`: the whole controller per tick) and the shared building blocks (PID, ring buffer, loop
   statistics, parameter parsing, step metrics) in `libs/ctrlcore/`, as portable C (no ESP-IDF or
   FreeRTOS includes), so they are unit tested on the PC with Unity and reused unchanged on the target. The ESP-IDF glue (tick task, telemetry, console
   helpers) is shared with the other controllers in `libs/esp/espglue`.
-- A small I/O abstraction (`io_t`) lets the same controller run against a simulated motor, a real
+- A small I/O abstraction (`motor_io_t`) lets the same controller run against a simulated motor, a real
   motor, or Krumpir. The firmware currently ships with the simulated motor.
 - A serial console sets the setpoint and gains and starts/stops the controller. CSV telemetry
   streams at 100 Hz.
-- Safety: latched overspeed and sensor-timeout faults, and a task watchdog that resets the board if
+- Safety: latched overspeed and sensor-timeout trips, and a task watchdog that resets the board if
   the control loop hangs.
 
 ## Initial setup (Windows)
@@ -58,8 +58,8 @@ The firmware boots stopped, with the tuned gains.
 | `start` / `stop` | run the controller / duty 0 and PID reset |
 | `load <Nm>` | simulation only: load torque on the shaft, within +-0.1 |
 | `inertia <scale>` | simulation only: rotor inertia scale, 0.1 to 10 (1 = nominal) |
-| `clear` | clear a latched fault (overspeed, sensor timeout); `start` is refused until then |
-| `status` | state, fault, gains, speed, duty, loop timing since the last `status` |
+| `clear` | clear a latched trip (overspeed, sensor timeout); `start` is refused until then |
+| `status` | state, trip, gains, speed, duty, loop timing since the last `status` |
 | `log on` / `log off` | CSV telemetry at 100 Hz: `t_ms,setpoint_rpm,speed_rpm,duty_permille` |
 
 Example: `sp 3000`, `start`, then `status` shows the speed settling at 3000 rpm.
@@ -73,12 +73,25 @@ python ../../tools/serial/capture.py --port COM4 --duration 3 --cmd "start" "sp 
 python tools/plot.py docs/capture.csv docs/step_response_target.png
 ```
 
+### Measure and calibrate over XCP
+
+The env `esp32dev-xcp` builds the same firmware with XCP on Ethernet over Wi-Fi: every variable of
+the control loop can be measured at 1 kHz, and setpoint and gains can be calibrated through the
+calibration page `motor_cal_page`. Setup, the `xcpclient` commands and the measured cost on the loop
+are in [../../libs/esp/xcpglue/README.md](../../libs/esp/xcpglue/README.md).
+
+```
+pio run -e esp32dev-xcp -t upload
+xcpclient --offline --udp --dest-addr <ip> --elf .pio/build/esp32dev-xcp/firmware.elf --a2l docs/motor.a2l --elf-unit-filter control_task --default-event tick --embed-aml
+xcpclient --udp --dest-addr <ip> --a2l docs/motor.a2l --mea s_loop.speed s_loop.duty --time 10 --csv docs/xcp.csv
+```
+
 ### Simulate on the PC
 
 The same PID and motor model run on the PC (needs gcc and the venv above):
 
 ```
-gcc -Ilib/control/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/step_response.c ../../libs/ctrlcore/src/pid.c ../../libs/plants/dcmotor/src/plant_sim.c lib/control/src/io_sim.c -lm -o .pio/step_response.exe
+gcc -Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/step_response.c lib/motorctrl/src/motor_io_sim.c lib/motorctrl/src/motor_ctrl.c lib/motorctrl/src/motor_safety.c lib/motorctrl/src/motor_loop.c ../../libs/ctrlcore/src/pid.c ../../libs/plants/dcmotor/src/plant_sim.c -lm -o .pio/step_response.exe
 .pio/step_response.exe > docs/step_response.csv
 python tools/plot.py docs/step_response.csv docs/step_response.png
 ```
@@ -109,7 +122,7 @@ Intended wiring (the firmware currently simulates the motor; details and pin tab
 
 ## Documentation
 
-- [docs/tuning.md](docs/tuning.md): motor model, gain selection, scenarios and targets, fault behavior.
+- [docs/tuning.md](docs/tuning.md): motor model, gain selection, scenarios and targets, trip behavior.
 - [docs/timing.md](docs/timing.md): measured 1 kHz loop timing on the board.
 - [docs/krumpir-interface.md](docs/krumpir-interface.md): what a test bench needs to drive and observe the controller.
 - [hardware/README.md](hardware/README.md): KiCad schematic and pin table for the motor driver, encoder and Krumpir connections.

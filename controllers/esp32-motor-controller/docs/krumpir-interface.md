@@ -13,7 +13,7 @@ How a test bench (Krumpir or any host with a serial port) drives and observes th
 | Control loop | 1 kHz, period 1 ms |
 | Motor | simulated inside the firmware (no physical motor pins yet) |
 
-The firmware boots stopped, setpoint 0, no fault, with the tuned gains. Every setting is lost on
+The firmware boots stopped, setpoint 0, no trip, with the tuned gains. Every setting is lost on
 reset; nothing is stored in flash.
 
 ## Serial protocol
@@ -26,9 +26,9 @@ Send one command per line, ending in `\n`. The device answers with lines ending 
 |---|---|---|---|
 | `sp` | rpm | -10000 to 10000 | speed setpoint |
 | `kp`, `ki`, `kd` | value | 0 to 1e6 | PID gains |
-| `start` | | | run the controller; refused while a fault is latched |
+| `start` | | | run the controller; refused while a trip is latched |
 | `stop` | | | duty 0 and PID reset |
-| `clear` | | | clear a latched fault |
+| `clear` | | | clear a latched trip |
 | `status` | | | print state (below); also restarts the loop-timing window |
 | `log` | `on` or `off` | | CSV telemetry on or off |
 | `load` | N*m | -0.1 to 0.1 | simulation only: load torque on the shaft |
@@ -38,7 +38,7 @@ Rejected input examples:
 
 ```
 error: safa is not a number in [-10000, 10000]
-error: fault (overspeed) is latched, use clear first
+error: trip (overspeed) is latched, use clear first
 usage: log on|off
 ```
 
@@ -46,7 +46,7 @@ usage: log on|off
 
 ```
 running  sp 3000 rpm  kp 0.00072 ki 0.03 kd 0
-fault none  sim load 0 N*m  inertia x1
+trip none  sim load 0 N*m  inertia x1
 speed 3000.0 rpm  duty 0.537  log off  telemetry dropped 0
 loop (since last status): period ns min/mean/max 995718/1000000/1004237  exec ns min/mean/max 3081/3100/3993  overruns 0  n=5000
 ```
@@ -93,36 +93,36 @@ cycle counter; an external capture of this pin is an independent check.
 | Condition | Result |
 |---|---|
 | `stop` | duty 0, PID reset |
-| overspeed: speed beyond 7000 rpm in either direction | fault `overspeed` latched, controller stops, duty 0 |
-| sensor timeout: 50 consecutive non-finite speed readings | fault `sensor timeout` latched, controller stops, duty 0 |
+| overspeed: speed beyond 7000 rpm in either direction | trip `overspeed` latched, controller stops, duty 0 |
+| sensor timeout: 50 consecutive non-finite speed readings | trip `sensor timeout` latched, controller stops, duty 0 |
 | control loop stops running for 1 s | task watchdog resets the board; it comes back stopped with defaults |
 
-A latched fault stays until `clear`; `start` is refused in the meantime. A single bad speed reading
+A latched trip stays until `clear`; `start` is refused in the meantime. A single bad speed reading
 is ignored and the PID holds its last output. The sensor timeout cannot occur with the simulated
 motor.
 
 ## Typical test sequence
 
-1. Open the port and send `log off`, `stop`, `clear`, then `status` and check `fault none`.
+1. Open the port and send `log off`, `stop`, `clear`, then `status` and check `trip none`.
 2. Send `sp 3000`, `start`, then wait about 0.3 s: speed should read 3000 rpm +-0.5 %.
 3. Disturbance: `load 0.001`; speed dips under 5 % and recovers within 0.3 s, duty rises.
-4. Fault: `load -0.06`; `status` shows `fault overspeed`, `stopped`, duty 0. `start` is refused.
+4. Trip: `load -0.06`; `status` shows `trip overspeed`, `stopped`, duty 0. `start` is refused.
 5. Recover: `load 0`, `clear`, `start`.
 6. Timing: `python ../../tools/serial/timing_check.py --port COM4 --setup "sp 3000" "start" --teardown "stop"`
    gives PASS or FAIL against the loop limits.
 
 ## Motor I/O
 
-The speed measurement and the duty output go through the `io_t` interface in
-`lib/control/include/io.h`:
+The speed measurement and the duty output go through the `motor_io_t` interface in
+`lib/motorctrl/include/motor_io.h`:
 
 | Function | Meaning |
 |---|---|
-| `sensor_read` | speed in rpm |
-| `actuator_write` | duty from -1 to +1 |
+| `speed_read` | speed in rpm |
+| `duty_write` | duty from -1 to +1 |
 | `safe_state` | outputs to a safe state (duty 0) |
 
-The firmware currently uses the simulated motor (`io_sim`). Physical pins for a real motor driver,
+The firmware currently uses the simulated motor (`motor_io_sim`). Physical pins for a real motor driver,
 a speed sensor or Krumpir-injected signals are not implemented yet. The intended wiring and the
 proposed pins are in the schematic ([../hardware/README.md](../hardware/README.md)); using them
-means writing another `io_t` backend, with the controller and the tests unchanged.
+means writing another `motor_io_t` backend, with the controller and the tests unchanged.

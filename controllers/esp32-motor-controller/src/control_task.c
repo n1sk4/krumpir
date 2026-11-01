@@ -1,11 +1,58 @@
 #include "control_task.h"
 
-#include "io_sim.h"
-#include "pid.h"
+#include "motor_io_sim.h"
+#include "motor_loop.h"
 #include "telemetry.h"
 #include "tick_task.h"
 
 #include "freertos/FreeRTOS.h"
+
+#ifdef KRUMPIR_XCP
+#include <math.h>
+#include <string.h>
+
+#include "xcplib.h"
+
+/* XCP calibration page: setpoint and gains, writable from an XCP tool while the loop runs. XCPlite
+ * needs the type and the variable to have the same name. */
+struct motor_cal_page {
+  float setpoint; /* [rpm] */
+  float kp, ki, kd;
+};
+const struct motor_cal_page motor_cal_page = {0.0f, 7.2e-4f, 0.03f, 0.0f};
+CalSegDecl(motor_cal_page);
+XCP_UNIT(motor_cal_page__setpoint, "rpm");
+XCP_LIMITS(motor_cal_page__setpoint, -SP_MAX_RPM, SP_MAX_RPM);
+XCP_LIMITS(motor_cal_page__kp, 0.0f, GAIN_MAX);
+XCP_LIMITS(motor_cal_page__ki, 0.0f, GAIN_MAX);
+XCP_LIMITS(motor_cal_page__kd, 0.0f, GAIN_MAX);
+
+static bool gain_ok(float g) { return isfinite(g) && g >= 0.0f && g <= GAIN_MAX; }
+
+/* A changed calibration page overrides the console settings once; values out of range are ignored.
+ * Returns true when it changed p. */
+static bool apply_cal_page(ctrl_params_t *p)
+{
+  static struct motor_cal_page last;
+  static bool seen;
+  const struct motor_cal_page *c = CalSegLock(motor_cal_page);
+  struct motor_cal_page now = *c;
+  CalSegUnlock(motor_cal_page);
+  bool changed = seen && memcmp(&now, &last, sizeof now) != 0;
+  last = now;
+  seen = true;
+  if (!changed)
+    return false;
+  if (isfinite(now.setpoint) && fabsf(now.setpoint) <= SP_MAX_RPM)
+    p->sp = now.setpoint;
+  if (gain_ok(now.kp) && gain_ok(now.ki) && gain_ok(now.kd)) {
+    p->kp = now.kp;
+    p->ki = now.ki;
+    p->kd = now.kd;
+  }
+  return true;
+}
+#endif
 
 #define TICK_HZ 1000
 #define TICK_DT_S (1.0f / TICK_HZ)
@@ -20,85 +67,99 @@ typedef struct {
 } sim_cfg_t;
 
 static portMUX_TYPE s_param_mux = portMUX_INITIALIZER_UNLOCKED; /* params and sim settings */
-static ctrl_params_t s_params = CTRL_PARAMS_DEFAULT;
+static const motor_ctrl_cfg_t s_ctrl_default = MOTOR_CTRL_CFG_DEFAULT;
+static ctrl_params_t s_params;
 static sim_cfg_t s_sim = {.inertia_scale = 1.0f};
-static volatile float s_rpm, s_duty;
-static volatile fault_t s_fault;
+static volatile float s_speed, s_duty;
+static volatile motor_trip_t s_trip;
 static volatile bool s_clear_request;
 
 /* State of the control task. */
-static io_sim_t s_sim_dev;
-static io_t s_io;
-static pid_ctrl_t s_pid;
-static safety_t s_safety;
+static motor_io_sim_t s_sim_dev;
+static motor_loop_t s_loop;
+static motor_io_t s_io;
 static ctrl_params_t s_applied;
 static uint32_t s_applied_coeffs_gen;
 
 static void control_init(void *arg)
 {
-  plant_params_t params = PLANT_PARAMS_N20;
-  io_sim_init(&s_sim_dev, &s_io, &params, TICK_DT_S);
-  s_applied = (ctrl_params_t)CTRL_PARAMS_DEFAULT;
-  pid_init(&s_pid, s_applied.kp, s_applied.ki, s_applied.kd, -1.0f, 1.0f, TICK_DT_S, 0.0f);
-  const safety_cfg_t safety_cfg = SAFETY_CFG_DEFAULT;
-  safety_init(&s_safety, &safety_cfg);
+  const plant_params_t plant_params = PLANT_PARAMS_N20;
+  const motor_safety_cfg_t safety_cfg = MOTOR_SAFETY_CFG_DEFAULT;
+  motor_io_sim_init(&s_sim_dev, &s_io, &plant_params, TICK_DT_S);
+  motor_loop_init(&s_loop, &s_ctrl_default, &safety_cfg, TICK_DT_S);
+  s_applied = (ctrl_params_t){0, s_ctrl_default.kp, s_ctrl_default.ki, s_ctrl_default.kd, false};
   s_applied_coeffs_gen = 0;
 }
 
 static void control_tick(void *arg, uint32_t tick)
 {
-  /* Take the settings for this cycle in one short critical section (no tearing). */
+  /* Take the settings for this tick in one short critical section (no tearing). */
   portENTER_CRITICAL(&s_param_mux);
   ctrl_params_t p = s_params;
   sim_cfg_t sim_cfg = s_sim;
+  bool clear = s_clear_request;
+  s_clear_request = false;
   portEXIT_CRITICAL(&s_param_mux);
+
+#ifdef KRUMPIR_XCP
+  DaqCreateEvent(tick); /* every 1 ms tick */
+  if (apply_cal_page(&p)) {
+    portENTER_CRITICAL(&s_param_mux);
+    s_params.sp = p.sp;
+    s_params.kp = p.kp;
+    s_params.ki = p.ki;
+    s_params.kd = p.kd;
+    portEXIT_CRITICAL(&s_param_mux);
+  }
+#endif
 
   if (sim_cfg.coeffs_gen != s_applied_coeffs_gen) {
     plant_sim_set_coeffs(&s_sim_dev.plant, &sim_cfg.coeffs);
     s_applied_coeffs_gen = sim_cfg.coeffs_gen;
   }
-  io_sim_set_load(&s_sim_dev, sim_cfg.load_nm);
+  motor_io_sim_set_load(&s_sim_dev, sim_cfg.load_nm);
 
-  if (s_clear_request) {
-    s_clear_request = false;
-    safety_clear(&s_safety);
+  if (clear)
+    motor_loop_clear(&s_loop);
+  if (p.kp != s_applied.kp || p.ki != s_applied.ki || p.kd != s_applied.kd)
+    motor_ctrl_set_gains(&s_loop.ctrl, p.kp, p.ki, p.kd);
+  motor_ctrl_set_setpoint(&s_loop.ctrl, p.sp);
+  bool start_refused = false;
+  if (p.run != s_applied.run) {
+    if (p.run)
+      start_refused = !motor_loop_start(&s_loop); /* refused while a trip is latched */
+    else
+      motor_loop_stop(&s_loop);
   }
-  float rpm = s_io.sensor_read(s_io.ctx);
-  fault_t fault = safety_update(&s_safety, rpm);
-  s_fault = fault;
-  if (fault != FAULT_NONE && p.run) {
-    p.run = false; /* a fault stops the controller until the user starts it again */
+  s_applied = p;
+
+  motor_loop_tick(&s_loop, &s_io);
+  motor_io_sim_step(&s_sim_dev);
+
+  /* A trip, or a refused start, drops the run flag again until the user starts the controller. */
+  if (p.run && (start_refused || !motor_safety_ok(&s_loop.safety))) {
     portENTER_CRITICAL(&s_param_mux);
     s_params.run = false;
     portEXIT_CRITICAL(&s_param_mux);
   }
-
-  if (p.kp != s_applied.kp || p.ki != s_applied.ki || p.kd != s_applied.kd) {
-    pid_set_gains(&s_pid, p.kp, p.ki, p.kd);
-  }
-  if (p.run != s_applied.run)
-    pid_reset(&s_pid); /* start and stop both begin from zero */
-  s_applied = p;
-
-  float duty = 0.0f;
-  if (p.run) {
-    duty = pid_update(&s_pid, p.sp, rpm);
-    s_io.actuator_write(s_io.ctx, duty);
-  } else {
-    s_io.safe_state(s_io.ctx); /* motor coasts down in the simulation */
-  }
-  io_sim_step(&s_sim_dev);
-  s_rpm = rpm;
-  s_duty = duty;
+  s_trip = s_loop.safety.latched;
+  s_speed = s_loop.speed;
+  s_duty = s_loop.duty;
 
   if (tick % TELEMETRY_DECIMATION == 0) {
-    telem_sample_t s = {tick, {p.sp, rpm, duty}};
+    telem_sample_t s = {tick, {s_loop.ctrl.setpoint, s_loop.speed, s_loop.duty}};
     telemetry_push(&s);
   }
+#ifdef KRUMPIR_XCP
+  /* Measurable from here: the file-scope state, such as s_loop (controller, safety, last speed and
+   * duty) and s_sim_dev.plant (simulated motor). */
+  DaqTriggerEvent(tick);
+#endif
 }
 
 void control_task_start(void)
 {
+  s_params = (ctrl_params_t){0, s_ctrl_default.kp, s_ctrl_default.ki, s_ctrl_default.kd, false};
   tick_cfg_t cfg = TICK_CFG_DEFAULT;
   cfg.hz = TICK_HZ;
   tick_task_start(&cfg, control_init, control_tick, NULL);
@@ -148,12 +209,12 @@ void control_task_get_sim(float *load_nm, float *inertia_scale)
   portEXIT_CRITICAL(&s_param_mux);
 }
 
-fault_t control_task_get_fault(void) { return s_fault; }
+motor_trip_t control_task_get_trip(void) { return s_trip; }
 
-void control_task_clear_fault(void) { s_clear_request = true; }
+void control_task_clear_trip(void) { s_clear_request = true; }
 
-void control_task_get_state(float *rpm, float *duty)
+void control_task_get_state(control_state_t *s)
 {
-  *rpm = s_rpm;
-  *duty = s_duty;
+  s->speed = s_speed;
+  s->duty = s_duty;
 }

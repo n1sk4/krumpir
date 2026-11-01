@@ -49,7 +49,7 @@ Build and run commands are in the main README ("Step response").
 
 ## scenarios.c
 
-Runs the closed-loop scenarios from `lib/control/src/scenario.c` on the PC. Usage and the build
+Runs the closed-loop scenarios from `lib/motorctrl/src/motor_scenario.c` on the PC. Usage and the build
 command are in `docs/tuning.md`:
 
 ```

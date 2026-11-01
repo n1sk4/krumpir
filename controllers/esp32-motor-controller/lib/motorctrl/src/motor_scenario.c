@@ -1,9 +1,9 @@
-#include "scenario.h"
+#include "motor_scenario.h"
 
 #include <stddef.h>
 
-#include "io_sim.h"
-#include "pid.h"
+#include "motor_io_sim.h"
+#include "motor_loop.h"
 #include "step_metrics.h"
 
 #define DT 1e-3f
@@ -13,10 +13,10 @@
 #define BAND_PCT 2.0f
 
 typedef struct {
-  io_sim_t sim;
-  io_t io;
-  pid_ctrl_t pid;
-  scn_sink_t sink;
+  motor_io_sim_t sim;
+  motor_io_t io;
+  motor_loop_t loop;
+  motor_scn_sink_t sink;
   void *sink_ctx;
   float t;
   float last_duty;
@@ -26,57 +26,60 @@ typedef struct {
 static void run_phase(run_t *r, float setpoint, float load, float seconds, step_metrics_t *m)
 {
   r->sim.load_torque = load;
+  motor_ctrl_set_setpoint(&r->loop.ctrl, setpoint);
   int steps = (int)(seconds / DT + 0.5f);
   for (int k = 0; k < steps; k++) {
-    float rpm = r->io.sensor_read(r->io.ctx);
-    float duty = pid_update(&r->pid, setpoint, rpm);
-    r->io.actuator_write(r->io.ctx, duty);
+    motor_loop_tick(&r->loop, &r->io);
+    float rpm = r->loop.speed;
     r->last_duty = r->sim.duty;
     if (m)
       step_metrics_add(m, rpm);
     if (r->sink) {
-      scn_sample_t s = {r->t, setpoint, rpm, r->sim.duty, load};
+      motor_scn_sample_t s = {r->t, setpoint, rpm, r->sim.duty, load};
       r->sink(r->sink_ctx, &s);
     }
-    io_sim_step(&r->sim);
+    motor_io_sim_step(&r->sim);
     r->t += DT;
   }
 }
 
-const char *scenario_name(scenario_t id)
+const char *motor_scenario_name(motor_scenario_t id)
 {
-  static const char *const names[SCN_COUNT] = {"step", "load", "saturation", "inertia"};
-  return id < SCN_COUNT ? names[id] : "";
+  static const char *const names[MOTOR_SCN_COUNT] = {"step", "load", "saturation", "inertia"};
+  return id < MOTOR_SCN_COUNT ? names[id] : "";
 }
 
-scn_result_t scenario_run(scenario_t id, const ctrl_params_t *gains, scn_sink_t sink, void *ctx)
+motor_scn_result_t motor_scenario_run(motor_scenario_t id, const motor_ctrl_cfg_t *ctrl,
+                                      motor_scn_sink_t sink, void *ctx)
 {
   plant_params_t plant = PLANT_PARAMS_N20;
+  const motor_safety_cfg_t safety = MOTOR_SAFETY_CFG_DEFAULT;
   run_t r = {.sink = sink, .sink_ctx = ctx};
-  io_sim_init(&r.sim, &r.io, &plant, DT);
-  pid_init(&r.pid, gains->kp, gains->ki, gains->kd, -1.0f, 1.0f, DT, 0.0f);
+  motor_io_sim_init(&r.sim, &r.io, &plant, DT);
+  motor_loop_init(&r.loop, ctrl, &safety, DT);
+  motor_loop_start(&r.loop);
 
-  scn_result_t out = {0};
+  motor_scn_result_t out = {0};
   step_metrics_t m;
   step_metrics_init(&m, TARGET_RPM, BAND_PCT, DT);
 
   switch (id) {
-  case SCN_HEAVY_INERTIA:
+  case MOTOR_SCN_HEAVY_INERTIA:
     plant.J *= 2.0f;
     plant_sim_set_params(&r.sim.plant, &plant, DT);
-    /* then the same step as SCN_STEP, on the heavier rotor */
+    /* then the same step as MOTOR_SCN_STEP, on the heavier rotor */
     run_phase(&r, 0.0f, 0.0f, 0.1f, NULL);
     run_phase(&r, TARGET_RPM, 0.0f, 1.0f, &m);
     break;
-  case SCN_STEP:
+  case MOTOR_SCN_STEP:
     run_phase(&r, 0.0f, 0.0f, 0.1f, NULL);
     run_phase(&r, TARGET_RPM, 0.0f, 1.0f, &m);
     break;
-  case SCN_LOAD_STEP:
+  case MOTOR_SCN_LOAD_STEP:
     run_phase(&r, TARGET_RPM, 0.0f, 0.8f, NULL);
     run_phase(&r, TARGET_RPM, LOAD_NM, 0.8f, &m);
     break;
-  case SCN_SATURATION:
+  case MOTOR_SCN_SATURATION:
     run_phase(&r, SATURATING_RPM, 0.0f, 0.6f, NULL);
     out.duty_saturated = r.last_duty;
     run_phase(&r, TARGET_RPM, 0.0f, 1.0f, &m);

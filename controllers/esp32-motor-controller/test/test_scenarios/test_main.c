@@ -1,14 +1,14 @@
 #include <unity.h>
 
-#include "scenario.h"
+#include "motor_scenario.h"
 
-static ctrl_params_t gains = CTRL_PARAMS_DEFAULT;
+static const motor_ctrl_cfg_t ctrl = MOTOR_CTRL_CFG_DEFAULT;
 
 void setUp(void) {}
 void tearDown(void) {}
 
 /* Targets: overshoot < 10 %, settling < 0.3 s, no steady-state error. */
-static void check_step_targets(scn_result_t r)
+static void check_step_targets(motor_scn_result_t r)
 {
   TEST_ASSERT_TRUE(r.overshoot_pct < 10.0f);
   TEST_ASSERT_TRUE(r.settling_s < 0.3f);
@@ -17,12 +17,12 @@ static void check_step_targets(scn_result_t r)
 
 static void test_setpoint_step(void)
 {
-  check_step_targets(scenario_run(SCN_STEP, &gains, NULL, NULL));
+  check_step_targets(motor_scenario_run(MOTOR_SCN_STEP, &ctrl, NULL, NULL));
 }
 
 static void test_load_torque_step(void)
 {
-  scn_result_t r = scenario_run(SCN_LOAD_STEP, &gains, NULL, NULL);
+  motor_scn_result_t r = motor_scenario_run(MOTOR_SCN_LOAD_STEP, &ctrl, NULL, NULL);
   TEST_ASSERT_TRUE(r.undershoot_pct < 5.0f); /* speed dip when the load arrives */
   TEST_ASSERT_TRUE(r.settling_s < 0.3f);
   TEST_ASSERT_FLOAT_WITHIN(1.5f, 0.0f, r.final_error_rpm); /* the integrator removes it */
@@ -30,7 +30,7 @@ static void test_load_torque_step(void)
 
 static void test_saturation_recovers_without_windup(void)
 {
-  scn_result_t r = scenario_run(SCN_SATURATION, &gains, NULL, NULL);
+  motor_scn_result_t r = motor_scenario_run(MOTOR_SCN_SATURATION, &ctrl, NULL, NULL);
   TEST_ASSERT_EQUAL_FLOAT(1.0f, r.duty_saturated); /* output pinned at the limit */
   TEST_ASSERT_TRUE(r.settling_s < 0.5f);
   TEST_ASSERT_TRUE(r.min_rpm > 0.6f * 3000.0f); /* windup would drag the speed far below */
@@ -39,7 +39,7 @@ static void test_saturation_recovers_without_windup(void)
 
 static void test_double_inertia(void)
 {
-  check_step_targets(scenario_run(SCN_HEAVY_INERTIA, &gains, NULL, NULL));
+  check_step_targets(motor_scenario_run(MOTOR_SCN_HEAVY_INERTIA, &ctrl, NULL, NULL));
 }
 
 int main(void)

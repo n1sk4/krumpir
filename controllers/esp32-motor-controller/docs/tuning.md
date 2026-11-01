@@ -39,7 +39,7 @@ also meets every target but would amplify sensor noise more on a real motor, so 
 compromise.
 
 ## Chosen gains
-`kp = 7.2e-4`, `ki = 0.03`, `kd = 0` (`CTRL_PARAMS_DEFAULT` in `lib/control/include/ctrl_params.h`).
+`kp = 7.2e-4`, `ki = 0.03`, `kd = 0` (`MOTOR_CTRL_CFG_DEFAULT` in `lib/motorctrl/include/motor_ctrl.h`).
 
 ## Scenarios and targets
 Each scenario is a native test (`test/test_scenarios`) using the default gains.
@@ -55,14 +55,14 @@ Plots: `scenario_step.png`, `scenario_load.png`, `scenario_saturation.png`,
 `scenario_inertia.png`. To regenerate them (needs gcc and the Python venv):
 
 ```
-gcc -Ilib/control/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/scenarios.c ../../libs/ctrlcore/src/pid.c ../../libs/plants/dcmotor/src/plant_sim.c lib/control/src/io_sim.c ../../libs/ctrlcore/src/step_metrics.c lib/control/src/scenario.c -lm -o .pio/scenarios.exe
+gcc -Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/scenarios.c lib/motorctrl/src/motor_io_sim.c lib/motorctrl/src/motor_ctrl.c lib/motorctrl/src/motor_safety.c lib/motorctrl/src/motor_loop.c ../../libs/ctrlcore/src/pid.c ../../libs/plants/dcmotor/src/plant_sim.c lib/motorctrl/src/motor_scenario.c ../../libs/ctrlcore/src/step_metrics.c -lm -o .pio/scenarios.exe
 .pio/scenarios.exe step > docs/scenario_step.csv
 python tools/plot.py docs/scenario_step.csv docs/scenario_step.png
 ```
 
 ## Safety behavior
 - **Stop:** `stop` forces zero duty and resets the PID; the simulated motor coasts down.
-- **Faults** stop the controller and stay latched until `clear`; `start` is refused while a fault
+- **Trips** stop the controller and stay latched until `clear`; `start` is refused while a trip
   is latched.
   - overspeed: |speed| above 7000 rpm (the no-load speed is about 5600 rpm).
   - sensor timeout: 50 consecutive non-finite speed readings (50 ms). A single bad reading is
@@ -75,7 +75,7 @@ python tools/plot.py docs/scenario_step.csv docs/scenario_step.png
 load 0.001          dip and recovery (use log on to capture)
 inertia 2           then sp 3000 still settles
 sp 10000            duty pins at 1000 permille; sp 3000 recovers
-load -0.06          overspeed fault: status shows it, duty is 0, start is refused
+load -0.06          overspeed trip: status shows it, duty is 0, start is refused
 clear               then start works again
 ```
 For the watchdog, build once with `PLATFORMIO_BUILD_FLAGS=-DCONTROL_HANG_AT_TICK=3000`. The loop

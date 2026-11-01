@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true # libs/vendor/XCPlite for the XCP build
 
       - uses: actions/setup-python@v5
         with:
@@ -47,6 +49,11 @@ jobs:
       - name: Build firmware
         run: pio run -e esp32dev
 
+      - name: Build firmware with XCP
+        run: |
+          cp ../../libs/esp/xcpglue/include/wlan.h.example ../../libs/esp/xcpglue/include/wlan.h
+          pio run -e esp32dev-xcp
+
       - name: Timing tool self-check
         run: |
           python ../../tools/serial/timing_check.py --selftest
@@ -55,11 +62,13 @@ jobs:
       - name: Simulation CSVs and plots
         run: |
           mkdir -p .pio out
-          lib="lib/control/src"
+          lib="lib/motorctrl/src"
           core="../../libs/ctrlcore/src"
           plant="../../libs/plants/dcmotor/src"
-          gcc -Ilib/control/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/step_response.c $core/pid.c $plant/plant_sim.c $lib/io_sim.c -lm -o .pio/step_response
-          gcc -Ilib/control/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/scenarios.c $core/pid.c $plant/plant_sim.c $lib/io_sim.c $core/step_metrics.c $lib/scenario.c -lm -o .pio/scenarios
+          inc="-Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include"
+          src="$lib/motor_io_sim.c $lib/motor_ctrl.c $lib/motor_safety.c $lib/motor_loop.c $core/pid.c $plant/plant_sim.c"
+          gcc $inc tools/step_response.c $src -lm -o .pio/step_response
+          gcc $inc tools/scenarios.c $src $lib/motor_scenario.c $core/step_metrics.c -lm -o .pio/scenarios
           .pio/step_response > out/step_response.csv
           python tools/plot.py out/step_response.csv out/step_response.png
           for s in step load saturation inertia; do

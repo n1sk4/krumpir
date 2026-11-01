@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true # libs/vendor/XCPlite for the XCP build
 
       - uses: actions/setup-python@v5
         with:
@@ -42,6 +44,11 @@ jobs:
 
       - name: Build firmware
         run: pio run -e esp32dev
+
+      - name: Build firmware with XCP
+        run: |
+          cp ../../libs/esp/xcpglue/include/wlan.h.example ../../libs/esp/xcpglue/include/wlan.h
+          pio run -e esp32dev-xcp
 
       - name: Scenario CSVs, plots and tables
         run: |

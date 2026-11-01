@@ -1,0 +1,2 @@
+# Added for the XCP builds: lwIP runs on core 0, away from the 1 kHz control loop on core 1.
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y

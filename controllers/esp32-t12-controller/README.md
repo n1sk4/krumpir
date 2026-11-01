@@ -96,6 +96,19 @@ python ../../tools/serial/capture.py --port COM4 --duration 10 --cmd "sp 350" "s
 python tools/plot.py docs/capture.csv docs/cold_start_target.png
 ```
 
+### Measure and calibrate over XCP
+
+The env `esp32dev-xcp` builds the same firmware with XCP on Ethernet over Wi-Fi: every variable of
+the control loop can be measured at 1 kHz, and setpoint and gains can be calibrated through the
+calibration page `t12_cal_page`. Setup, the `xcpclient` commands and the measured cost on the loop
+are in [../../libs/esp/xcpglue/README.md](../../libs/esp/xcpglue/README.md).
+
+```
+pio run -e esp32dev-xcp -t upload
+xcpclient --offline --udp --dest-addr <ip> --elf .pio/build/esp32dev-xcp/firmware.elf --a2l docs/t12.a2l --elf-unit-filter control_task --default-event tick --embed-aml
+xcpclient --udp --dest-addr <ip> --a2l docs/t12.a2l --mea s_loop.temp s_loop.duty s_loop.amps --time 10 --csv docs/xcp.csv
+```
+
 ### Simulate on the PC
 
 The same controller, tip model and safety supervisor run on the PC (needs gcc and the venv above):

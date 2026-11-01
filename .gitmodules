@@ -1,0 +1,4 @@
+[submodule "libs/vendor/XCPlite"]
+	path = libs/vendor/XCPlite
+	url = https://github.com/n1sk4/XCPlite
+	branch = krumpir

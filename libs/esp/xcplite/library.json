@@ -1,0 +1,24 @@
+{
+  "name": "xcplite",
+  "version": "2.3.2+krumpir",
+  "description": "Vector XCPlite (MIT), XCP on Ethernet (UDP) server for 32-bit FreeRTOS targets, built from the submodule libs/vendor/XCPlite",
+  "license": "MIT",
+  "frameworks": "espidf",
+  "platforms": "espressif32",
+  "build": {
+    "includeDir": "include",
+    "srcDir": "../../vendor/XCPlite/src",
+    "srcFilter": [
+      "-<*>",
+      "+<xcplite.c>",
+      "+<xcpappl.c>",
+      "+<xcpethserver.c>",
+      "+<xcpethtl.c>",
+      "+<queue32m.c>",
+      "+<cal.c>",
+      "+<platform.c>",
+      "+<sockets.c>"
+    ],
+    "flags": ["-Wno-format"]
+  }
+}

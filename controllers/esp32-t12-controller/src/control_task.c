@@ -9,6 +9,52 @@
 
 #include "freertos/FreeRTOS.h"
 
+#ifdef KRUMPIR_XCP
+#include <string.h>
+
+#include "xcplib.h"
+
+/* XCP calibration page: setpoint and gains, writable from an XCP tool while the loop runs. XCPlite
+ * needs the type and the variable to have the same name. */
+struct t12_cal_page {
+  float setpoint; /* [degC] */
+  float kp, ki, kd;
+};
+const struct t12_cal_page t12_cal_page = {350.0f, 0.05f, 0.05f, 0.0f};
+CalSegDecl(t12_cal_page);
+XCP_UNIT(t12_cal_page__setpoint, "degC");
+XCP_LIMITS(t12_cal_page__setpoint, 100.0f, 450.0f);
+XCP_LIMITS(t12_cal_page__kp, 0.0f, 1000.0f);
+XCP_LIMITS(t12_cal_page__ki, 0.0f, 1000.0f);
+XCP_LIMITS(t12_cal_page__kd, 0.0f, 1000.0f);
+
+static bool gain_ok(float g) { return isfinite(g) && g >= 0.0f && g <= 1000.0f; }
+
+/* A changed calibration page overrides the console settings once; values out of range are ignored.
+ * Returns true when it changed p. */
+static bool apply_cal_page(ctrl_params_t *p)
+{
+  static struct t12_cal_page last;
+  static bool seen;
+  const struct t12_cal_page *c = CalSegLock(t12_cal_page);
+  struct t12_cal_page now = *c;
+  CalSegUnlock(t12_cal_page);
+  bool changed = seen && memcmp(&now, &last, sizeof now) != 0;
+  last = now;
+  seen = true;
+  if (!changed)
+    return false;
+  if (now.setpoint >= SP_MIN_C && now.setpoint <= SP_MAX_C)
+    p->sp = now.setpoint;
+  if (gain_ok(now.kp) && gain_ok(now.ki) && gain_ok(now.kd)) {
+    p->kp = now.kp;
+    p->ki = now.ki;
+    p->kd = now.kd;
+  }
+  return true;
+}
+#endif
+
 #define TICK_HZ 1000
 #define TICK_DT_S (1.0f / TICK_HZ)
 #define DEFAULT_AMBIENT_C 25.0
@@ -58,6 +104,19 @@ static void control_tick(void *arg, uint32_t tick)
   s_clear_request = false;
   portEXIT_CRITICAL(&s_param_mux);
 
+#ifdef KRUMPIR_XCP
+  DaqCreateEvent(tick);  /* every 1 ms tick */
+  DaqCreateEvent(cycle); /* every completed heater cycle (about 10 Hz) */
+  if (apply_cal_page(&p)) {
+    portENTER_CRITICAL(&s_param_mux);
+    s_params.sp = p.sp;
+    s_params.kp = p.kp;
+    s_params.ki = p.ki;
+    s_params.kd = p.kd;
+    portEXIT_CRITICAL(&s_param_mux);
+  }
+#endif
+
   if (sim_cfg.coeffs_gen != s_applied_coeffs_gen) {
     t12_plant_set_coeffs(&s_sim_dev.plant, &sim_cfg.coeffs);
     s_applied_coeffs_gen = sim_cfg.coeffs_gen;
@@ -99,6 +158,13 @@ static void control_tick(void *arg, uint32_t tick)
     telem_sample_t s = {tick, {s_loop.ctrl.sp_active, s_loop.temp, s_loop.duty, s_loop.amps}};
     telemetry_push(&s);
   }
+#ifdef KRUMPIR_XCP
+  /* Measurable from here: the file-scope state, such as s_loop (controller, safety, last
+   * measurement) and s_sim_dev.plant (simulated tip). */
+  DaqTriggerEvent(tick);
+  if (fresh)
+    DaqTriggerEvent(cycle);
+#endif
 }
 
 void control_task_start(void)

@@ -1,0 +1,5 @@
+/* Wi-Fi network for the XCP build (env esp32dev-xcp). Copy to wlan.h, which git ignores. */
+#pragma once
+
+#define WIFI_SSID "your-ssid"
+#define WIFI_PASSWORD "your-password"

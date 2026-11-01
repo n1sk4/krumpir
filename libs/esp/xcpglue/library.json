@@ -1,0 +1,12 @@
+{
+  "name": "xcpglue",
+  "version": "0.1.0",
+  "description": "Wi-Fi and XCP on Ethernet start-up for the ESP-IDF controllers (on top of xcplite)",
+  "frameworks": "espidf",
+  "platforms": "espressif32",
+  "dependencies": [{ "name": "xcplite" }],
+  "build": {
+    "includeDir": "include",
+    "srcDir": "src"
+  }
+}

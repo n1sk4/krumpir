@@ -41,6 +41,16 @@ A refused request raises `KrumpirError` with the service's reason.
 cd tools/krumpir && python -m pytest
 ```
 
+| File | What it shows |
+|------|---------------|
+| `test_client.py` | the client itself, against the Reference FMU Feedthrough |
+| `test_dcmotor.py` | steady speed and current, step-response time constant, a load applied while the motor runs; expected values from the model's own parameters |
+| `test_t12.py` | energy balance while heating, the thermocouple reading after switch-off, the four fault modes, and a two-point thermostat run by the test over the service in real time, with a load disturbance |
+
+The `scenario` fixture builds a scenario for an FMU in `runner/fmus`: `wait="none"` runs as fast as
+possible (set signals and captures before `start`), `wait="sleep"` runs in real time for tests
+that act while the model runs.
+
 The fixtures start `krumpir serve` from `KRUMPIR_EXE` (default `~/build/krumpir/krumpir`) in
 `runner/`, or use a running service with `KRUMPIR_SERVICE=host:port`. The runner's CTest runs
 them as the `client` test when pytest is installed.

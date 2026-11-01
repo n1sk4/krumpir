@@ -4,7 +4,9 @@ By default the tests start `krumpir serve` on a free local port, in runner/ (whe
 KRUMPIR_EXE (default ~/build/krumpir/krumpir). With KRUMPIR_SERVICE=host:port they use a service
 that is already running instead (e.g. on the Pi, started in its runner/ directory).
 """
+import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -40,6 +42,28 @@ def service():
 def tb(service):
     with Testbench(*service) as tb:
         yield tb
+
+
+@pytest.fixture
+def scenario(request):
+    """Builds the TOML text of a scenario for an FMU in runner/fmus. wait="none" runs as fast as
+    possible (set signals before the start); "sleep" runs in real time (drive it while it runs)."""
+
+    def build(fmu, inputs, outputs, *, duration=None, wait="none", params=None):
+        if "KRUMPIR_SERVICE" not in os.environ and not (RUNNER / "fmus" / fmu).exists():
+            pytest.skip(f"runner/fmus/{fmu} not found (build the runner)")
+        name = re.sub(r"\W", "_", request.node.name)
+        lines = ["[model]", f'fmu = "fmus/{fmu}"', "step = 0.001"]
+        if duration is not None:
+            lines.append(f"duration = {duration}")
+        if params:
+            lines.append("params = { " + ", ".join(f"{k} = {v!r}" for k, v in params.items()) + " }")
+        lines += ["[rt]", f'wait = "{wait}"', "max_overruns = 1000000000",
+                  "[io]", 'backend = "null"', f"inputs = {json.dumps(inputs)}",
+                  f"outputs = {json.dumps(outputs)}", "[log]", f'file = "runs/pytest_{name}.csv"']
+        return "\n".join(lines) + "\n"
+
+    return build
 
 
 @pytest.fixture

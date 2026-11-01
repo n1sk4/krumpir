@@ -40,7 +40,8 @@ file = "runs/dahlquist.csv"
 |-----|---------|---------|
 | `wait` | `"none"` | `none`: no pacing, as fast as possible, and never drops a log row. `sleep`: wait for each tick with `clock_nanosleep`. `busy`: spin until each tick. |
 | `max_overruns` | `0` | Paced runs only. A step that finishes after its deadline is an overrun; the run faults when the count exceeds this. |
-| `cpu`, `priority` | unset | Read and range-checked (0 to 255, 1 to 99) but not applied yet. |
+| `cpu` | unset | Pins the loop thread to this CPU (the isolated core on the Pi). |
+| `priority` | unset | Runs the loop thread `SCHED_FIFO` at this priority (1 to 99) and locks the process's memory (`mlockall`). Needs root, or `rtprio` and `memlock` limits for the user; otherwise the run does not start and says why. |
 
 Paced ticks are absolute (`start + n * step`), so a late step does not push later ones back.
 

@@ -119,3 +119,10 @@ target_link_libraries(test_session PRIVATE krumpir_core)
 target_compile_definitions(test_session PRIVATE KRUMPIR_FMU_DIR="${PROJECT_SOURCE_DIR}/fmus")
 add_test(NAME session COMMAND test_session)
 set_tests_properties(session PROPERTIES SKIP_RETURN_CODE 77)
+
+# SCHED_FIFO, pinning and mlockall: needs root or rtprio/memlock limits, else SKIPPED
+add_executable(test_rt_setup test_rt_setup.c)
+target_link_libraries(test_rt_setup PRIVATE krumpir_core)
+target_compile_definitions(test_rt_setup PRIVATE KRUMPIR_FMU_DIR="${PROJECT_SOURCE_DIR}/fmus")
+add_test(NAME rt_setup COMMAND test_rt_setup)
+set_tests_properties(rt_setup PROPERTIES SKIP_RETURN_CODE 77)

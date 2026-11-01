@@ -66,7 +66,7 @@ typedef struct {
   param_t params[CFG_MAX_PARAMS];
   size_t n_params;
 
-  /* [rt]; cpu and priority are parsed but not applied yet (-1 = unset) */
+  /* [rt]; cpu pins the loop thread, priority makes it SCHED_FIFO and locks memory (-1 = unset) */
   wait_mode_t wait;
   int max_overruns;
   int cpu;

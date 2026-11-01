@@ -44,6 +44,7 @@ add_library(krumpir_core STATIC
   src/core/loop.c
   src/core/platform.c
   src/core/cmdq.c
+  src/core/rt_setup.c
   src/core/runner.c
   src/core/session.c
   src/core/siggen.c

@@ -16,6 +16,7 @@
 #include "loader.h"
 #include "loop.h"
 #include "ring.h"
+#include "rt_setup.h"
 #include "varmap.h"
 #include "writer.h"
 
@@ -36,6 +37,7 @@ struct session {
 
   pthread_t thread;
   bool thread_started;
+  bool mem_locked; /* rt_lock_memory() was called for this load */
   atomic_bool done; /* the loop thread has returned */
   atomic_int stop;
   loop_stats_t ls;
@@ -174,6 +176,9 @@ void session_unload(session_t *s, session_summary_t *out)
   if (s->pkg_open) {
     fmu_close(&s->pkg);
   }
+  if (s->mem_locked) {
+    rt_unlock_memory();
+  }
   for (size_t i = 0; i < TELEM_MAX_CH; i++) {
     if (s->src[i].kind == SRC_SIGNAL) {
       signal_free(s->src[i].sig);
@@ -290,6 +295,13 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
     snprintf(err, errlen, "initialization: %s (%s)", fmu_result_str(r), fmu_last_message(s->fmu));
     goto fail;
   }
+  /* A real-time run locks the process's memory, so the loop never waits for a page. */
+  if (s->sc.priority >= 0) {
+    if (rt_lock_memory(err, errlen) < 0) {
+      goto fail;
+    }
+    s->mem_locked = true;
+  }
   lifecycle_set(&s->state, LC_INITIALIZED);
   return 0;
 
@@ -310,6 +322,7 @@ static void *loop_thread(void *arg)
                     .cmd = &s->cmd,
                     .reply = &s->reply,
                     .src = s->src};
+  rt_prefault_stack();
   loop_run(&ctx, &s->ls);
   atomic_store(&s->done, true);
   return NULL;
@@ -321,15 +334,21 @@ int session_start(session_t *s, char *err, size_t errlen)
     snprintf(err, errlen, "cannot start in state %s", lifecycle_name(s->state));
     return -1;
   }
+  /* The loop thread gets rt.cpu and rt.priority from its creation on. If the OS refuses them,
+   * nothing has run and the session stays INITIALIZED. */
+  pthread_attr_t attr;
+  if (rt_thread_attr(&attr, s->sc.cpu, s->sc.priority, err, errlen) < 0) {
+    return -1;
+  }
   atomic_store(&s->done, false);
-  lifecycle_set(&s->state, LC_RUNNING);
-  int e = pthread_create(&s->thread, NULL, loop_thread, s);
+  int e = pthread_create(&s->thread, &attr, loop_thread, s);
+  pthread_attr_destroy(&attr);
   if (e != 0) {
-    snprintf(err, errlen, "cannot start the loop thread: %s", strerror(e));
-    lifecycle_set(&s->state, LC_FAULT);
+    rt_create_error(e, s->sc.cpu, s->sc.priority, err, errlen);
     return -1;
   }
   s->thread_started = true;
+  lifecycle_set(&s->state, LC_RUNNING); /* only this thread changes the state, so before reap */
   return 0;
 }
 

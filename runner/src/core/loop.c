@@ -12,7 +12,7 @@ int64_t loop_step_ns(double step) { return (int64_t)llround(step * 1e9); }
 
 /* Handles the queued commands at the start of step n. Never allocates or blocks; a full reply
  * queue drops the reply (the control thread then times out). */
-static void handle_commands(const loop_ctx_t *c, uint64_t n)
+static void handle_commands(const loop_ctx_t *c, uint64_t n, double t)
 {
   cmd_t cmd;
   while (cmdq_pop(c->cmd, &cmd)) {
@@ -20,9 +20,16 @@ static void handle_commands(const loop_ctx_t *c, uint64_t n)
     cmd.step = n;
     switch (cmd.kind) {
     case CMD_WRITE_INPUT:
-      if (c->override_on != NULL && cmd.index >= 0 && (size_t)cmd.index < c->vm->n_in) {
-        c->override_value[cmd.index] = cmd.value;
-        c->override_on[cmd.index] = true;
+    case CMD_SET_SIGNAL:
+      if (c->src != NULL && cmd.index >= 0 && (size_t)cmd.index < c->vm->n_in) {
+        input_src_t *src = &c->src[cmd.index];
+        signal_t *old = src->kind == SRC_SIGNAL ? src->sig : NULL;
+        if (cmd.kind == CMD_WRITE_INPUT) {
+          *src = (input_src_t){.kind = SRC_VALUE, .value = cmd.value};
+        } else {
+          *src = (input_src_t){.kind = SRC_SIGNAL, .sig = cmd.sig, .t0 = t};
+        }
+        cmd.sig = old;
       } else {
         cmd.status = FMU_ERROR;
       }
@@ -91,19 +98,22 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
       }
     }
 
+    const double t = loop_time(n, sc->step);
     if (c->cmd != NULL) {
-      handle_commands(c, n);
+      handle_commands(c, n, t);
     }
 
-    const double t = loop_time(n, sc->step);
     if (c->io->api->read(c->io, t, in, vm->n_in) != 0) {
       st->end = LOOP_IO_FAIL;
       return;
     }
-    if (c->override_on != NULL) {
+    if (c->src != NULL) {
       for (size_t i = 0; i < vm->n_in; i++) {
-        if (c->override_on[i]) {
-          in[i] = c->override_value[i];
+        const input_src_t *src = &c->src[i];
+        if (src->kind == SRC_VALUE) {
+          in[i] = src->value;
+        } else if (src->kind == SRC_SIGNAL) {
+          in[i] = signal_value(src->sig, t - src->t0);
         }
       }
     }

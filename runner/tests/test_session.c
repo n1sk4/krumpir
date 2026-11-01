@@ -26,7 +26,9 @@ static void scenario(scenario_t *sc, const char *wait, const char *duration)
   char text[2048], err[256];
   snprintf(text, sizeof text,
            "[model]\nfmu = \"%s/Feedthrough.fmu\"\nstep = 0.001\nduration = %s\n"
-           "[rt]\nwait = \"%s\"\n[io]\nbackend = \"null\"\ninputs = [\"" IN "\"]\n"
+           /* overruns are tolerated: CI and parallel ctest load the machine */
+           "[rt]\nwait = \"%s\"\nmax_overruns = 1000000000\n[io]\nbackend = \"null\"\n"
+           "inputs = [\"" IN "\"]\n"
            "outputs = [\"" OUT "\"]\n"
            "stimulus = [{ input = \"" IN "\", kind = \"constant\", value = 1.0 }]\n"
            "[log]\nfile = \"%s\"\n",
@@ -133,6 +135,44 @@ static void test_drive_running(void)
   fprintf(stderr, "drive running: ok\n");
 }
 
+/* Signals replaced before and during a run; a write replaces a signal. */
+static void test_signals(void)
+{
+  session_t *s = session_create();
+  scenario_t sc;
+  char err[256];
+  scenario(&sc, "sleep", "10");
+  assert(session_load(s, &sc, err, sizeof err) == 0);
+
+  stimulus_t st = {.kind = STIM_SEGMENTS, .n_segs = 1, .loops = 1};
+  snprintf(st.input, sizeof st.input, "%s", IN);
+  st.segs[0] = (segment_t){.kind = SEG_CONST, .value = 5.0, .duration = INFINITY};
+  assert(session_set_signal(s, &st, err, sizeof err) == 0); /* replaces the scenario's stimulus */
+  assert(session_start(s, err, sizeof err) == 0);
+  sleep_ms(50);
+  assert(read_ok(s, OUT) == 5.0);
+
+  /* A ramp 0 -> 1000 over 1000 s started now: tiny but non-zero, and rising */
+  st.segs[0] = (segment_t){.kind = SEG_RAMP, .from = 0, .has_from = true, .to = 1000,
+                           .duration = 1000};
+  assert(session_set_signal(s, &st, err, sizeof err) == 0);
+  sleep_ms(50);
+  double a = read_ok(s, OUT);
+  sleep_ms(50);
+  double b = read_ok(s, OUT);
+  assert(a > 0.0 && a < 1.0 && b > a);
+
+  write_ok(s, IN, 9.0); /* a value replaces the signal (and frees it) */
+  assert(read_ok(s, OUT) == 9.0);
+
+  stimulus_t bad = st;
+  snprintf(bad.input, sizeof bad.input, "%s", OUT);
+  assert(session_set_signal(s, &bad, err, sizeof err) == -1 && strstr(err, "not an input"));
+  session_unload(s, NULL); /* frees the signal still in place */
+  session_destroy(s);
+  fprintf(stderr, "signals: ok\n");
+}
+
 /* A load that fails leaves the session IDLE and reusable. */
 static void test_failed_load(void)
 {
@@ -159,6 +199,7 @@ int main(void)
   }
   snprintf(logp, sizeof logp, "/tmp/krumpir_test_session_%d.csv", (int)getpid());
   test_drive_running();
+  test_signals();
   test_failed_load();
   remove(logp);
   return 0;

@@ -48,21 +48,55 @@ Paced ticks are absolute (`start + n * step`), so a late step does not push late
 
 | Key | Type | Meaning |
 |-----|------|---------|
-| `backend` | string | `"null"`: inputs come from `stimulus`, outputs are discarded. |
+| `backend` | string | `"null"`: no device; inputs read 0, outputs are discarded. |
 | `inputs` | list of strings | Model inputs to drive, up to 16, unique. Float64 variables with causality `input`. |
 | `outputs` | list of strings | Model outputs to read and log, up to 16, unique. Float64 variables with causality `output`. |
-| `stimulus` | list of tables | One per input at most; an input without one stays at 0. |
+| `stimulus` | list of tables | One per input at most. A stimulus replaces the backend's value for its input; an input without one gets the backend's value. Also written as `[[io.stimulus]]` tables. |
 
 ### Stimulus kinds
 
-All take `input` (a name from `inputs`) and `kind`. The value is evaluated at the start of each step,
-at `t = n * step`.
+All take `input` (a name from `inputs`) and either `kind` or `segments`. The value is evaluated at
+the start of each step, at `t = n * step`.
 
 | `kind` | Keys | Value |
 |--------|------|-------|
 | `constant` | `value` | `value` |
 | `step` | `t`, `from`, `to` | `from` before time `t`, `to` from `t` on |
 | `sine` | `offset` (default 0), `amplitude`, `freq_hz` | `offset + amplitude * sin(2 pi freq_hz t)` |
+
+### Segments
+
+A signal of up to 8 segments played in order, like the segments of an ASAM XIL signal description.
+`loops` plays it that many times (default 1, `0` forever; needs a `duration` on every segment). After
+the end the signal holds its last value.
+
+```toml
+[[io.stimulus]]
+input = "duty"
+loops = 2
+segments = [
+  { kind = "const", value = 0.3, duration = 0.5 },
+  { kind = "ramp", to = 0.8, duration = 1 },
+  { kind = "pulse", high = 0.6, period = 0.05, duty = 0.3, duration = 1 },
+  { kind = "data", file = "signals/drive.csv" },
+]
+```
+
+Each segment takes `kind` and `duration` (s, > 0). Only the last segment may leave `duration` out,
+and then runs to the end of the run; a `data` segment without one lasts as long as its file. `u` is
+the time since the segment started.
+
+| `kind` | Keys | Value |
+|--------|------|-------|
+| `const` | `value` | `value` |
+| `ramp` | `to`, `from` (default: the previous segment's end value), `duration` required | `from + (to - from) * u / duration` |
+| `sine` | `amplitude`, `freq_hz`, `offset` (default 0), `phase` (rad, default 0) | `offset + amplitude * sin(2 pi freq_hz u + phase)` |
+| `pulse` | `high`, `period`, `duty` (0..1), `low` (default 0) | `high` while `u mod period < duty * period`, else `low` |
+| `idle` | | holds the previous segment's end value (0 for the first) |
+| `data` | `file`, `interpolation` (`"linear"` default, or `"step"`) | rows of `time,value` from the file, time from 0 and rising; holds the first and last value outside them |
+
+A data file is plain CSV: one header line, blank lines and `#` comments are skipped. Its path is
+relative to the working directory, like `model.fmu`. Files are read when the scenario is loaded.
 
 ## `[log]` (required)
 

@@ -24,16 +24,86 @@ import numpy as np
 SKIP = 77
 
 
-def stimulus_value(s, t):
-    """Same definition as the runner's null backend (src/io/null.c)."""
-    kind = s["kind"]
+def read_data(path):
+    """time,value rows; blank lines, # comments and a header line are skipped."""
+    rows = []
+    for i, line in enumerate(Path(path).read_text().splitlines()):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            rows.append(tuple(float(x) for x in line.split(",")))
+        except ValueError:
+            if i > 0 or rows:
+                raise
+    return rows
+
+
+def stimulus_signal(s):
+    """The stimulus as a function of time, evaluated as the runner does (src/core/siggen.c)."""
+    kind = s.get("kind")
+    loops = 1
     if kind == "constant":
-        return float(s["value"])
-    if kind == "step":
-        return float(s["from"]) if t < s["t"] else float(s["to"])
-    if kind == "sine":
-        return s.get("offset", 0.0) + s["amplitude"] * math.sin(2 * math.pi * s["freq_hz"] * t)
-    raise ValueError(f"unknown stimulus kind '{kind}'")
+        segs = [{"kind": "const", "value": s["value"]}]
+    elif kind == "step":
+        first = [{"kind": "const", "value": s["from"], "duration": s["t"]}] if s["t"] > 0 else []
+        segs = first + [{"kind": "const", "value": s["to"]}]
+    elif kind == "sine":
+        segs = [{"kind": "sine", "offset": s.get("offset", 0.0), "amplitude": s["amplitude"],
+                 "freq_hz": s["freq_hz"]}]
+    else:
+        segs, loops = s["segments"], s.get("loops", 1)
+
+    def seg_value(g, u):
+        k = g["kind"]
+        if k == "const":
+            return float(g["value"])
+        if k == "ramp":
+            return g["from"] + (g["to"] - g["from"]) * u / g["dur"]
+        if k == "sine":
+            return g.get("offset", 0.0) + g["amplitude"] * math.sin(
+                2 * math.pi * g["freq_hz"] * u + g.get("phase", 0.0))
+        if k == "pulse":
+            on = math.fmod(u, g["period"]) < g["duty"] * g["period"]
+            return float(g["high"] if on else g.get("low", 0.0))
+        if k == "idle":
+            return g["v0"]
+        rows = g["rows"]  # data
+        if u <= rows[0][0]:
+            return rows[0][1]
+        if u >= rows[-1][0]:
+            return rows[-1][1]
+        hi = next(i for i, r in enumerate(rows) if r[0] > u)
+        (t0, v0), (t1, v1) = rows[hi - 1], rows[hi]
+        return v0 if g.get("interpolation") == "step" else v0 + (v1 - v0) * (u - t0) / (t1 - t0)
+
+    resolved, start, prev = [], 0.0, 0.0
+    for seg in segs:
+        g = {**seg, "start": start, "v0": prev}
+        if g["kind"] == "ramp":
+            g.setdefault("from", prev)
+        if g["kind"] == "data":
+            g["rows"] = read_data(g["file"])
+        g["dur"] = float(g.get("duration", g["rows"][-1][0] if g["kind"] == "data" else math.inf))
+        g["v1"] = (float(g["to"]) if g["kind"] == "ramp"
+                   else math.nan if math.isinf(g["dur"]) else seg_value(g, g["dur"]))
+        prev, start = g["v1"], start + g["dur"]
+        resolved.append(g)
+    total, last = start, resolved[-1]
+
+    def value(t):
+        if loops != 1:
+            if loops > 0 and t >= total * loops:
+                return last["v1"]
+            t = math.fmod(t, total)
+        elif t >= total:
+            return last["v1"]
+        for g in resolved[:-1]:
+            if t < g["start"] + g["dur"]:
+                return seg_value(g, t - g["start"])
+        return seg_value(last, t - last["start"])
+
+    return value
 
 
 def load_scenario(path):
@@ -49,7 +119,7 @@ def load_scenario(path):
         "params": {k: float(v) for k, v in model.get("params", {}).items()},
         "inputs": list(io.get("inputs", [])),
         "outputs": list(io.get("outputs", [])),
-        "stimuli": {s["input"]: s for s in io.get("stimulus", [])},
+        "signals": {s["input"]: stimulus_signal(s) for s in io.get("stimulus", [])},
         "log": Path(sc["log"]["file"]),
     }
 
@@ -69,8 +139,8 @@ def input_signal(sc, times):
     sig = np.zeros(len(times), dtype=dtype)
     sig["time"] = times
     for name in sc["inputs"]:
-        s = sc["stimuli"].get(name)
-        sig[name] = [stimulus_value(s, t) if s else 0.0 for t in times]
+        f = sc["signals"].get(name)
+        sig[name] = [f(t) if f else 0.0 for t in times]
     return sig
 
 
@@ -169,8 +239,8 @@ def main():
         problems.append(f"time axes differ (log {t_err:.3g}, FMPy {t_err_ref:.3g})")
 
     for name in sc["inputs"]:  # the logged inputs are the ones that were applied
-        s = sc["stimuli"].get(name)
-        expected = np.array([stimulus_value(s, t) if s else 0.0 for t in times[:-1]])
+        f = sc["signals"].get(name)
+        expected = np.array([f(t) if f else 0.0 for t in times[:-1]])
         in_err = np.max(np.abs(log[name] - expected))
         if in_err > 1e-12:
             problems.append(f"logged input '{name}' differs from the stimulus by {in_err:.3g}")

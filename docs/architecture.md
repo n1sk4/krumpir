@@ -38,7 +38,8 @@ FMU is freed cleanly.
 | `core/rt_setup` | CPU affinity, `SCHED_FIFO`, `mlockall`, stack prefault | setup only |
 | `core/loop` | Tick timing, step sequence, overrun monitor | isolated core |
 | `core/session` | One run with explicit phases (load, start, stop, unload); the loop runs on its own thread; reads and writes while it runs | Linux cores |
-| `core/cmdq` | Lock-free command and reply queues: input overrides, tunable parameters and reads, handled at the start of a step | shared |
+| `core/cmdq` | Lock-free command and reply queues: input values and signals, tunable parameters and reads, handled at the start of a step | shared |
+| `core/siggen` | Signals from segments (const, ramp, sine, pulse, idle, data file), built before the run, evaluated per step | isolated core |
 | `fmi/loader` | Unzip, parse `modelDescription.xml`, `dlopen` | setup only |
 | `fmi/backend` | One interface over the FMI calls | isolated core |
 | `io/*` | One backend per I/O type behind a common interface | isolated core |
@@ -123,7 +124,7 @@ file = "runs/motor.csv"
 
 | Backend | Link | Notes |
 | --- | --- | --- |
-| `null` | none | SIL; generates stimulus inputs, discards outputs |
+| `null` | none | SIL; inputs read 0 (signals replace them), discards outputs |
 | `uart` | serial, binary frames | digital link to the device under test |
 | `pwm` | PWM with RC filter | simple analog output |
 | `spi` | SPI to a DAC/ADC | MCP4822 / MCP3208 |

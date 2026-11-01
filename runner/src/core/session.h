@@ -60,7 +60,12 @@ const modeldesc_t *session_model(const session_t *s);
 /* Setting it to 1 ends a running loop after the current step (async-signal-safe). */
 volatile sig_atomic_t *session_stop_flag(session_t *s);
 
-/* Writes a Float64 variable: an input of the scenario (overrides its stimulus from then on) or a
+/* Plays a signal on the scenario input `st->input` from now on (replacing its value or signal):
+ * from t = 0 when INITIALIZED, or from the next step boundary when RUNNING. Data files are read
+ * here, before the loop sees the signal. Returns 0, or -1 with a message in err. */
+int session_set_signal(session_t *s, const stimulus_t *st, char *err, size_t errlen);
+
+/* Writes a Float64 variable: an input of the scenario (replaces its signal from then on) or a
  * tunable parameter. Fixed parameters, outputs and inputs the scenario does not map are refused.
  * Allowed when INITIALIZED (takes effect at the first step) or RUNNING (at the next step boundary,
  * and the call returns once the loop has applied it). Returns 0, or -1 with a message in err. */

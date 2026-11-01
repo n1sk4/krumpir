@@ -1,6 +1,7 @@
 #ifndef KRUMPIR_CONFIG_H
 #define KRUMPIR_CONFIG_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -11,15 +12,44 @@
 #define CFG_MAX_PARAMS 16
 
 typedef enum { WAIT_NONE, WAIT_SLEEP, WAIT_BUSY } wait_mode_t;
-typedef enum { STIM_CONSTANT, STIM_STEP, STIM_SINE } stim_kind_t;
+#define CFG_MAX_SEGMENTS 8
 
-/* Value of one model input over time, used by the null I/O backend. */
+typedef enum { STIM_CONSTANT, STIM_STEP, STIM_SINE, STIM_SEGMENTS } stim_kind_t;
+
+/* One segment of a signal (the segment types of an ASAM XIL signal description). u is the time
+ * since the start of the segment, d its duration. */
+typedef enum {
+  SEG_CONST, /* value */
+  SEG_RAMP,  /* from + (to - from) * u / d; `from` defaults to the end of the previous segment */
+  SEG_SINE,  /* offset + amplitude * sin(2 pi freq_hz u + phase) */
+  SEG_PULSE, /* high while fmod(u, period) < duty * period, otherwise low */
+  SEG_IDLE,  /* holds the end value of the previous segment (0 for the first) */
+  SEG_DATA   /* CSV file of time,value rows (time from 0), linear or step interpolation */
+} seg_kind_t;
+
+typedef struct {
+  seg_kind_t kind;
+  double duration; /* s; INFINITY: to the end of the run (last segment only); NAN: data file length */
+  double value;
+  double from, to;
+  bool has_from;
+  double offset, amplitude, freq_hz, phase;
+  double low, high, period, duty;
+  char file[CFG_MAX_PATH];
+  bool step_interp; /* data: hold each value until the next row instead of interpolating */
+} segment_t;
+
+/* Value of one model input over time. The short kinds (constant, step, sine) are single signals;
+ * STIM_SEGMENTS plays segs[0..n_segs) in order, `loops` times (0 = forever). */
 typedef struct {
   char input[CFG_MAX_NAME];
   stim_kind_t kind;
   double value;                      /* constant */
   double t, from, to;                /* step: `from` before time t, `to` from t on */
   double offset, amplitude, freq_hz; /* sine: offset + amplitude * sin(2 pi freq t) */
+  segment_t segs[CFG_MAX_SEGMENTS];
+  size_t n_segs;
+  int loops;
 } stimulus_t;
 
 typedef struct {

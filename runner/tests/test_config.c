@@ -144,6 +144,28 @@ static void test_stimulus_errors(void)
              "stimulus = [{ input = \"u\", kind = \"constant\", value = 1, bogus = 2 }]\n" LOG,
              "unknown key 'bogus' in io.stimulus");
   expect_err(MODEL IO "stimulus = 3\n" LOG, "array of tables");
+
+  /* segments */
+#define SEG(body) MODEL IO "stimulus = [{ input = \"u\", " body " }]\n" LOG
+  expect_err(SEG("segments = []"), "non-empty array of tables");
+  expect_err(SEG("kind = \"constant\", value = 1, segments = [{ kind = \"idle\" }]"),
+             "both kind and segments");
+  expect_err(SEG("kind = \"constant\", value = 1, loops = 2"), "loops needs segments");
+  expect_err(SEG("segments = [{ kind = \"wave\" }]"), "kind 'wave' is not const");
+  expect_err(SEG("segments = [{ kind = \"const\" }]"), "missing io.stimulus.segments.value");
+  expect_err(SEG("segments = [{ kind = \"ramp\", to = 1 }]"), "ramp needs a duration");
+  expect_err(SEG("segments = [{ kind = \"const\", value = 1, duration = 0 }]"),
+             "duration must be > 0");
+  expect_err(SEG("segments = [{ kind = \"const\", value = 1 }, { kind = \"idle\" }]"),
+             "only the last segment");
+  expect_err(SEG("segments = [{ kind = \"pulse\", high = 1, period = 1, duty = 2 }]"),
+             "duty in 0..1");
+  expect_err(SEG("segments = [{ kind = \"data\", file = \"a.csv\", interpolation = \"cubic\" }]"),
+             "linear or step");
+  expect_err(SEG("segments = [{ kind = \"idle\" }], loops = 2"), "duration on every segment");
+  expect_err(SEG("segments = [{ kind = \"idle\", bogus = 1 }]"),
+             "unknown key 'bogus' in io.stimulus.segments");
+#undef SEG
 }
 
 static void test_unknown_keys_and_bad_toml(void)

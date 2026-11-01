@@ -41,8 +41,7 @@ struct session {
 
   cmdq_t cmd, reply;
   uint32_t seq;
-  bool override_on[TELEM_MAX_CH];
-  double override_value[TELEM_MAX_CH];
+  input_src_t src[TELEM_MAX_CH]; /* the loop owns it while RUNNING; the session owns the signals */
   char fault[512];
 };
 
@@ -145,6 +144,11 @@ void session_unload(session_t *s, session_summary_t *out)
   if (s->pkg_open) {
     fmu_close(&s->pkg);
   }
+  for (size_t i = 0; i < TELEM_MAX_CH; i++) {
+    if (s->src[i].kind == SRC_SIGNAL) {
+      signal_free(s->src[i].sig);
+    }
+  }
   if (out != NULL) {
     *out = sum;
   }
@@ -183,6 +187,17 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
   s->pkg_open = true;
   if (varmap_build(&s->pkg.md, &s->sc, &s->vm, err, errlen) < 0) {
     goto fail;
+  }
+  for (size_t j = 0; j < sc->n_stimuli; j++) {
+    for (size_t i = 0; i < sc->n_inputs; i++) {
+      if (strcmp(sc->stimuli[j].input, sc->inputs[i]) == 0) {
+        s->src[i].sig = signal_create(&sc->stimuli[j], err, errlen);
+        if (s->src[i].sig == NULL) {
+          goto fail;
+        }
+        s->src[i].kind = SRC_SIGNAL;
+      }
+    }
   }
   s->io = io_open(&s->sc, err, errlen);
   if (s->io == NULL) {
@@ -246,8 +261,7 @@ static void *loop_thread(void *arg)
                     .stop = &s->stop,
                     .cmd = &s->cmd,
                     .reply = &s->reply,
-                    .override_on = s->override_on,
-                    .override_value = s->override_value};
+                    .src = s->src};
   loop_run(&ctx, &s->ls);
   atomic_store(&s->done, true);
   return NULL;
@@ -342,6 +356,63 @@ static const mvar_t *find_float64(session_t *s, const char *name, char *err, siz
   return v;
 }
 
+/* Position of input `v` in the scenario's inputs, or -1 with a message in err. */
+static int input_slot(const session_t *s, const mvar_t *v, char *err, size_t errlen)
+{
+  for (size_t i = 0; i < s->vm.n_in; i++) {
+    if (s->vm.in_vr[i] == v->vr) {
+      return (int)i;
+    }
+  }
+  snprintf(err, errlen, "input '%s' is not one of the scenario's inputs", v->name);
+  return -1;
+}
+
+/* Sets the source of input slot i while not RUNNING, freeing the signal it replaces. */
+static void set_src(session_t *s, int i, input_src_t src)
+{
+  if (s->src[i].kind == SRC_SIGNAL) {
+    signal_free(s->src[i].sig);
+  }
+  s->src[i] = src;
+}
+
+int session_set_signal(session_t *s, const stimulus_t *st, char *err, size_t errlen)
+{
+  reap(s);
+  const mvar_t *v = find_float64(s, st->input, err, errlen);
+  if (v == NULL) {
+    return -1;
+  }
+  if (s->state != LC_INITIALIZED && s->state != LC_RUNNING) {
+    snprintf(err, errlen, "cannot set a signal on '%s' in state %s", st->input,
+             lifecycle_name(s->state));
+    return -1;
+  }
+  if (v->causality != CAUS_INPUT) {
+    snprintf(err, errlen, "'%s' is not an input", st->input);
+    return -1;
+  }
+  int i = input_slot(s, v, err, errlen);
+  if (i < 0) {
+    return -1;
+  }
+  signal_t *g = signal_create(st, err, errlen);
+  if (g == NULL) {
+    return -1;
+  }
+  if (s->state == LC_INITIALIZED) {
+    set_src(s, i, (input_src_t){.kind = SRC_SIGNAL, .sig = g});
+    return 0;
+  }
+  cmd_t c = {.kind = CMD_SET_SIGNAL, .index = i, .sig = g};
+  if (roundtrip(s, &c, err, errlen) < 0) {
+    return -1; /* ponytail: g leaks if the loop never answers; it may still be playing it */
+  }
+  signal_free(c.sig); /* the replaced one */
+  return 0;
+}
+
 int session_write(session_t *s, const char *name, double value, char *err, size_t errlen)
 {
   reap(s);
@@ -356,18 +427,12 @@ int session_write(session_t *s, const char *name, double value, char *err, size_
 
   cmd_t c = {.vr = v->vr, .value = value, .index = -1};
   if (v->causality == CAUS_INPUT) {
-    for (size_t i = 0; i < s->vm.n_in; i++) {
-      if (s->vm.in_vr[i] == v->vr) {
-        c.index = (int32_t)i;
-      }
-    }
+    c.index = input_slot(s, v, err, errlen);
     if (c.index < 0) {
-      snprintf(err, errlen, "input '%s' is not one of the scenario's inputs", name);
       return -1;
     }
     if (s->state == LC_INITIALIZED) {
-      s->override_value[c.index] = value;
-      s->override_on[c.index] = true;
+      set_src(s, c.index, (input_src_t){.kind = SRC_VALUE, .value = value});
       return 0;
     }
     c.kind = CMD_WRITE_INPUT;
@@ -398,6 +463,9 @@ int session_write(session_t *s, const char *name, double value, char *err, size_
   if (c.status != FMU_OK) {
     snprintf(err, errlen, "'%s': %s", name, fmu_result_str((fmu_result_t)c.status));
     return -1;
+  }
+  if (c.kind == CMD_WRITE_INPUT) {
+    signal_free(c.sig); /* the replaced one */
   }
   return 0;
 }

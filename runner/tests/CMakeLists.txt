@@ -46,6 +46,10 @@ add_executable(test_io_null test_io_null.c)
 target_link_libraries(test_io_null PRIVATE krumpir_core)
 add_test(NAME io_null COMMAND test_io_null)
 
+add_executable(test_signal test_signal.c)
+target_link_libraries(test_signal PRIVATE krumpir_core)
+add_test(NAME signal COMMAND test_signal)
+
 add_executable(test_runner test_runner.c)
 target_link_libraries(test_runner PRIVATE krumpir_core)
 target_compile_definitions(test_runner PRIVATE KRUMPIR_FMU_DIR="${PROJECT_SOURCE_DIR}/fmus")

@@ -9,7 +9,18 @@
 #include "fmu.h"
 #include "io.h"
 #include "ring.h"
+#include "siggen.h"
 #include "varmap.h"
+
+/* The source of one input: the I/O backend, a fixed value, or a signal started at time t0. */
+typedef enum { SRC_BACKEND, SRC_VALUE, SRC_SIGNAL } src_kind_t;
+
+typedef struct {
+  src_kind_t kind;
+  double value;
+  signal_t *sig;
+  double t0;
+} input_src_t;
 
 /* Step period in whole nanoseconds. */
 int64_t loop_step_ns(double step);
@@ -28,10 +39,9 @@ typedef struct {
   /* Optional (NULL for none): commands handled at the start of each step, and their replies */
   cmdq_t *cmd;
   cmdq_t *reply;
-  /* Optional (NULL for none): input slot i takes override_value[i] instead of the I/O backend's
-   * value while override_on[i] is set. CMD_WRITE_INPUT sets them while the loop runs. */
-  bool *override_on;
-  double *override_value;
+  /* Optional (NULL: every input from the I/O backend): where each input slot gets its value.
+   * CMD_WRITE_INPUT and CMD_SET_SIGNAL change it while the loop runs. */
+  input_src_t *src;
 } loop_ctx_t;
 
 typedef enum {
@@ -54,7 +64,8 @@ typedef struct {
 } loop_stats_t;
 
 /* Runs the step loop of a scenario (the RUNNING state):
- *   wait for the tick, handle the queued commands, read inputs, set them on the FMU, fmu_step(),
+ *   wait for the tick, handle the queued commands, read inputs (backend, then the value or signal
+ *   of each input that has one), set them on the FMU, fmu_step(),
  *   get outputs, write them to the io backend, push one telemetry record.
  * A command that fails (the FMU refuses a value) is answered with its status; it does not end the
  * run.

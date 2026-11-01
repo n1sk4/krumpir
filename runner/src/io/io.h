@@ -26,9 +26,6 @@ struct io {
 /* Opens the backend named by sc->backend. Returns NULL and writes a message to err on failure. */
 io_t *io_open(const scenario_t *sc, char *err, size_t errlen);
 
-/* Value of a stimulus at time t (used by the null backend, exposed for tests). */
-double stimulus_value(const stimulus_t *s, double t);
-
 io_t *null_io_open(const scenario_t *sc, char *err, size_t errlen);
 
 #endif

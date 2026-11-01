@@ -178,10 +178,124 @@ static bool has_input(const scenario_t *sc, const char *name)
   return false;
 }
 
+/* One entry of io.stimulus[].segments (see segment_t). duration: optional, > 0; absent means to
+ * the end of the run (last segment only), or the file's length for a data segment. */
+static int parse_segment(ctx_t *c, const toml_table_t *t, segment_t *g, bool last)
+{
+  static const char *const keys[] = {"kind",   "duration", "value",  "from",   "to",
+                                     "offset", "amplitude", "freq_hz", "phase", "low",
+                                     "high",   "period",   "duty",   "file",   "interpolation",
+                                     NULL};
+  const char *w = "io.stimulus.segments";
+  char kind[CFG_MAX_NAME];
+  *g = (segment_t){0};
+  if (check_keys(c, t, w, keys) < 0 || get_string(c, t, w, "kind", kind, sizeof kind, true) < 0) {
+    return -1;
+  }
+  int has_duration = get_number(c, t, w, "duration", &g->duration, false);
+  if (has_duration < 0) {
+    return -1;
+  }
+  if (has_duration == 1 && g->duration <= 0) {
+    return fail(c, "%s duration must be > 0", w);
+  }
+
+  if (strcmp(kind, "const") == 0) {
+    g->kind = SEG_CONST;
+    if (get_number(c, t, w, "value", &g->value, true) < 0) {
+      return -1;
+    }
+  } else if (strcmp(kind, "ramp") == 0) {
+    g->kind = SEG_RAMP;
+    int f = get_number(c, t, w, "from", &g->from, false);
+    if (f < 0 || get_number(c, t, w, "to", &g->to, true) < 0) {
+      return -1;
+    }
+    g->has_from = f == 1;
+    if (has_duration == 0) {
+      return fail(c, "%s ramp needs a duration", w);
+    }
+  } else if (strcmp(kind, "sine") == 0) {
+    g->kind = SEG_SINE;
+    if (get_number(c, t, w, "offset", &g->offset, false) < 0 ||
+        get_number(c, t, w, "amplitude", &g->amplitude, true) < 0 ||
+        get_number(c, t, w, "freq_hz", &g->freq_hz, true) < 0 ||
+        get_number(c, t, w, "phase", &g->phase, false) < 0) {
+      return -1;
+    }
+    if (g->freq_hz <= 0) {
+      return fail(c, "%s freq_hz must be > 0", w);
+    }
+  } else if (strcmp(kind, "pulse") == 0) {
+    g->kind = SEG_PULSE;
+    if (get_number(c, t, w, "low", &g->low, false) < 0 ||
+        get_number(c, t, w, "high", &g->high, true) < 0 ||
+        get_number(c, t, w, "period", &g->period, true) < 0 ||
+        get_number(c, t, w, "duty", &g->duty, true) < 0) {
+      return -1;
+    }
+    if (g->period <= 0 || g->duty < 0 || g->duty > 1) {
+      return fail(c, "%s pulse needs period > 0 and duty in 0..1", w);
+    }
+  } else if (strcmp(kind, "idle") == 0) {
+    g->kind = SEG_IDLE;
+  } else if (strcmp(kind, "data") == 0) {
+    g->kind = SEG_DATA;
+    char interp[16] = "linear";
+    if (get_string(c, t, w, "file", g->file, sizeof g->file, true) < 0 ||
+        get_string(c, t, w, "interpolation", interp, sizeof interp, false) < 0) {
+      return -1;
+    }
+    if (strcmp(interp, "linear") != 0 && strcmp(interp, "step") != 0) {
+      return fail(c, "%s interpolation must be linear or step", w);
+    }
+    g->step_interp = strcmp(interp, "step") == 0;
+  } else {
+    return fail(c, "%s kind '%s' is not const, ramp, sine, pulse, idle or data", w, kind);
+  }
+  if (has_duration == 0) {
+    if (g->kind == SEG_DATA) {
+      g->duration = NAN; /* the file's length, known once the file is read */
+    } else if (!last) {
+      return fail(c, "%s: only the last segment may leave out its duration", w);
+    } else {
+      g->duration = INFINITY;
+    }
+  }
+  return 0;
+}
+
+static int parse_segments(ctx_t *c, const toml_table_t *t, stimulus_t *s)
+{
+  toml_array_t *arr = toml_array_in(t, "segments");
+  int count = arr != NULL ? toml_array_nelem(arr) : 0;
+  if (arr == NULL || count == 0 || toml_array_kind(arr) != 't') {
+    return fail(c, "io.stimulus.segments must be a non-empty array of tables");
+  }
+  if (count > CFG_MAX_SEGMENTS) {
+    return fail(c, "io.stimulus.segments has more than %d entries", CFG_MAX_SEGMENTS);
+  }
+  for (int i = 0; i < count; i++) {
+    if (parse_segment(c, toml_table_at(arr, i), &s->segs[i], i == count - 1) < 0) {
+      return -1;
+    }
+  }
+  s->n_segs = (size_t)count;
+  s->loops = 1;
+  if (get_int(c, t, "io.stimulus", "loops", &s->loops, 0, 1000000000) < 0) {
+    return -1;
+  }
+  if (s->loops != 1 && isinf(s->segs[count - 1].duration)) {
+    return fail(c, "io.stimulus loops needs a duration on every segment");
+  }
+  s->kind = STIM_SEGMENTS;
+  return 0;
+}
+
 static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc)
 {
-  static const char *const keys[] = {"input", "kind",   "value",     "t",       "from",
-                                     "to",    "offset", "amplitude", "freq_hz", NULL};
+  static const char *const keys[] = {"input",  "kind",      "value",   "t",        "from", "to",
+                                     "offset", "amplitude", "freq_hz", "segments", "loops", NULL};
   if (!toml_key_exists(tab, "stimulus")) {
     return 0;
   }
@@ -198,10 +312,17 @@ static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc)
     stimulus_t *s = &sc->stimuli[i];
     char kind[CFG_MAX_NAME];
     *s = (stimulus_t){0};
+    bool segmented = toml_key_exists(t, "segments");
     if (check_keys(c, t, "io.stimulus", keys) < 0 ||
         get_string(c, t, "io.stimulus", "input", s->input, sizeof s->input, true) < 0 ||
-        get_string(c, t, "io.stimulus", "kind", kind, sizeof kind, true) < 0) {
+        (!segmented && get_string(c, t, "io.stimulus", "kind", kind, sizeof kind, true) < 0)) {
       return -1;
+    }
+    if (segmented && toml_key_exists(t, "kind")) {
+      return fail(c, "io.stimulus has both kind and segments");
+    }
+    if (!segmented && toml_key_exists(t, "loops")) {
+      return fail(c, "io.stimulus loops needs segments");
     }
     if (!has_input(sc, s->input)) {
       return fail(c, "io.stimulus input '%s' is not listed in io.inputs", s->input);
@@ -211,7 +332,11 @@ static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc)
         return fail(c, "io.stimulus has two entries for input '%s'", s->input);
       }
     }
-    if (strcmp(kind, "constant") == 0) {
+    if (segmented) {
+      if (parse_segments(c, t, s) < 0) {
+        return -1;
+      }
+    } else if (strcmp(kind, "constant") == 0) {
       s->kind = STIM_CONSTANT;
       if (get_number(c, t, "io.stimulus", "value", &s->value, true) < 0) {
         return -1;

@@ -1,0 +1,110 @@
+# Description of the motor controller: the data its runtime tables and build files are generated
+# from (python tools/codegen/gen_controller.py controllers/esp32-motor-controller). The component
+# itself (lib/motorctrl, the hooks in src/control_task.c, the handlers in src/console.c) is written
+# by hand.
+
+[controller]
+name = "motor"      # prefix of the calibration page (motor_cal_page) and the console prompt
+plant = "dcmotor"   # libs/plants/<plant>
+lib = "motorctrl"   # lib/<lib>, the controller component
+
+# Runtime parameters: console command `<name> <value>`, accepted range, value at boot, and the
+# field of the XCP calibration page (cal). Gains: method and results in docs/tuning.md.
+[[param]]
+name = "sp"
+help = "Set speed setpoint [rpm]"
+hint = "<rpm>"
+min = -10000
+max = 10000
+default = 0
+unit = "rpm"
+cal = "setpoint"
+
+[[param]]
+name = "kp"
+help = "Set proportional gain"
+hint = "<value>"
+min = 0
+max = 1e6
+default = 7.2e-4
+cal = true
+
+[[param]]
+name = "ki"
+help = "Set integral gain"
+hint = "<value>"
+min = 0
+max = 1e6
+default = 0.03
+cal = true
+
+[[param]]
+name = "kd"
+help = "Set derivative gain"
+hint = "<value>"
+min = 0
+max = 1e6
+default = 0
+cal = true
+
+# The controller's own console commands; handlers are in src/console.c. They are listed after the
+# parameter commands, and after clear/start/stop when after_run is true.
+[[command]]
+name = "load"
+help = "Simulation only: load torque on the shaft [N*m]"
+hint = "<Nm>"
+handler = "cmd_load"
+
+[[command]]
+name = "inertia"
+help = "Simulation only: rotor inertia scale (1 = nominal)"
+hint = "<scale>"
+handler = "cmd_inertia"
+
+[[command]]
+name = "status"
+help = "Show state and loop timing"
+handler = "cmd_status"
+after_run = true
+
+# CSV telemetry: column name, C expression of the value in the control task, scale before rounding.
+[[telemetry.column]]
+name = "setpoint_rpm"
+value = "s_loop.ctrl.setpoint"
+
+[[telemetry.column]]
+name = "speed_rpm"
+value = "s_loop.speed"
+
+[[telemetry.column]]
+name = "duty_permille"
+value = "s_loop.duty"
+scale = 1000
+
+# CI steps of this controller, after the common ones (tests, builds) in the generated workflow.
+[[ci.step]]
+name = "Serial tools self-check"
+run = """
+python ../../tools/serial/timing_check.py --selftest
+python ../../tools/serial/capture.py --selftest
+"""
+
+[[ci.step]]
+name = "Simulation CSVs and plots"
+run = """
+mkdir -p .pio out
+lib="lib/motorctrl/src"
+core="../../libs/ctrlcore/src"
+plant="../../libs/plants/dcmotor/src"
+inc="-Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include"
+src="$lib/motor_io_sim.c $lib/motor_ctrl.c $lib/motor_safety.c $lib/motor_loop.c $core/pid.c $plant/plant_sim.c"
+gcc $inc tools/step_response.c $src -lm -o .pio/step_response
+gcc $inc tools/scenarios.c $src $lib/motor_scenario.c $core/step_metrics.c -lm -o .pio/scenarios
+.pio/step_response > out/step_response.csv
+python tools/plot.py out/step_response.csv out/step_response.png
+for s in step load saturation inertia; do
+  .pio/scenarios $s > out/scenario_$s.csv
+  python tools/plot.py out/scenario_$s.csv out/scenario_$s.png
+done
+.pio/scenarios sweep > out/gain_sweep.md
+"""

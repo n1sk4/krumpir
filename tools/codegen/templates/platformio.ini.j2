@@ -1,0 +1,36 @@
+{{ banner }}
+[platformio]
+extra_configs = ../../libs/esp/xcpglue/xcp.ini
+
+[env]
+lib_extra_dirs = ../../libs, ../../libs/plants, ../../libs/esp
+lib_deps = ctrlcore, {{ m.plant }}
+lib_ignore = vendor  ; submodules in libs/vendor, built through their wrappers
+
+[env:esp32dev]
+lib_ignore = vendor, xcpglue, xcplite
+platform = espressif32@6.9.0
+board = esp32dev
+framework = espidf
+monitor_speed = 115200
+lib_deps =
+  ${env.lib_deps}
+  espglue
+  rte
+
+[env:native]
+platform = native
+test_framework = unity
+build_flags = -lm
+
+; The same firmware with XCP on Ethernet over Wi-Fi (libs/esp/xcpglue): the loop is measured at
+; 1 kHz and setpoint and gains can be calibrated. Needs ../../libs/esp/xcpglue/include/wlan.h.
+[env:esp32dev-xcp]
+extends = env:esp32dev
+lib_ignore = vendor
+lib_deps =
+  ${env:esp32dev.lib_deps}
+  xcpglue
+extra_scripts = ${xcp.extra_scripts}
+board_build.cmake_extra_args = ${xcp.cmake_extra_args}
+build_flags = ${xcp.build_flags}

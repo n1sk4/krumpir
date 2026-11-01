@@ -5,7 +5,7 @@
 
 #include "console_util.h"
 #include "control_task.h"
-#include "rte_cmd.h"
+#include "gen/ctrl_gen.h"
 #include "telemetry.h"
 
 #define LOAD_MAX_W_PER_K 1.0f
@@ -13,7 +13,7 @@
 #define AMBIENT_MAX_C 60.0f
 #define arg_float console_arg_float
 
-static int cmd_load(int argc, char **argv)
+int cmd_load(int argc, char **argv)
 {
   float v;
   if (!arg_float(argc, argv, 0.0f, LOAD_MAX_W_PER_K, &v))
@@ -22,7 +22,7 @@ static int cmd_load(int argc, char **argv)
   return 0;
 }
 
-static int cmd_ambient(int argc, char **argv)
+int cmd_ambient(int argc, char **argv)
 {
   float v;
   if (!arg_float(argc, argv, AMBIENT_MIN_C, AMBIENT_MAX_C, &v))
@@ -42,7 +42,7 @@ static const char *fault_label(t12_fault_t f)
   return "?";
 }
 
-static int cmd_fault(int argc, char **argv)
+int cmd_fault(int argc, char **argv)
 {
   for (t12_fault_t f = T12_FAULT_NONE; f <= T12_FAULT_STUCK_ON; f++) {
     if (argc == 2 && !strcmp(argv[1], fault_label(f))) {
@@ -54,7 +54,7 @@ static int cmd_fault(int argc, char **argv)
   return 1;
 }
 
-static int cmd_status(int argc, char **argv)
+int cmd_status(int argc, char **argv)
 {
   rte_t *r = control_task_rte();
   control_state_t st;
@@ -76,18 +76,10 @@ static int cmd_status(int argc, char **argv)
   return 0;
 }
 
-#define reg console_register
-
+/* The command handlers above are registered by the generated ctrl_gen_console_register(), in
+ * the order of controller.toml. */
 void console_start(void)
 {
-  rte_t *r = control_task_rte();
-  console_init("t12> ");
-  rte_cmd_register_params(r); /* sp, kp, ki, kd, ramp */
-  reg("load", "Simulation only: extra heat loss of touching a joint [W/K]", "<W/K>", cmd_load);
-  reg("ambient", "Simulation only: ambient temperature [degC]", "<degC>", cmd_ambient);
-  reg("fault", "Simulation only: inject a tip fault", "none|open|short|stuck", cmd_fault);
-  rte_cmd_register_run(r); /* clear, start, stop */
-  reg("status", "Show state and loop timing", NULL, cmd_status);
-
+  ctrl_gen_console_register(control_task_rte());
   console_run();
 }

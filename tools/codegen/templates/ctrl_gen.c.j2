@@ -1,0 +1,56 @@
+{{ banner }}
+#include "ctrl_gen.h"
+
+#include <math.h>
+#include <stdio.h>
+
+#include "console_util.h"
+#include "rte_cmd.h"
+#include "telemetry.h"
+
+static const rte_param_t s_params[PARAM_COUNT] = {
+{% for p in m.params %}
+    [PARAM_{{ p.name | upper }}] = {{ "{" }}{{ p.name | c_string }}, {{ p.help | c_string }}, {{ p.hint | c_string }},
+        {{ p.min | c_float }}, {{ p.max | c_float }}, {{ p.default | c_float }}{{ "}" }},
+{% endfor %}
+};
+
+void ctrl_gen_rte_init(rte_t *r, const rte_hooks_t *hooks)
+{
+  rte_init(r, s_params, PARAM_COUNT, hooks);
+}
+
+{% if m.commands %}
+/* The controller's own commands, written by hand in console.c. */
+{% for k in m.commands %}
+int {{ k.handler }}(int argc, char **argv);
+{% endfor %}
+
+{% endif %}
+void ctrl_gen_console_register(rte_t *r)
+{
+  console_init({{ (m.name ~ "> ") | c_string }});
+  rte_cmd_register_params(r);
+{% for k in m.commands if not k.after_run %}
+  console_register({{ k.name | c_string }}, {{ k.help | c_string }}, {{ k.hint | c_string }},
+                   {{ k.handler }});
+{% endfor %}
+  rte_cmd_register_run(r);
+{% for k in m.commands if k.after_run %}
+  console_register({{ k.name | c_string }}, {{ k.help | c_string }}, {{ k.hint | c_string }},
+                   {{ k.handler }});
+{% endfor %}
+}
+
+static void print_row(const telem_sample_t *s)
+{
+  printf("%u{% for c in m.telemetry %},%d{% endfor %}\n", (unsigned)s->t_ms,
+{% for c in m.telemetry %}
+         {{ c.row }}{{ ");" if loop.last else "," }}
+{% endfor %}
+}
+
+void ctrl_gen_telemetry_start(void)
+{
+  telemetry_start("t_ms{% for c in m.telemetry %},{{ c.name }}{% endfor %}", print_row);
+}

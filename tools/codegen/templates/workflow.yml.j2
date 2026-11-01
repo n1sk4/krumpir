@@ -1,0 +1,75 @@
+{{ banner }}
+name: {{ m.dir }}
+
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: controllers/{{ m.dir }}
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true # libs/vendor/XCPlite for the XCP build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: controllers/{{ m.dir }}/requirements.txt
+
+      - name: Install tools
+        run: pip install platformio -r requirements.txt -r ../../tools/codegen/requirements.txt
+
+      - name: Generated files are up to date
+        run: |
+          python ../../tools/codegen/test_gen_controller.py
+          python ../../tools/codegen/gen_controller.py . --check
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ "{{" }} hashFiles('controllers/{{ m.dir }}/platformio.ini') {{ "}}" }}
+
+      - name: Library tests (native)
+        working-directory: libs
+        run: pio test -e native
+
+      - name: Unit tests (native)
+        run: pio test -e native
+
+      - name: Library and unit tests (CMake, without PlatformIO)
+        run: |
+          for p in ../../libs test; do
+            b="${{ "{{" }} runner.temp {{ "}}" }}/ctest/$(basename "$(realpath "$p")")"
+            cmake -S "$p" -B "$b"
+            cmake --build "$b"
+            ctest --test-dir "$b" --output-on-failure
+          done
+
+      - name: Build firmware
+        run: pio run -e esp32dev
+
+      - name: Build firmware with XCP
+        run: |
+          cp ../../libs/esp/xcpglue/include/wlan.h.example ../../libs/esp/xcpglue/include/wlan.h
+          pio run -e esp32dev-xcp
+{% for s in m.ci_steps %}
+
+      - name: {{ s.name }}
+        run: |
+          {{ s.run | indent(10) }}
+{% endfor %}
+
+      - name: Collect firmware
+        run: cp .pio/build/esp32dev/firmware.bin .pio/build/esp32dev/firmware.elf out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: {{ m.dir }}
+          path: controllers/{{ m.dir }}/out/

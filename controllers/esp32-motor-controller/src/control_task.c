@@ -3,7 +3,6 @@
 #include "motor_io_sim.h"
 #include "motor_loop.h"
 #include "osal.h"
-#include "rte_calib.h"
 #include "telemetry.h"
 #include "tick_task.h"
 
@@ -11,44 +10,8 @@
 #define TICK_DT_S (1.0f / TICK_HZ)
 #define TELEMETRY_DECIMATION 10 /* 1 kHz -> 100 Hz */
 
-/* Runtime parameters: console commands and calibration names. Gain defaults come from the tuned
- * controller configuration at start-up. */
-static rte_param_t s_param_table[PARAM_COUNT] = {
-    [PARAM_SP] = {"sp", "Set speed setpoint [rpm]", "<rpm>", -SP_MAX_RPM, SP_MAX_RPM, 0.0f},
-    [PARAM_KP] = {"kp", "Set proportional gain", "<value>", 0.0f, GAIN_MAX, 0.0f},
-    [PARAM_KI] = {"ki", "Set integral gain", "<value>", 0.0f, GAIN_MAX, 0.0f},
-    [PARAM_KD] = {"kd", "Set derivative gain", "<value>", 0.0f, GAIN_MAX, 0.0f},
-};
-
-#ifdef KRUMPIR_XCP
-#include "xcplib.h"
-
-/* XCP calibration page: setpoint and gains, writable from an XCP tool while the loop runs. XCPlite
- * needs the type and the variable to have the same name. */
-struct motor_cal_page {
-  float setpoint; /* [rpm] */
-  float kp, ki, kd;
-};
-const struct motor_cal_page motor_cal_page = {0.0f, 7.2e-4f, 0.03f, 0.0f};
-CalSegDecl(motor_cal_page);
-XCP_UNIT(motor_cal_page__setpoint, "rpm");
-XCP_LIMITS(motor_cal_page__setpoint, -SP_MAX_RPM, SP_MAX_RPM);
-XCP_LIMITS(motor_cal_page__kp, 0.0f, GAIN_MAX);
-XCP_LIMITS(motor_cal_page__ki, 0.0f, GAIN_MAX);
-XCP_LIMITS(motor_cal_page__kd, 0.0f, GAIN_MAX);
-
-static const char *const s_cal_names[] = {"sp", "kp", "ki", "kd"};
-static rte_calib_t s_calib;
-
-/* A changed calibration page overrides the console settings once (rte_calib.h). */
-static void apply_cal_page(void)
-{
-  const struct motor_cal_page *c = CalSegLock(motor_cal_page);
-  const float v[] = {c->setpoint, c->kp, c->ki, c->kd};
-  CalSegUnlock(motor_cal_page);
-  rte_calib_update(&s_calib, control_task_rte(), v);
-}
-#endif
+/* Generated from controller.toml: the XCP calibration page. */
+#include "gen/ctrl_gen_task.inc"
 
 /* Simulation settings handed over from the console. */
 typedef struct {
@@ -114,7 +77,7 @@ static void control_tick(void *arg, uint32_t tick)
 {
 #ifdef KRUMPIR_XCP
   DaqCreateEvent(tick); /* every 1 ms tick */
-  apply_cal_page();
+  ctrl_gen_cal_apply(&s_rte);
 #endif
 
   osal_crit_enter(&s_sim_mux);
@@ -135,7 +98,7 @@ static void control_tick(void *arg, uint32_t tick)
   s_speed = s_loop.speed;
   s_duty = s_loop.duty;
   if (tick % TELEMETRY_DECIMATION == 0) {
-    telem_sample_t s = {tick, {s_loop.ctrl.setpoint, s_loop.speed, s_loop.duty}};
+    telem_sample_t s = {tick, CTRL_GEN_TELEM_VALUES};
     telemetry_push(&s);
   }
 #ifdef KRUMPIR_XCP
@@ -147,13 +110,9 @@ static void control_tick(void *arg, uint32_t tick)
 
 void control_task_start(void)
 {
-  const motor_ctrl_cfg_t ctrl_cfg = MOTOR_CTRL_CFG_DEFAULT;
-  s_param_table[PARAM_KP].def = ctrl_cfg.kp;
-  s_param_table[PARAM_KI].def = ctrl_cfg.ki;
-  s_param_table[PARAM_KD].def = ctrl_cfg.kd;
-  rte_init(&s_rte, s_param_table, PARAM_COUNT, &s_hooks);
+  ctrl_gen_rte_init(&s_rte, &s_hooks);
 #ifdef KRUMPIR_XCP
-  rte_calib_init(&s_calib, &s_rte, s_cal_names, 4);
+  ctrl_gen_cal_init(&s_rte);
 #endif
   tick_cfg_t cfg = TICK_CFG_DEFAULT;
   cfg.hz = TICK_HZ;

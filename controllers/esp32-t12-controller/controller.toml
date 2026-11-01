@@ -1,0 +1,130 @@
+# Description of the T12 controller: the data its runtime tables and build files are generated
+# from (python tools/codegen/gen_controller.py controllers/esp32-t12-controller). The component
+# itself (lib/t12ctrl, the hooks in src/control_task.c, the handlers in src/console.c) is written
+# by hand.
+
+[controller]
+name = "t12"        # prefix of the calibration page (t12_cal_page) and the console prompt
+plant = "t12"       # libs/plants/<plant>
+lib = "t12ctrl"     # lib/<lib>, the controller component
+
+# Runtime parameters: console command `<name> <value>`, accepted range, value at boot, and the
+# field of the XCP calibration page (cal). Gains are placeholders tuned on the simulated tip.
+[[param]]
+name = "sp"
+help = "Set temperature setpoint [degC]"
+hint = "<degC>"
+min = 100
+max = 450
+default = 350
+unit = "degC"
+cal = "setpoint"
+
+[[param]]
+name = "kp"
+help = "Set proportional gain"
+hint = "<value>"
+min = 0
+max = 1000
+default = 0.05
+cal = true
+
+[[param]]
+name = "ki"
+help = "Set integral gain"
+hint = "<value>"
+min = 0
+max = 1000
+default = 0.05
+cal = true
+
+[[param]]
+name = "kd"
+help = "Set derivative gain"
+hint = "<value>"
+min = 0
+max = 1000
+default = 0
+cal = true
+
+[[param]]
+name = "ramp"
+help = "Setpoint ramp rate [K/s], 0 = off"
+hint = "<K/s>"
+min = 0
+max = 100
+default = 0
+
+# The controller's own console commands; handlers are in src/console.c. They are listed after the
+# parameter commands, and after clear/start/stop when after_run is true.
+[[command]]
+name = "load"
+help = "Simulation only: extra heat loss of touching a joint [W/K]"
+hint = "<W/K>"
+handler = "cmd_load"
+
+[[command]]
+name = "ambient"
+help = "Simulation only: ambient temperature [degC]"
+hint = "<degC>"
+handler = "cmd_ambient"
+
+[[command]]
+name = "fault"
+help = "Simulation only: inject a tip fault"
+hint = "none|open|short|stuck"
+handler = "cmd_fault"
+
+[[command]]
+name = "status"
+help = "Show state and loop timing"
+handler = "cmd_status"
+after_run = true
+
+# CSV telemetry, one row per heater cycle: column name, C expression of the value in the control
+# task, scale before rounding, and the value printed for NaN (no valid reading).
+[[telemetry.column]]
+name = "setpoint_c"
+value = "s_loop.ctrl.sp_active"
+
+[[telemetry.column]]
+name = "temp_c"
+value = "s_loop.temp"
+nan = -1
+
+[[telemetry.column]]
+name = "duty_permille"
+value = "s_loop.duty"
+scale = 1000
+
+[[telemetry.column]]
+name = "current_ma"
+value = "s_loop.amps"
+scale = 1000
+
+# CI steps of this controller, after the common ones (tests, builds) in the generated workflow.
+[[ci.step]]
+name = "Serial tools self-check"
+run = """
+python ../../tools/serial/capture.py --selftest
+python ../../tools/serial/timing_check.py --selftest
+"""
+
+[[ci.step]]
+name = "Scenario CSVs, plots and tables"
+run = """
+mkdir -p .pio out
+lib="lib/t12ctrl/src"
+core="../../libs/ctrlcore/src"
+plant="../../libs/plants/t12"
+gcc -Ilib/t12ctrl/include -I../../libs/ctrlcore/include -I$plant/include \\
+  tools/scenarios.c $lib/t12_scenario.c $lib/t12_loop.c $lib/t12_ctrl.c $lib/t12_cycle.c \\
+  $lib/t12_convert.c $lib/t12_safety.c $lib/t12_io_sim.c $core/pid.c $core/step_metrics.c \\
+  $plant/src/t12_plant.c -lm -o .pio/scenarios
+for s in cold load ambient open short stuck runaway; do
+  .pio/scenarios $s > out/scenario_$s.csv
+  python tools/plot.py out/scenario_$s.csv out/scenario_$s.png
+done
+.pio/scenarios summary > out/scenarios.md
+.pio/scenarios sweep > out/gain_sweep.md
+"""

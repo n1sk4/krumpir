@@ -1,7 +1,6 @@
 #include "control_task.h"
 
 #include "osal.h"
-#include "rte_calib.h"
 #include "t12_io_sim.h"
 #include "t12_loop.h"
 #include "telemetry.h"
@@ -10,48 +9,9 @@
 #define TICK_HZ 1000
 #define TICK_DT_S (1.0f / TICK_HZ)
 #define DEFAULT_AMBIENT_C 25.0
-#define GAIN_MAX 1000.0f
-#define RAMP_MAX 100.0f
 
-/* Runtime parameters: console commands and calibration names. Gain and ramp defaults come from the
- * controller configuration at start-up. */
-static rte_param_t s_param_table[PARAM_COUNT] = {
-    [PARAM_SP] = {"sp", "Set temperature setpoint [degC]", "<degC>", SP_MIN_C, SP_MAX_C, 350.0f},
-    [PARAM_KP] = {"kp", "Set proportional gain", "<value>", 0.0f, GAIN_MAX, 0.0f},
-    [PARAM_KI] = {"ki", "Set integral gain", "<value>", 0.0f, GAIN_MAX, 0.0f},
-    [PARAM_KD] = {"kd", "Set derivative gain", "<value>", 0.0f, GAIN_MAX, 0.0f},
-    [PARAM_RAMP] = {"ramp", "Setpoint ramp rate [K/s], 0 = off", "<K/s>", 0.0f, RAMP_MAX, 0.0f},
-};
-
-#ifdef KRUMPIR_XCP
-#include "xcplib.h"
-
-/* XCP calibration page: setpoint and gains, writable from an XCP tool while the loop runs. XCPlite
- * needs the type and the variable to have the same name. */
-struct t12_cal_page {
-  float setpoint; /* [degC] */
-  float kp, ki, kd;
-};
-const struct t12_cal_page t12_cal_page = {350.0f, 0.05f, 0.05f, 0.0f};
-CalSegDecl(t12_cal_page);
-XCP_UNIT(t12_cal_page__setpoint, "degC");
-XCP_LIMITS(t12_cal_page__setpoint, 100.0f, 450.0f);
-XCP_LIMITS(t12_cal_page__kp, 0.0f, 1000.0f);
-XCP_LIMITS(t12_cal_page__ki, 0.0f, 1000.0f);
-XCP_LIMITS(t12_cal_page__kd, 0.0f, 1000.0f);
-
-static const char *const s_cal_names[] = {"sp", "kp", "ki", "kd"};
-static rte_calib_t s_calib;
-
-/* A changed calibration page overrides the console settings once (rte_calib.h). */
-static void apply_cal_page(void)
-{
-  const struct t12_cal_page *c = CalSegLock(t12_cal_page);
-  const float v[] = {c->setpoint, c->kp, c->ki, c->kd};
-  CalSegUnlock(t12_cal_page);
-  rte_calib_update(&s_calib, control_task_rte(), v);
-}
-#endif
+/* Generated from controller.toml: the XCP calibration page. */
+#include "gen/ctrl_gen_task.inc"
 
 /* Simulation settings handed over from the console. */
 typedef struct {
@@ -122,7 +82,7 @@ static void control_tick(void *arg, uint32_t tick)
 #ifdef KRUMPIR_XCP
   DaqCreateEvent(tick);  /* every 1 ms tick */
   DaqCreateEvent(cycle); /* every completed heater cycle (about 10 Hz) */
-  apply_cal_page();
+  ctrl_gen_cal_apply(&s_rte);
 #endif
 
   osal_crit_enter(&s_sim_mux);
@@ -146,7 +106,7 @@ static void control_tick(void *arg, uint32_t tick)
     s_handle = s_loop.handle;
     s_amps = s_loop.amps;
     s_duty = s_loop.duty;
-    telem_sample_t s = {tick, {s_loop.ctrl.sp_active, s_loop.temp, s_loop.duty, s_loop.amps}};
+    telem_sample_t s = {tick, CTRL_GEN_TELEM_VALUES};
     telemetry_push(&s);
   }
 #ifdef KRUMPIR_XCP
@@ -160,13 +120,9 @@ static void control_tick(void *arg, uint32_t tick)
 
 void control_task_start(void)
 {
-  s_param_table[PARAM_KP].def = s_ctrl_default.kp;
-  s_param_table[PARAM_KI].def = s_ctrl_default.ki;
-  s_param_table[PARAM_KD].def = s_ctrl_default.kd;
-  s_param_table[PARAM_RAMP].def = s_ctrl_default.ramp;
-  rte_init(&s_rte, s_param_table, PARAM_COUNT, &s_hooks);
+  ctrl_gen_rte_init(&s_rte, &s_hooks);
 #ifdef KRUMPIR_XCP
-  rte_calib_init(&s_calib, &s_rte, s_cal_names, 4);
+  ctrl_gen_cal_init(&s_rte);
 #endif
   tick_cfg_t cfg = TICK_CFG_DEFAULT;
   cfg.hz = TICK_HZ;

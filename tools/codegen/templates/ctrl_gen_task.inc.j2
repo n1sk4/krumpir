@@ -1,0 +1,43 @@
+{{ banner }}
+/* Included by control_task.c only: the XCP objects must be in the control task's compilation unit,
+ * which the A2L is generated from (xcpclient --elf-unit-filter control_task). */
+#ifdef KRUMPIR_XCP
+#include "rte_calib.h"
+#include "xcplib.h"
+
+{% set page = m.name ~ "_cal_page" %}
+{% if m.cal %}
+/* XCP calibration page, writable from an XCP tool while the loop runs. XCPlite needs the type and
+ * the variable to have the same name. */
+struct {{ page }} {
+{% for p in m.cal %}
+  float {{ p.cal }};{{ (" /* [" ~ p.unit ~ "] */") if p.unit else "" }}
+{% endfor %}
+};
+const struct {{ page }} {{ page }} = {{ "{" }}{% for p in m.cal %}{{ p.default | c_float }}{{ ", " if not loop.last }}{% endfor %}{{ "}" }};
+CalSegDecl({{ page }});
+{% for p in m.cal %}
+{% if p.unit %}
+XCP_UNIT({{ page }}__{{ p.cal }}, {{ p.unit | c_string }});
+{% endif %}
+XCP_LIMITS({{ page }}__{{ p.cal }}, {{ p.min | c_float }}, {{ p.max | c_float }});
+{% endfor %}
+
+static const char *const s_cal_names[] = {{ "{" }}{% for p in m.cal %}{{ p.name | c_string }}{{ ", " if not loop.last }}{% endfor %}{{ "}" }};
+static rte_calib_t s_calib;
+
+void ctrl_gen_cal_init(rte_t *r) { rte_calib_init(&s_calib, r, s_cal_names, {{ m.cal | length }}); }
+
+/* A changed page overrides the console settings once (rte_calib.h). */
+void ctrl_gen_cal_apply(rte_t *r)
+{
+  const struct {{ page }} *c = CalSegLock({{ page }});
+  const float v[] = {{ "{" }}{% for p in m.cal %}c->{{ p.cal }}{{ ", " if not loop.last }}{% endfor %}{{ "}" }};
+  CalSegUnlock({{ page }});
+  rte_calib_update(&s_calib, r, v);
+}
+{% else %}
+void ctrl_gen_cal_init(rte_t *r) { (void)r; }
+void ctrl_gen_cal_apply(rte_t *r) { (void)r; }
+{% endif %}
+#endif

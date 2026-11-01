@@ -4,14 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "rte.h"
+#include "gen/ctrl_gen.h" /* parameter ids, generated from controller.toml */
 #include "t12_plant.h"
-
-#define SP_MIN_C 100.0f
-#define SP_MAX_C 450.0f
-
-/* Runtime parameters (ids into the runtime, see rte.h). */
-enum { PARAM_SP, PARAM_KP, PARAM_KI, PARAM_KD, PARAM_RAMP, PARAM_COUNT };
 
 /* Starts the 1 kHz control task on core 1. */
 void control_task_start(void);

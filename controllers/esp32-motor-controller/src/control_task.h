@@ -4,13 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "rte.h"
-
-#define SP_MAX_RPM 10000.0f
-#define GAIN_MAX 1000000.0f
-
-/* Runtime parameters (ids into the runtime, see rte.h). */
-enum { PARAM_SP, PARAM_KP, PARAM_KI, PARAM_KD, PARAM_COUNT };
+#include "gen/ctrl_gen.h" /* parameter ids, generated from controller.toml */
 
 /* Starts the 1 kHz control task on core 1. Boots stopped, with the tuned gains. */
 void control_task_start(void);

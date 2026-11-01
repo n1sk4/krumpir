@@ -1,0 +1,35 @@
+{{ banner }}
+#ifndef CTRL_GEN_H
+#define CTRL_GEN_H
+
+#include "rte.h"
+
+/* Runtime parameters: ids into the runtime (rte.h). */
+enum {
+{% for p in m.params %}
+  PARAM_{{ p.name | upper }},
+{% endfor %}
+  PARAM_COUNT
+};
+
+/* Starts the runtime on the parameter table, with the component's hooks. */
+void ctrl_gen_rte_init(rte_t *r, const rte_hooks_t *hooks);
+
+/* Registers the console commands in help order: the parameters, the controller's own commands,
+ * clear/start/stop, then the commands placed after them. Call console_run() afterwards. */
+void ctrl_gen_console_register(rte_t *r);
+
+/* Starts telemetry with the CSV header and row format of the description. */
+void ctrl_gen_telemetry_start(void);
+
+/* The values of one telemetry sample, evaluated where it is used (the control task). */
+#define CTRL_GEN_TELEM_VALUES {{ "{" }}{{ m.telemetry | map(attribute="value") | join(", ") }}{{ "}" }}
+
+#ifdef KRUMPIR_XCP
+/* The XCP calibration page {{ m.name }}_cal_page (ctrl_gen_task.inc, compiled into the control
+ * task's unit, so the A2L generated from that unit finds it). */
+void ctrl_gen_cal_init(rte_t *r);
+void ctrl_gen_cal_apply(rte_t *r); /* on the tick, before rte_tick_begin() */
+#endif
+
+#endif

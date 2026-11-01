@@ -42,6 +42,7 @@ add_library(krumpir_core STATIC
   src/core/runner.c
   src/core/session.c
   src/core/siggen.c
+  src/telemetry/capture.c
   src/fmi/fmi3.c
   src/fmi/loader.c
   src/fmi/modeldesc.c

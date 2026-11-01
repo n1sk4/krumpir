@@ -1,6 +1,7 @@
 #include "session.h"
 
 #include <errno.h>
+#include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
@@ -42,6 +43,12 @@ struct session {
   cmdq_t cmd, reply;
   uint32_t seq;
   input_src_t src[TELEM_MAX_CH]; /* the loop owns it while RUNNING; the session owns the signals */
+
+  /* Captures, fed by the writer thread (tap) and read by the control thread, under cap_lock */
+  pthread_mutex_t cap_lock;
+  bool cap_lock_ok;
+  capture_t *caps[SESSION_MAX_CAPTURES];
+  const char *cap_names[SESSION_MAX_CAPTURES][1 + 2 * TELEM_MAX_CH];
   char fault[512];
 };
 
@@ -101,6 +108,14 @@ static void reap(session_t *s)
   }
   pthread_join(s->thread, NULL);
   s->thread_started = false;
+  writer_flush(s->writer); /* the captures have seen every record of the run */
+  pthread_mutex_lock(&s->cap_lock);
+  for (size_t i = 0; i < SESSION_MAX_CAPTURES; i++) {
+    if (s->caps[i] != NULL) {
+      capture_finish(s->caps[i]);
+    }
+  }
+  pthread_mutex_unlock(&s->cap_lock);
   if (s->ls.end == LOOP_DONE || s->ls.end == LOOP_STOPPED) {
     lifecycle_set(&s->state, LC_STOPPED);
   } else {
@@ -134,6 +149,12 @@ void session_unload(session_t *s, session_summary_t *out)
   if (s->writer != NULL) {
     sum.rows = writer_stop(s->writer);
   }
+  for (size_t i = 0; i < SESSION_MAX_CAPTURES; i++) {
+    capture_free(s->caps[i]); /* the writer thread has ended */
+  }
+  if (s->cap_lock_ok) {
+    pthread_mutex_destroy(&s->cap_lock);
+  }
   if (s->ring_ok) {
     sum.dropped = ring_dropped(&s->ring);
     ring_free(&s->ring);
@@ -165,6 +186,19 @@ void session_destroy(session_t *s)
     session_unload(s, NULL);
     free(s);
   }
+}
+
+/* Writer tap: every telemetry record goes to the captures. */
+static void feed_captures(void *ctx, const telem_rec_t *rec)
+{
+  session_t *s = ctx;
+  pthread_mutex_lock(&s->cap_lock);
+  for (size_t i = 0; i < SESSION_MAX_CAPTURES; i++) {
+    if (s->caps[i] != NULL) {
+      capture_feed(s->caps[i], rec);
+    }
+  }
+  pthread_mutex_unlock(&s->cap_lock);
 }
 
 int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
@@ -216,8 +250,13 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
     out_names[i] = s->sc.outputs[i];
   }
   ensure_parent_dir(sc->log_file);
-  s->writer =
-      writer_start(&s->ring, s->sc.log_file, in_names, sc->n_inputs, out_names, sc->n_outputs);
+  if (pthread_mutex_init(&s->cap_lock, NULL) != 0) {
+    snprintf(err, errlen, "cannot create a mutex");
+    goto fail;
+  }
+  s->cap_lock_ok = true;
+  s->writer = writer_start(&s->ring, s->sc.log_file, in_names, sc->n_inputs, out_names,
+                           sc->n_outputs, feed_captures, s);
   if (s->writer == NULL) {
     snprintf(err, errlen, "cannot create log file '%s'", sc->log_file);
     goto fail;
@@ -499,5 +538,159 @@ int session_read(session_t *s, const char *name, double *value, char *err, size_
     return -1;
   }
   *value = c.value;
+  return 0;
+}
+
+/* Channel of the scenario input or output `name` (inputs first, as in a record), or -1. */
+static int channel(const session_t *s, const char *name)
+{
+  for (size_t i = 0; i < s->sc.n_inputs; i++) {
+    if (strcmp(s->sc.inputs[i], name) == 0) {
+      return (int)i;
+    }
+  }
+  for (size_t i = 0; i < s->sc.n_outputs; i++) {
+    if (strcmp(s->sc.outputs[i], name) == 0) {
+      return (int)(s->sc.n_inputs + i);
+    }
+  }
+  return -1;
+}
+
+static const char *channel_name(const session_t *s, int ch)
+{
+  return (size_t)ch < s->sc.n_inputs ? s->sc.inputs[ch] : s->sc.outputs[(size_t)ch - s->sc.n_inputs];
+}
+
+static int resolve_cond(const session_t *s, const capture_cond_t *in, cond_t *out, char *err,
+                        size_t errlen)
+{
+  *out = (cond_t){.op = in->op, .value = in->value};
+  if (in->op == COND_NONE) {
+    return 0;
+  }
+  out->ch = channel(s, in->var);
+  if (out->ch < 0) {
+    snprintf(err, errlen, "trigger variable '%s' is not one of the scenario's inputs or outputs",
+             in->var);
+    return -1;
+  }
+  return 0;
+}
+
+int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, size_t errlen)
+{
+  reap(s);
+  if (s->state != LC_INITIALIZED && s->state != LC_RUNNING) {
+    snprintf(err, errlen, "cannot start a capture in state %s", lifecycle_name(s->state));
+    return -1;
+  }
+  int id = 0;
+  while (id < SESSION_MAX_CAPTURES && s->caps[id] != NULL) {
+    id++;
+  }
+  if (id == SESSION_MAX_CAPTURES) {
+    snprintf(err, errlen, "at most %d captures per run", SESSION_MAX_CAPTURES);
+    return -1;
+  }
+
+  capture_def_t d = {.n_in = s->sc.n_inputs, .duration = spec->duration};
+  if (spec->n_vars == 0) {
+    d.n_ch = s->sc.n_inputs + s->sc.n_outputs;
+    for (size_t i = 0; i < d.n_ch; i++) {
+      d.ch[i] = (int)i;
+    }
+  } else if (spec->n_vars > 2 * TELEM_MAX_CH) {
+    snprintf(err, errlen, "a capture takes at most %d variables", 2 * TELEM_MAX_CH);
+    return -1;
+  }
+  for (size_t i = 0; i < spec->n_vars; i++) {
+    d.ch[i] = channel(s, spec->vars[i]);
+    if (d.ch[i] < 0) {
+      snprintf(err, errlen,
+               "'%s' is not one of the scenario's inputs or outputs (only those are captured)",
+               spec->vars[i]);
+      return -1;
+    }
+    d.n_ch++;
+  }
+  if (resolve_cond(s, &spec->start, &d.start, err, errlen) < 0 ||
+      resolve_cond(s, &spec->stop, &d.stop, err, errlen) < 0) {
+    return -1;
+  }
+  if (!(spec->duration >= 0) || !isfinite(spec->duration)) {
+    snprintf(err, errlen, "capture duration must be >= 0");
+    return -1;
+  }
+  d.max_rows = spec->max_rows;
+  if (d.max_rows == 0) {
+    d.max_rows = spec->duration > 0 ? (size_t)ceil(spec->duration / s->sc.step) + 1 : 100000;
+  }
+  if (d.max_rows > CAPTURE_MAX_BYTES / ((1 + d.n_ch) * sizeof(double))) {
+    snprintf(err, errlen, "capture buffer of %zu rows is over %u MB", d.max_rows,
+             CAPTURE_MAX_BYTES >> 20);
+    return -1;
+  }
+
+  capture_t *c = capture_create(&d);
+  if (c == NULL) {
+    snprintf(err, errlen, "out of memory");
+    return -1;
+  }
+  s->cap_names[id][0] = "t";
+  for (size_t i = 0; i < d.n_ch; i++) {
+    s->cap_names[id][1 + i] = channel_name(s, d.ch[i]);
+  }
+  pthread_mutex_lock(&s->cap_lock);
+  s->caps[id] = c;
+  pthread_mutex_unlock(&s->cap_lock);
+  return id;
+}
+
+static capture_t *find_capture(session_t *s, int id, char *err, size_t errlen)
+{
+  reap(s);
+  if (id < 0 || id >= SESSION_MAX_CAPTURES || s->caps[id] == NULL) {
+    snprintf(err, errlen, "no capture %d", id);
+    return NULL;
+  }
+  return s->caps[id];
+}
+
+int session_capture_fetch(session_t *s, int id, capture_data_t *out, char *err, size_t errlen)
+{
+  capture_t *c = find_capture(s, id, err, errlen);
+  if (c == NULL) {
+    return -1;
+  }
+  *out = (capture_data_t){0};
+  pthread_mutex_lock(&s->cap_lock);
+  const double *rows;
+  out->state = capture_state(c);
+  out->n_rows = capture_rows(c, &rows);
+  out->n_cols = capture_cols(c);
+  size_t bytes = out->n_rows * out->n_cols * sizeof(double);
+  out->rows = malloc(bytes > 0 ? bytes : 1);
+  if (out->rows != NULL) {
+    memcpy(out->rows, rows, bytes);
+  }
+  pthread_mutex_unlock(&s->cap_lock);
+  if (out->rows == NULL) {
+    snprintf(err, errlen, "out of memory");
+    return -1;
+  }
+  memcpy(out->names, s->cap_names[id], out->n_cols * sizeof out->names[0]);
+  return 0;
+}
+
+int session_capture_stop(session_t *s, int id, char *err, size_t errlen)
+{
+  capture_t *c = find_capture(s, id, err, errlen);
+  if (c == NULL) {
+    return -1;
+  }
+  pthread_mutex_lock(&s->cap_lock);
+  capture_finish(c);
+  pthread_mutex_unlock(&s->cap_lock);
   return 0;
 }

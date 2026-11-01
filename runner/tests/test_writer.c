@@ -17,7 +17,7 @@ int main(void)
   assert(ring_init(&ring, 16) == 0);
   const char *in_names[] = {"u"};
   const char *out_names[] = {"y", "z"};
-  writer_t *w = writer_start(&ring, path, in_names, 1, out_names, 2);
+  writer_t *w = writer_start(&ring, path, in_names, 1, out_names, 2, NULL, NULL);
   assert(w != NULL);
 
   for (uint64_t i = 0; i < 3; i++) {
@@ -49,7 +49,8 @@ int main(void)
   fclose(fp);
 
   /* Unwritable path is reported, not crashed on. */
-  assert(writer_start(&ring, "/nonexistent-dir/x.csv", in_names, 1, out_names, 2) == NULL);
+  assert(writer_start(&ring, "/nonexistent-dir/x.csv", in_names, 1, out_names, 2, NULL, NULL) ==
+         NULL);
 
   remove(path);
   ring_free(&ring);

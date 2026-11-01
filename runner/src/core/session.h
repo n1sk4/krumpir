@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "capture.h"
 #include "config.h"
 #include "lifecycle.h"
 #include "modeldesc.h"
@@ -74,5 +75,41 @@ int session_write(session_t *s, const char *name, double value, char *err, size_
 /* Reads any Float64 variable of the model: when INITIALIZED or STOPPED directly, when RUNNING at
  * the next step boundary. Returns 0, or -1 with a message in err. */
 int session_read(session_t *s, const char *name, double *value, char *err, size_t errlen);
+
+/* Captures: record some of the scenario's inputs and outputs between a start and a stop trigger,
+ * off the real-time thread (the log writer feeds them). Up to SESSION_MAX_CAPTURES per load; they
+ * are freed by session_unload. */
+#define SESSION_MAX_CAPTURES 8
+#define CAPTURE_MAX_BYTES (256u << 20) /* row buffer limit per capture */
+
+typedef struct {
+  cond_op_t op; /* COND_NONE: no condition */
+  char var[CFG_MAX_NAME];
+  double value;
+} capture_cond_t;
+
+typedef struct {
+  char vars[2 * TELEM_MAX_CH][CFG_MAX_NAME]; /* n_vars = 0: every input, then every output */
+  size_t n_vars;
+  capture_cond_t start; /* none: starts with the next step */
+  capture_cond_t stop;  /* checked on each recorded row, the row is kept */
+  double duration;      /* s, > 0: records this long after the start; 0: no limit */
+  size_t max_rows;      /* 0: duration / step + 1, or 100000 without a duration */
+} capture_spec_t;
+
+typedef struct {
+  cap_state_t state;
+  size_t n_rows, n_cols;
+  const char *names[1 + 2 * TELEM_MAX_CH]; /* "t", then the variables; valid until unload */
+  double *rows;                            /* n_rows * n_cols, malloc'd: the caller frees it */
+} capture_data_t;
+
+/* Arms a capture when INITIALIZED or RUNNING. Returns its id (>= 0), or -1 with a message. */
+int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, size_t errlen);
+/* A copy of what capture `id` has recorded so far. Once the run has ended every capture is
+ * FINISHED and holds every row. Returns 0, or -1 with a message. */
+int session_capture_fetch(session_t *s, int id, capture_data_t *out, char *err, size_t errlen);
+/* Ends capture `id` now (it keeps its rows). Returns 0, or -1 with a message. */
+int session_capture_stop(session_t *s, int id, char *err, size_t errlen);
 
 #endif

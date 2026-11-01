@@ -15,6 +15,9 @@ struct writer {
   atomic_bool stop;
   pthread_t thread;
   uint64_t rows;
+  writer_tap_t tap;
+  void *tap_ctx;
+  _Atomic size_t done; /* records written and tapped */
 };
 
 static void write_row(writer_t *w, const telem_rec_t *rec)
@@ -40,6 +43,10 @@ static void *drain(void *arg)
     bool any = false;
     while (ring_pop(w->ring, &rec)) {
       write_row(w, &rec);
+      if (w->tap != NULL) {
+        w->tap(w->tap_ctx, &rec);
+      }
+      atomic_fetch_add(&w->done, 1);
       any = true;
     }
     if (stopping) {
@@ -54,7 +61,8 @@ static void *drain(void *arg)
 }
 
 writer_t *writer_start(ring_t *ring, const char *path, const char *const *in_names, size_t n_in,
-                       const char *const *out_names, size_t n_out)
+                       const char *const *out_names, size_t n_out, writer_tap_t tap,
+                       void *tap_ctx)
 {
   if (n_in > TELEM_MAX_CH || n_out > TELEM_MAX_CH) {
     return NULL;
@@ -66,7 +74,10 @@ writer_t *writer_start(ring_t *ring, const char *path, const char *const *in_nam
   w->ring = ring;
   w->n_in = n_in;
   w->n_out = n_out;
+  w->tap = tap;
+  w->tap_ctx = tap_ctx;
   atomic_init(&w->stop, false);
+  atomic_init(&w->done, 0);
   w->fp = fopen(path, "w");
   if (w->fp == NULL) {
     free(w);
@@ -86,6 +97,16 @@ writer_t *writer_start(ring_t *ring, const char *path, const char *const *in_nam
     return NULL;
   }
   return w;
+}
+
+void writer_flush(writer_t *w)
+{
+  /* head counts the records pushed (drops are not pushed); the writer pops them in order */
+  size_t target = atomic_load(&w->ring->head);
+  while (atomic_load(&w->done) < target) {
+    struct timespec ts = {0, 200000};
+    nanosleep(&ts, NULL);
+  }
 }
 
 uint64_t writer_stop(writer_t *w)

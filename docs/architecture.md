@@ -44,7 +44,8 @@ FMU is freed cleanly.
 | `fmi/backend` | One interface over the FMI calls | isolated core |
 | `io/*` | One backend per I/O type behind a common interface | isolated core |
 | `telemetry/ring` | Single-producer, single-consumer lock-free buffer | shared |
-| `telemetry/writer` | Drains the ring, writes CSV, reports drops | Linux cores |
+| `telemetry/writer` | Drains the ring, writes CSV, reports drops, passes each record to the captures | Linux cores |
+| `telemetry/capture` | Records chosen inputs and outputs between a start and a stop trigger (condition, duration, buffer size); fetched as a copy | Linux cores |
 | `tools/*.py` | FMPy reference runs, comparison, histograms | PC |
 
 ## Seams

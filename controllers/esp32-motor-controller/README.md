@@ -5,7 +5,8 @@ deterministic 1 kHz control loop. It is the device under test for the Krumpir HI
 
 - The control logic lives in `lib/control/` and the shared building blocks (PID, ring buffer, loop
   statistics, parameter parsing, step metrics) in `libs/ctrlcore/`, as portable C (no ESP-IDF or
-  FreeRTOS includes), so they are unit tested on the PC with Unity and reused unchanged on the target.
+  FreeRTOS includes), so they are unit tested on the PC with Unity and reused unchanged on the target. The ESP-IDF glue (tick task, telemetry, console
+  helpers) is shared with the other controllers in `libs/esp/espglue`.
 - A small I/O abstraction (`io_t`) lets the same controller run against a simulated motor, a real
   motor, or Krumpir. The firmware currently ships with the simulated motor.
 - A serial console sets the setpoint and gains and starts/stops the controller. CSV telemetry

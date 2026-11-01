@@ -77,8 +77,11 @@ Exit status: 0 pass, 1 mismatch, 2 error, 77 FMU not installed.
 | Feedthrough | `Float64_continuous_input`, `Float64_discrete_input` | `Float64_continuous_output`, `Float64_discrete_output` | `Float64_fixed_parameter`, `Float64_tunable_parameter` |
 | Dahlquist | none | `x` | `k` |
 | VanDerPol | none | `x0`, `x1` | `mu` |
+| dcmotor | `duty`, `load_torque` | `speed`, `speed_rpm`, `current` | `R`, `L`, `Kt`, `Ke`, `J`, `b`, `Vbus` |
+| t12tip | `heater`, `series_on`, `ambient_c`, `load_wk`, `fault` | `v_amp`, `i_heater`, `t_heater_c`, `t_tip_c`, `t_handle_c` | `c_h` ... `tau_sense` |
 
-All values are plain model units (the Reference FMUs are unitless).
+The Reference FMUs are unitless; the plant FMUs (`dcmotor`, `t12tip`, built from `libs/plants`,
+see [../libs/plants/README.md](../libs/plants/README.md)) use SI units.
 
 ## Layout
 

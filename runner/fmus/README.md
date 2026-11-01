@@ -36,6 +36,12 @@ unzip -j /tmp/Reference-FMUs.zip 3.0/Feedthrough.fmu 3.0/Dahlquist.fmu 3.0/VanDe
 | `Feedthrough.fmu` | input to output wiring, parameters |
 | `Dahlquist.fmu` | first-order dynamics compared against FMPy |
 | `VanDerPol.fmu` | nonlinear dynamics compared against FMPy |
+| `dcmotor.fmu` | the DC motor plant (built, not downloaded, see below) |
+| `t12tip.fmu` | the T12 tip plant (built, not downloaded, see below) |
+
+The plant FMUs `dcmotor.fmu` and `t12tip.fmu` are built from `libs/plants` by the runner's CMake
+build (it needs the submodule `libs/vendor/Reference-FMUs`) and copied here. Their variables, and
+how to build them for the Raspberry Pi, are in [../../libs/plants/README.md](../../libs/plants/README.md).
 
 `*.fmu` is gitignored (`runner/.gitignore`). Tests that need these files skip with a message
 pointing here when they are missing.

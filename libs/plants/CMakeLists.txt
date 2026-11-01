@@ -129,7 +129,7 @@ function(add_plant_fmu name)
         COMMAND ${CMAKE_COMMAND} -E copy "${fmu}" "${KRUMPIR_FMU_COPY_DIR}/${name}.fmu" VERBATIM)
     endif()
 
-    if(KRUMPIR_PYTHON)
+    if(KRUMPIR_PYTHON AND NOT CMAKE_CROSSCOMPILING) # FMPy can only load this platform's binary
       add_test(NAME fmpy_${target}
                COMMAND ${KRUMPIR_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_fmu.py" "${fmu}")
     endif()

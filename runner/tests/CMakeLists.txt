@@ -57,7 +57,7 @@ set_tests_properties(runner PROPERTIES SKIP_RETURN_CODE 77)
 # missing.
 set(KRUMPIR_PYTHON "$ENV{HOME}/.venvs/krumpir/bin/python" CACHE FILEPATH "Python with fmpy")
 if(EXISTS "${KRUMPIR_PYTHON}")
-  foreach(name feedthrough dahlquist vanderpol dcmotor)
+  foreach(name feedthrough dahlquist vanderpol dcmotor t12tip)
     add_test(NAME fmpy_${name}
       COMMAND ${KRUMPIR_PYTHON} ${PROJECT_SOURCE_DIR}/tools/compare_fmpy.py scenarios/${name}.toml
               --run $<TARGET_FILE:krumpir>
@@ -74,7 +74,7 @@ endif()
 #                tests/golden/<name>.csv --update
 find_package(Python3 3.11 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-  foreach(name feedthrough dahlquist vanderpol dcmotor)
+  foreach(name feedthrough dahlquist vanderpol dcmotor t12tip)
     add_test(NAME golden_${name}
       COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_golden.py
               $<TARGET_FILE:krumpir> tests/golden/${name}.toml tests/golden/${name}.csv

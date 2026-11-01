@@ -50,7 +50,7 @@ jobs:
         if: matrix.sanitize == 'OFF'
         run: |
           mkdir -p out
-          for s in feedthrough dahlquist vanderpol dcmotor; do
+          for s in feedthrough dahlquist vanderpol dcmotor t12tip; do
             python tools/compare_fmpy.py scenarios/$s.toml --run build/krumpir --plot out/$s.png
           done
 

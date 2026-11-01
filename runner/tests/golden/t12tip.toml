@@ -1,0 +1,21 @@
+# Golden scenario: short, deterministic (unpaced) run compared against t12tip.csv.
+# Paths are relative to the runner/ directory. fmus/t12tip.fmu is built with the runner.
+[model]
+fmu = "fmus/t12tip.fmu"
+step = 0.001
+duration = 2
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+inputs = ["heater", "load_wk"]
+outputs = ["t_tip_c", "v_amp", "i_heater"]
+stimulus = [
+  { input = "heater", kind = "sine", offset = 0.6, amplitude = 1.0, freq_hz = 5.0 },
+  { input = "load_wk", kind = "step", t = 1.0, from = 0, to = 0.1 },
+]
+
+[log]
+file = "runs/golden_t12tip.csv"

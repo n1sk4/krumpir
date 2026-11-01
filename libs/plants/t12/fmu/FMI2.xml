@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="t12tip"
+  description="T12 soldering tip: three-node thermal network, heater switch and thermocouple front end"
+  generationTool="krumpir (Reference FMUs framework)"
+  guid="{0d3c7e91-5a24-4b6f-8e1d-7c9a2f4b6e02}"
+  numberOfEventIndicators="0">
+
+  <CoSimulation
+    modelIdentifier="t12tip"
+    canHandleVariableCommunicationStepSize="true"
+    canNotUseMemoryManagementFunctions="true">
+    <SourceFiles>
+      <File name="all.c"/>
+    </SourceFiles>
+  </CoSimulation>
+
+  <UnitDefinitions>
+    <Unit name="s"><BaseUnit s="1" /></Unit>
+    <Unit name="V"><BaseUnit kg="1" m="2" s="-3" A="-1" /></Unit>
+    <Unit name="A"><BaseUnit A="1" /></Unit>
+    <Unit name="degC"><BaseUnit K="1" offset="273.15" /></Unit>
+    <Unit name="W/K"><BaseUnit kg="1" m="2" s="-3" K="-1" /></Unit>
+    <Unit name="J/K"><BaseUnit kg="1" m="2" s="-2" K="-1" /></Unit>
+    <Unit name="K/W"><BaseUnit kg="-1" m="-2" s="3" K="1" /></Unit>
+    <Unit name="Ohm"><BaseUnit kg="1" m="2" s="-3" A="-2" /></Unit>
+    <Unit name="V/K"><BaseUnit kg="1" m="2" s="-3" A="-1" K="-1" /></Unit>
+  </UnitDefinitions>
+
+  <LogCategories>
+    <Category name="logEvents" description="Log events"/>
+    <Category name="logStatusError" description="Log error messages"/>
+  </LogCategories>
+
+  <DefaultExperiment startTime="0" stopTime="10" stepSize="0.001"/>
+
+  <ModelVariables>
+    <ScalarVariable name="time" valueReference="0" causality="independent" variability="continuous" description="Simulation time">
+      <Real unit="s"/>
+    </ScalarVariable>
+    <ScalarVariable name="heater" valueReference="1" causality="input" variability="continuous" description="Heater switch Q1, on when >= 0.5">
+      <Real start="0" min="0" max="1"/>
+    </ScalarVariable>
+    <ScalarVariable name="series_on" valueReference="2" causality="input" variability="continuous" description="Series switch Q3 (held by the heartbeat), on when >= 0.5">
+      <Real start="1" min="0" max="1"/>
+    </ScalarVariable>
+    <ScalarVariable name="ambient_c" valueReference="3" causality="input" variability="continuous" description="Room temperature; also the start temperature of all three nodes">
+      <Real start="25" unit="degC"/>
+    </ScalarVariable>
+    <ScalarVariable name="load_wk" valueReference="4" causality="input" variability="continuous" description="Extra tip-to-ambient conductance of touching a joint">
+      <Real start="0" min="0" unit="W/K"/>
+    </ScalarVariable>
+    <ScalarVariable name="fault" valueReference="5" causality="input" variability="continuous" description="0 none, 1 open (no tip), 2 shorted tip, 3 heater switch stuck on">
+      <Real start="0" min="0" max="3"/>
+    </ScalarVariable>
+    <ScalarVariable name="v_amp" valueReference="6" causality="output" variability="continuous" initial="calculated" description="Thermocouple amplifier output: clamped while heating, settles after switch-off">
+      <Real unit="V"/>
+    </ScalarVariable>
+    <ScalarVariable name="i_heater" valueReference="7" causality="output" variability="continuous" initial="calculated" description="Heater current of the last step">
+      <Real unit="A"/>
+    </ScalarVariable>
+    <ScalarVariable name="t_heater_c" valueReference="8" causality="output" variability="continuous" initial="calculated" description="Heater temperature (thermocouple junction)">
+      <Real unit="degC"/>
+    </ScalarVariable>
+    <ScalarVariable name="t_tip_c" valueReference="9" causality="output" variability="continuous" initial="calculated" description="Copper tip temperature">
+      <Real unit="degC"/>
+    </ScalarVariable>
+    <ScalarVariable name="t_handle_c" valueReference="10" causality="output" variability="continuous" initial="calculated" description="Handle temperature, what the handle NTC reads">
+      <Real unit="degC"/>
+    </ScalarVariable>
+    <ScalarVariable name="c_h" valueReference="11" causality="parameter" variability="fixed" initial="exact" description="Heat capacity of the heater">
+      <Real start="0.25" unit="J/K"/>
+    </ScalarVariable>
+    <ScalarVariable name="c_t" valueReference="12" causality="parameter" variability="fixed" initial="exact" description="Heat capacity of the copper tip">
+      <Real start="0.8" unit="J/K"/>
+    </ScalarVariable>
+    <ScalarVariable name="c_c" valueReference="13" causality="parameter" variability="fixed" initial="exact" description="Heat capacity of the handle">
+      <Real start="15" unit="J/K"/>
+    </ScalarVariable>
+    <ScalarVariable name="r_ht" valueReference="14" causality="parameter" variability="fixed" initial="exact" description="Thermal resistance heater to tip">
+      <Real start="0.5" unit="K/W"/>
+    </ScalarVariable>
+    <ScalarVariable name="r_ta" valueReference="15" causality="parameter" variability="fixed" initial="exact" description="Thermal resistance tip to air">
+      <Real start="35" unit="K/W"/>
+    </ScalarVariable>
+    <ScalarVariable name="r_tc" valueReference="16" causality="parameter" variability="fixed" initial="exact" description="Thermal resistance tip to handle">
+      <Real start="150" unit="K/W"/>
+    </ScalarVariable>
+    <ScalarVariable name="r_ca" valueReference="17" causality="parameter" variability="fixed" initial="exact" description="Thermal resistance handle to air">
+      <Real start="15" unit="K/W"/>
+    </ScalarVariable>
+    <ScalarVariable name="v_supply" valueReference="18" causality="parameter" variability="fixed" initial="exact" description="Heater supply voltage">
+      <Real start="24" unit="V"/>
+    </ScalarVariable>
+    <ScalarVariable name="r_coil" valueReference="19" causality="parameter" variability="fixed" initial="exact" description="Heater resistance">
+      <Real start="8" unit="Ohm"/>
+    </ScalarVariable>
+    <ScalarVariable name="r_short" valueReference="20" causality="parameter" variability="fixed" initial="exact" description="Loop resistance of a shorted tip">
+      <Real start="1" unit="Ohm"/>
+    </ScalarVariable>
+    <ScalarVariable name="seebeck" valueReference="21" causality="parameter" variability="fixed" initial="exact" description="Thermocouple sensitivity">
+      <Real start="2.1e-05" unit="V/K"/>
+    </ScalarVariable>
+    <ScalarVariable name="amp_gain" valueReference="22" causality="parameter" variability="fixed" initial="exact" description="Thermocouple amplifier gain">
+      <Real start="250"/>
+    </ScalarVariable>
+    <ScalarVariable name="amp_offset" valueReference="23" causality="parameter" variability="fixed" initial="exact" description="Input-referred amplifier offset">
+      <Real start="1e-05" unit="V"/>
+    </ScalarVariable>
+    <ScalarVariable name="v_clamp" valueReference="24" causality="parameter" variability="fixed" initial="exact" description="Sense-node clamp (amplifier supply)">
+      <Real start="3.3" unit="V"/>
+    </ScalarVariable>
+    <ScalarVariable name="tau_sense" valueReference="25" causality="parameter" variability="fixed" initial="exact" description="Settle time constant of the sense node after switch-off">
+      <Real start="0.0005" unit="s"/>
+    </ScalarVariable>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="7"/>
+      <Unknown index="8"/>
+      <Unknown index="9"/>
+      <Unknown index="10"/>
+      <Unknown index="11"/>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="7"/>
+      <Unknown index="8"/>
+      <Unknown index="9"/>
+      <Unknown index="10"/>
+      <Unknown index="11"/>
+    </InitialUnknowns>
+  </ModelStructure>
+
+</fmiModelDescription>

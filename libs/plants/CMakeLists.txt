@@ -145,6 +145,14 @@ add_plant_fmu(dcmotor
   INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/dcmotor/include"
   TEST "${CMAKE_CURRENT_SOURCE_DIR}/dcmotor/fmu/test_fmu.c")
 
+add_plant_fmu(t12tip
+  MODEL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/t12/fmu"
+  SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/t12/src/t12_plant.c"
+  HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/t12/include/t12_plant.h"
+  INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/t12/include"
+           "${CMAKE_CURRENT_SOURCE_DIR}/../test/test_t12_plant" # golden.h for the test
+  TEST "${CMAKE_CURRENT_SOURCE_DIR}/t12/fmu/test_fmu.c")
+
 # Build check of the machinery with a Reference FMUs model (discrete, time events, no states)
 option(KRUMPIR_FMU_SELFTEST "Also build the Reference FMUs model Stair through add_plant_fmu" ON)
 if(KRUMPIR_FMU_SELFTEST)

@@ -1,0 +1,22 @@
+# T12 tip plant (libs/plants/t12): the heater switches at 5 Hz with about 53 % on-time (the input
+# is on when >= 0.5), and a joint (0.1 W/K) is touched at t = 6 s. fmus/t12tip.fmu is built with
+# the runner.
+[model]
+fmu = "fmus/t12tip.fmu"
+step = 0.001
+duration = 10
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+inputs = ["heater", "load_wk"]
+outputs = ["t_tip_c", "v_amp", "i_heater"]
+stimulus = [
+  { input = "heater", kind = "sine", offset = 0.6, amplitude = 1.0, freq_hz = 5.0 },
+  { input = "load_wk", kind = "step", t = 6.0, from = 0, to = 0.1 },
+]
+
+[log]
+file = "runs/t12tip.csv"

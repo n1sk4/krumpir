@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription
+  fmiVersion="3.0"
+  modelName="t12tip"
+  description="T12 soldering tip: three-node thermal network, heater switch and thermocouple front end"
+  generationTool="krumpir (Reference FMUs framework)"
+  instantiationToken="{0d3c7e91-5a24-4b6f-8e1d-7c9a2f4b6e02}">
+
+  <CoSimulation
+    modelIdentifier="t12tip"
+    canHandleVariableCommunicationStepSize="true"
+    fixedInternalStepSize="0.001"/>
+
+  <UnitDefinitions>
+    <Unit name="s"><BaseUnit s="1"/></Unit>
+    <Unit name="V"><BaseUnit kg="1" m="2" s="-3" A="-1"/></Unit>
+    <Unit name="A"><BaseUnit A="1"/></Unit>
+    <Unit name="degC"><BaseUnit K="1" offset="273.15"/></Unit>
+    <Unit name="W/K"><BaseUnit kg="1" m="2" s="-3" K="-1"/></Unit>
+    <Unit name="J/K"><BaseUnit kg="1" m="2" s="-2" K="-1"/></Unit>
+    <Unit name="K/W"><BaseUnit kg="-1" m="-2" s="3" K="1"/></Unit>
+    <Unit name="Ohm"><BaseUnit kg="1" m="2" s="-3" A="-2"/></Unit>
+    <Unit name="V/K"><BaseUnit kg="1" m="2" s="-3" A="-1" K="-1"/></Unit>
+  </UnitDefinitions>
+
+  <LogCategories>
+    <Category name="logEvents" description="Log events"/>
+    <Category name="logStatusError" description="Log error messages"/>
+  </LogCategories>
+
+  <DefaultExperiment startTime="0" stopTime="10" stepSize="0.001"/>
+
+  <ModelVariables>
+    <Float64 name="time" valueReference="0" causality="independent" variability="continuous" unit="s" description="Simulation time"/>
+    <Float64 name="heater" valueReference="1" causality="input" variability="continuous" start="0" min="0" max="1" description="Heater switch Q1, on when >= 0.5"/>
+    <Float64 name="series_on" valueReference="2" causality="input" variability="continuous" start="1" min="0" max="1" description="Series switch Q3 (held by the heartbeat), on when >= 0.5"/>
+    <Float64 name="ambient_c" valueReference="3" causality="input" variability="continuous" start="25" unit="degC" description="Room temperature; also the start temperature of all three nodes"/>
+    <Float64 name="load_wk" valueReference="4" causality="input" variability="continuous" start="0" min="0" unit="W/K" description="Extra tip-to-ambient conductance of touching a joint"/>
+    <Float64 name="fault" valueReference="5" causality="input" variability="continuous" start="0" min="0" max="3" description="0 none, 1 open (no tip), 2 shorted tip, 3 heater switch stuck on"/>
+    <Float64 name="v_amp" valueReference="6" causality="output" variability="continuous" initial="calculated" unit="V" description="Thermocouple amplifier output: clamped while heating, settles after switch-off"/>
+    <Float64 name="i_heater" valueReference="7" causality="output" variability="continuous" initial="calculated" unit="A" description="Heater current of the last step"/>
+    <Float64 name="t_heater_c" valueReference="8" causality="output" variability="continuous" initial="calculated" unit="degC" description="Heater temperature (thermocouple junction)"/>
+    <Float64 name="t_tip_c" valueReference="9" causality="output" variability="continuous" initial="calculated" unit="degC" description="Copper tip temperature"/>
+    <Float64 name="t_handle_c" valueReference="10" causality="output" variability="continuous" initial="calculated" unit="degC" description="Handle temperature, what the handle NTC reads"/>
+    <Float64 name="c_h" valueReference="11" causality="parameter" variability="fixed" start="0.25" unit="J/K" description="Heat capacity of the heater"/>
+    <Float64 name="c_t" valueReference="12" causality="parameter" variability="fixed" start="0.8" unit="J/K" description="Heat capacity of the copper tip"/>
+    <Float64 name="c_c" valueReference="13" causality="parameter" variability="fixed" start="15" unit="J/K" description="Heat capacity of the handle"/>
+    <Float64 name="r_ht" valueReference="14" causality="parameter" variability="fixed" start="0.5" unit="K/W" description="Thermal resistance heater to tip"/>
+    <Float64 name="r_ta" valueReference="15" causality="parameter" variability="fixed" start="35" unit="K/W" description="Thermal resistance tip to air"/>
+    <Float64 name="r_tc" valueReference="16" causality="parameter" variability="fixed" start="150" unit="K/W" description="Thermal resistance tip to handle"/>
+    <Float64 name="r_ca" valueReference="17" causality="parameter" variability="fixed" start="15" unit="K/W" description="Thermal resistance handle to air"/>
+    <Float64 name="v_supply" valueReference="18" causality="parameter" variability="fixed" start="24" unit="V" description="Heater supply voltage"/>
+    <Float64 name="r_coil" valueReference="19" causality="parameter" variability="fixed" start="8" unit="Ohm" description="Heater resistance"/>
+    <Float64 name="r_short" valueReference="20" causality="parameter" variability="fixed" start="1" unit="Ohm" description="Loop resistance of a shorted tip"/>
+    <Float64 name="seebeck" valueReference="21" causality="parameter" variability="fixed" start="2.1e-05" unit="V/K" description="Thermocouple sensitivity"/>
+    <Float64 name="amp_gain" valueReference="22" causality="parameter" variability="fixed" start="250" description="Thermocouple amplifier gain"/>
+    <Float64 name="amp_offset" valueReference="23" causality="parameter" variability="fixed" start="1e-05" unit="V" description="Input-referred amplifier offset"/>
+    <Float64 name="v_clamp" valueReference="24" causality="parameter" variability="fixed" start="3.3" unit="V" description="Sense-node clamp (amplifier supply)"/>
+    <Float64 name="tau_sense" valueReference="25" causality="parameter" variability="fixed" start="0.0005" unit="s" description="Settle time constant of the sense node after switch-off"/>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Output valueReference="6"/>
+    <Output valueReference="7"/>
+    <Output valueReference="8"/>
+    <Output valueReference="9"/>
+    <Output valueReference="10"/>
+    <InitialUnknown valueReference="6"/>
+    <InitialUnknown valueReference="7"/>
+    <InitialUnknown valueReference="8"/>
+    <InitialUnknown valueReference="9"/>
+    <InitialUnknown valueReference="10"/>
+  </ModelStructure>
+
+</fmiModelDescription>

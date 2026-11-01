@@ -1,8 +1,10 @@
 # espglue
 
-The ESP-IDF side that every controller firmware in this repo shares. It needs ESP-IDF and FreeRTOS,
-so it is not part of the portable libraries in `libs/` and is not built by the native tests; each
-controller pulls it in only for its `esp32dev` environment.
+The ESP-IDF + FreeRTOS **port of the OSAL contract** in [../../osal](../../osal): it implements
+`tick_task.h`, `telemetry.h` and `console_util.h` (headers in `libs/osal/include`) and provides
+`osal_port.h`, the critical section behind `osal.h`. Controllers include only the contract headers,
+so another platform (Zephyr, a host port) can replace this library without touching them. It is not
+built by the native tests; each controller pulls it in only for its `esp32dev` environments.
 
 | Module | What it does |
 |---|---|
@@ -54,7 +56,8 @@ What stays in a controller is its control body, its parameters, its own console 
    }
    ```
    The body must not block. Settings that the console changes should be copied into the task in a
-   short `portENTER_CRITICAL` section once per tick, so a change never tears.
+   short critical section once per tick (`osal_crit_enter`/`osal_crit_exit` from `osal.h`), so a
+   change never tears.
 3. The console, with the controller's own commands:
    ```c
    #include "console_util.h"

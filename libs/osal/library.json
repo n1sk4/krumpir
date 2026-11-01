@@ -1,0 +1,7 @@
+{
+  "name": "osal",
+  "version": "0.1.0",
+  "description": "OS abstraction contract (headers only); implemented by a platform port such as espglue",
+  "dependencies": [{ "name": "ctrlcore" }],
+  "build": { "includeDir": "include" }
+}

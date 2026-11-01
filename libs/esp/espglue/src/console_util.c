@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_console.h"
 #include "param_parse.h"
 #include "sdkconfig.h"
 #include "telemetry.h"
@@ -48,8 +49,7 @@ void console_print_loop_stats(void)
          NS(loop_stats_mean(&exec)), NS(exec.max), (unsigned)overruns, (unsigned)period.count);
 }
 
-void console_register(const char *name, const char *help, const char *hint,
-                      esp_console_cmd_func_t fn)
+void console_register(const char *name, const char *help, const char *hint, console_cmd_fn_t fn)
 {
   esp_console_cmd_t cmd = {.command = name, .help = help, .hint = hint, .func = fn};
   ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));

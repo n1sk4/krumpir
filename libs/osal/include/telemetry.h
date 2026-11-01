@@ -8,8 +8,8 @@
 
 /* CSV telemetry from the control task to the serial port without ever blocking it.
  * The control task pushes samples (a timestamp and up to TELEM_VALUES floats) into a lock-free
- * ring; a low-priority task on core 0 drains it and prints one CSV row per sample, but only while
- * logging is on. A full ring drops the sample and counts it. */
+ * ring; a low-priority task drains it and prints one CSV row per sample, but only while logging is
+ * on. A full ring drops the sample and counts it. */
 
 typedef void (*telemetry_row_t)(const telem_sample_t *s); /* prints one CSV row with printf */
 

@@ -5,7 +5,7 @@
 #include "telemetry.h"
 #include "tick_task.h"
 
-#include "freertos/FreeRTOS.h"
+#include "osal.h"
 
 #ifdef KRUMPIR_XCP
 #include <math.h>
@@ -66,7 +66,7 @@ typedef struct {
   uint32_t coeffs_gen;
 } sim_cfg_t;
 
-static portMUX_TYPE s_param_mux = portMUX_INITIALIZER_UNLOCKED; /* params and sim settings */
+static osal_crit_t s_param_mux = OSAL_CRIT_INIT; /* params and sim settings */
 static const motor_ctrl_cfg_t s_ctrl_default = MOTOR_CTRL_CFG_DEFAULT;
 static ctrl_params_t s_params;
 static sim_cfg_t s_sim = {.inertia_scale = 1.0f};
@@ -94,22 +94,22 @@ static void control_init(void *arg)
 static void control_tick(void *arg, uint32_t tick)
 {
   /* Take the settings for this tick in one short critical section (no tearing). */
-  portENTER_CRITICAL(&s_param_mux);
+  osal_crit_enter(&s_param_mux);
   ctrl_params_t p = s_params;
   sim_cfg_t sim_cfg = s_sim;
   bool clear = s_clear_request;
   s_clear_request = false;
-  portEXIT_CRITICAL(&s_param_mux);
+  osal_crit_exit(&s_param_mux);
 
 #ifdef KRUMPIR_XCP
   DaqCreateEvent(tick); /* every 1 ms tick */
   if (apply_cal_page(&p)) {
-    portENTER_CRITICAL(&s_param_mux);
+    osal_crit_enter(&s_param_mux);
     s_params.sp = p.sp;
     s_params.kp = p.kp;
     s_params.ki = p.ki;
     s_params.kd = p.kd;
-    portEXIT_CRITICAL(&s_param_mux);
+    osal_crit_exit(&s_param_mux);
   }
 #endif
 
@@ -138,9 +138,9 @@ static void control_tick(void *arg, uint32_t tick)
 
   /* A trip, or a refused start, drops the run flag again until the user starts the controller. */
   if (p.run && (start_refused || !motor_safety_ok(&s_loop.safety))) {
-    portENTER_CRITICAL(&s_param_mux);
+    osal_crit_enter(&s_param_mux);
     s_params.run = false;
-    portEXIT_CRITICAL(&s_param_mux);
+    osal_crit_exit(&s_param_mux);
   }
   s_trip = s_loop.safety.latched;
   s_speed = s_loop.speed;
@@ -167,23 +167,23 @@ void control_task_start(void)
 
 void control_task_set_params(const ctrl_params_t *p)
 {
-  portENTER_CRITICAL(&s_param_mux);
+  osal_crit_enter(&s_param_mux);
   s_params = *p;
-  portEXIT_CRITICAL(&s_param_mux);
+  osal_crit_exit(&s_param_mux);
 }
 
 void control_task_get_params(ctrl_params_t *p)
 {
-  portENTER_CRITICAL(&s_param_mux);
+  osal_crit_enter(&s_param_mux);
   *p = s_params;
-  portEXIT_CRITICAL(&s_param_mux);
+  osal_crit_exit(&s_param_mux);
 }
 
 void control_task_set_load(float torque_nm)
 {
-  portENTER_CRITICAL(&s_param_mux);
+  osal_crit_enter(&s_param_mux);
   s_sim.load_nm = torque_nm;
-  portEXIT_CRITICAL(&s_param_mux);
+  osal_crit_exit(&s_param_mux);
 }
 
 void control_task_set_inertia_scale(float scale)
@@ -194,19 +194,19 @@ void control_task_set_inertia_scale(float scale)
   plant_coeffs_t coeffs;
   plant_sim_coeffs(&params, TICK_DT_S, &coeffs);
 
-  portENTER_CRITICAL(&s_param_mux);
+  osal_crit_enter(&s_param_mux);
   s_sim.inertia_scale = scale;
   s_sim.coeffs = coeffs;
   s_sim.coeffs_gen++;
-  portEXIT_CRITICAL(&s_param_mux);
+  osal_crit_exit(&s_param_mux);
 }
 
 void control_task_get_sim(float *load_nm, float *inertia_scale)
 {
-  portENTER_CRITICAL(&s_param_mux);
+  osal_crit_enter(&s_param_mux);
   *load_nm = s_sim.load_nm;
   *inertia_scale = s_sim.inertia_scale;
-  portEXIT_CRITICAL(&s_param_mux);
+  osal_crit_exit(&s_param_mux);
 }
 
 motor_trip_t control_task_get_trip(void) { return s_trip; }

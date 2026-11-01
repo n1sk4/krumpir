@@ -7,7 +7,8 @@ FMUs.
 |---------|----------|
 | `ctrlcore/` | PID, ring buffer, loop statistics, step-response figures, parameter parsing |
 | `plants/dcmotor/`, `plants/t12/` | plant models; also packaged as FMUs (`plants/README.md`) |
-| `esp/` | ESP32 glue (tick task, console, telemetry, XCP); ESP-IDF only |
+| `osal/` | OS abstraction contract, headers only: critical section, tick task, telemetry, console |
+| `esp/` | ESP-IDF ports: `espglue` implements the OSAL contract, `xcpglue` adds XCP over Wi-Fi |
 | `vendor/` | third-party code (see below) |
 
 ## Building

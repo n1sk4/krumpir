@@ -16,6 +16,8 @@ jobs:
         sanitize: ["OFF", "ON"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true # libs/vendor/Reference-FMUs for the plant FMUs
 
       - uses: actions/setup-python@v5
         with:
@@ -48,7 +50,7 @@ jobs:
         if: matrix.sanitize == 'OFF'
         run: |
           mkdir -p out
-          for s in feedthrough dahlquist vanderpol; do
+          for s in feedthrough dahlquist vanderpol dcmotor; do
             python tools/compare_fmpy.py scenarios/$s.toml --run build/krumpir --plot out/$s.png
           done
 

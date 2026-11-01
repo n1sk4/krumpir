@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription
+  fmiVersion="3.0"
+  modelName="dcmotor"
+  description="DC motor: armature current and shaft speed, driven by a PWM duty on a supply voltage"
+  generationTool="krumpir (Reference FMUs framework)"
+  instantiationToken="{6b8f1a52-3c1e-4d7a-9f0b-2a5e7c4d1e01}">
+
+  <CoSimulation
+    modelIdentifier="dcmotor"
+    canHandleVariableCommunicationStepSize="true"
+    fixedInternalStepSize="0.001"/>
+
+  <UnitDefinitions>
+    <Unit name="s"><BaseUnit s="1"/></Unit>
+    <Unit name="V"><BaseUnit kg="1" m="2" s="-3" A="-1"/></Unit>
+    <Unit name="A"><BaseUnit A="1"/></Unit>
+    <Unit name="rad/s"><BaseUnit s="-1" rad="1"/></Unit>
+    <Unit name="rpm"><BaseUnit s="-1" rad="1" factor="0.10471975511965977"/></Unit>
+    <Unit name="N.m"><BaseUnit kg="1" m="2" s="-2"/></Unit>
+    <Unit name="Ohm"><BaseUnit kg="1" m="2" s="-3" A="-2"/></Unit>
+    <Unit name="H"><BaseUnit kg="1" m="2" s="-2" A="-2"/></Unit>
+    <Unit name="N.m/A"><BaseUnit kg="1" m="2" s="-2" A="-1"/></Unit>
+    <Unit name="V.s/rad"><BaseUnit kg="1" m="2" s="-2" A="-1" rad="-1"/></Unit>
+    <Unit name="kg.m2"><BaseUnit kg="1" m="2"/></Unit>
+    <Unit name="N.m.s/rad"><BaseUnit kg="1" m="2" s="-1" rad="-1"/></Unit>
+  </UnitDefinitions>
+
+  <LogCategories>
+    <Category name="logEvents" description="Log events"/>
+    <Category name="logStatusError" description="Log error messages"/>
+  </LogCategories>
+
+  <DefaultExperiment startTime="0" stopTime="1" stepSize="0.001"/>
+
+  <ModelVariables>
+    <Float64 name="time" valueReference="0" causality="independent" variability="continuous" unit="s" description="Simulation time"/>
+    <Float64 name="duty" valueReference="1" causality="input" variability="continuous" start="0" min="-1" max="1" description="PWM duty, sign = direction (clamped to -1..1)"/>
+    <Float64 name="load_torque" valueReference="2" causality="input" variability="continuous" start="0" unit="N.m" description="Load torque on the shaft"/>
+    <Float64 name="speed" valueReference="3" causality="output" variability="continuous" initial="exact" start="0" unit="rad/s" description="Shaft speed"/>
+    <Float64 name="speed_rpm" valueReference="4" causality="output" variability="continuous" initial="exact" start="0" unit="rpm" description="Shaft speed"/>
+    <Float64 name="current" valueReference="5" causality="output" variability="continuous" initial="exact" start="0" unit="A" description="Armature current"/>
+    <Float64 name="R" valueReference="6" causality="parameter" variability="fixed" start="2.5" unit="Ohm" description="Armature resistance"/>
+    <Float64 name="L" valueReference="7" causality="parameter" variability="fixed" start="0.001" unit="H" description="Armature inductance"/>
+    <Float64 name="Kt" valueReference="8" causality="parameter" variability="fixed" start="0.01" unit="N.m/A" description="Torque constant"/>
+    <Float64 name="Ke" valueReference="9" causality="parameter" variability="fixed" start="0.01" unit="V.s/rad" description="Back-EMF constant"/>
+    <Float64 name="J" valueReference="10" causality="parameter" variability="fixed" start="1e-06" unit="kg.m2" description="Rotor inertia"/>
+    <Float64 name="b" valueReference="11" causality="parameter" variability="fixed" start="1e-06" unit="N.m.s/rad" description="Viscous friction"/>
+    <Float64 name="Vbus" valueReference="12" causality="parameter" variability="fixed" start="6" unit="V" description="Supply voltage behind the PWM driver"/>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Output valueReference="3"/>
+    <Output valueReference="4"/>
+    <Output valueReference="5"/>
+  </ModelStructure>
+
+</fmiModelDescription>

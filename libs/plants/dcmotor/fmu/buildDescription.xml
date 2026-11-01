@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiBuildDescription fmiVersion="3.0">
+
+  <BuildConfiguration modelIdentifier="dcmotor">
+    <SourceFileSet language="C11">
+      <SourceFile name="fmi3Functions.c"/>
+      <SourceFile name="model.c"/>
+      <SourceFile name="common.c"/>
+      <SourceFile name="cosimulation.c"/>
+      <SourceFile name="plant_sim.c"/>
+      <PreprocessorDefinition name="FMI_VERSION" value="3"/>
+    </SourceFileSet>
+  </BuildConfiguration>
+
+</fmiBuildDescription>

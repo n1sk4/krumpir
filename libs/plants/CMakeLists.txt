@@ -41,15 +41,28 @@ if(NOT KRUMPIR_PYTHON)
   find_program(KRUMPIR_PYTHON NAMES python3)
 endif()
 
-# add_plant_fmu(<name> MODEL_DIR <dir> [SOURCES <c files>] [HEADERS <h files>] [INCLUDES <dirs>])
+# add_plant_fmu(<name> MODEL_DIR <dir> [SOURCES <c files>] [HEADERS <h files>] [INCLUDES <dirs>]
+#               [TEST <c file>])
 #
 # <dir> holds config.h, model.c, FMI3.xml, FMI2.xml and buildDescription.xml (FMI 3.0). SOURCES and
 # HEADERS are the plant library files the model uses; they are compiled in and copied flat into the
 # FMU's sources/ folder, so the source FMU builds on its own. One FMU per FMI version, each with
-# the binary for this platform and the sources. A CTest test checks each FMU with FMPy.
+# the binary for this platform and the sources. A CTest test checks each FMU with FMPy. TEST is a
+# C program linked statically against the FMU's sources (FMI 3.0, no function prefix), run by CTest.
+# With KRUMPIR_FMU_COPY_DIR set, the FMI 3.0 FMU is also copied there (the runner uses runner/fmus).
 function(add_plant_fmu name)
-  cmake_parse_arguments(ARG "" "MODEL_DIR" "SOURCES;HEADERS;INCLUDES" ${ARGN})
+  cmake_parse_arguments(ARG "" "MODEL_DIR;TEST" "SOURCES;HEADERS;INCLUDES" ${ARGN})
   set(fw "${REFERENCE_FMUS_DIR}")
+
+  if(ARG_TEST)
+    add_executable(${name}_test "${ARG_TEST}" "${ARG_MODEL_DIR}/model.c" "${fw}/src/fmi3Functions.c"
+                   "${fw}/src/common.c" "${fw}/src/cosimulation.c" ${ARG_SOURCES})
+    target_compile_definitions(${name}_test PRIVATE FMI_VERSION=3 DISABLE_PREFIX)
+    target_include_directories(${name}_test PRIVATE "${fw}/include" "${ARG_MODEL_DIR}" ${ARG_INCLUDES})
+    target_compile_options(${name}_test PRIVATE -Wall -Wextra -Werror)
+    target_link_libraries(${name}_test PRIVATE m)
+    add_test(NAME ${name}_test COMMAND ${name}_test)
+  endif()
 
   foreach(v 3 2)
     set(target ${name}_fmi${v})
@@ -65,8 +78,11 @@ function(add_plant_fmu name)
       ${ARG_SOURCES})
     target_compile_definitions(${target} PRIVATE FMI_VERSION=${v} DISABLE_PREFIX)
     target_include_directories(${target} PRIVATE "${fw}/include" "${ARG_MODEL_DIR}" ${ARG_INCLUDES})
-    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror -fvisibility=hidden)
-    target_link_options(${target} PRIVATE -static-libgcc)
+    # -fno-sanitize=all: the FMU is loaded by other programs (FMPy in Python), which cannot load a
+    # sanitizer-instrumented library; the runner's sanitizer build still checks the TEST program.
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror -fvisibility=hidden
+                                             -fno-sanitize=all)
+    target_link_options(${target} PRIVATE -static-libgcc -fno-sanitize=all)
     target_link_libraries(${target} PRIVATE m)
     set_target_properties(${target} PROPERTIES
       PREFIX "" OUTPUT_NAME ${name}
@@ -108,6 +124,10 @@ function(add_plant_fmu name)
       WORKING_DIRECTORY "${stage}"
       COMMENT "FMU ${fmu}"
       VERBATIM)
+    if(v EQUAL 3 AND KRUMPIR_FMU_COPY_DIR)
+      add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "${fmu}" "${KRUMPIR_FMU_COPY_DIR}/${name}.fmu" VERBATIM)
+    endif()
 
     if(KRUMPIR_PYTHON)
       add_test(NAME fmpy_${target}
@@ -115,6 +135,15 @@ function(add_plant_fmu name)
     endif()
   endforeach()
 endfunction()
+
+set(KRUMPIR_FMU_COPY_DIR "" CACHE PATH "Also copy the FMI 3.0 FMUs to this folder")
+
+add_plant_fmu(dcmotor
+  MODEL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dcmotor/fmu"
+  SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/dcmotor/src/plant_sim.c"
+  HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/dcmotor/include/plant_sim.h"
+  INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/dcmotor/include"
+  TEST "${CMAKE_CURRENT_SOURCE_DIR}/dcmotor/fmu/test_fmu.c")
 
 # Build check of the machinery with a Reference FMUs model (discrete, time events, no states)
 option(KRUMPIR_FMU_SELFTEST "Also build the Reference FMUs model Stair through add_plant_fmu" ON)

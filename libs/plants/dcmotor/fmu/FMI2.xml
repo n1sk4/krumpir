@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="dcmotor"
+  description="DC motor: armature current and shaft speed, driven by a PWM duty on a supply voltage"
+  generationTool="krumpir (Reference FMUs framework)"
+  guid="{6b8f1a52-3c1e-4d7a-9f0b-2a5e7c4d1e01}"
+  numberOfEventIndicators="0">
+
+  <CoSimulation
+    modelIdentifier="dcmotor"
+    canHandleVariableCommunicationStepSize="true"
+    canNotUseMemoryManagementFunctions="true">
+    <SourceFiles>
+      <File name="all.c"/>
+    </SourceFiles>
+  </CoSimulation>
+
+  <UnitDefinitions>
+    <Unit name="s"><BaseUnit s="1"/></Unit>
+    <Unit name="V"><BaseUnit kg="1" m="2" s="-3" A="-1"/></Unit>
+    <Unit name="A"><BaseUnit A="1"/></Unit>
+    <Unit name="rad/s"><BaseUnit s="-1" rad="1"/></Unit>
+    <Unit name="rpm"><BaseUnit s="-1" rad="1" factor="0.10471975511965977"/></Unit>
+    <Unit name="N.m"><BaseUnit kg="1" m="2" s="-2"/></Unit>
+    <Unit name="Ohm"><BaseUnit kg="1" m="2" s="-3" A="-2"/></Unit>
+    <Unit name="H"><BaseUnit kg="1" m="2" s="-2" A="-2"/></Unit>
+    <Unit name="N.m/A"><BaseUnit kg="1" m="2" s="-2" A="-1"/></Unit>
+    <Unit name="V.s/rad"><BaseUnit kg="1" m="2" s="-2" A="-1" rad="-1"/></Unit>
+    <Unit name="kg.m2"><BaseUnit kg="1" m="2"/></Unit>
+    <Unit name="N.m.s/rad"><BaseUnit kg="1" m="2" s="-1" rad="-1"/></Unit>
+  </UnitDefinitions>
+
+  <LogCategories>
+    <Category name="logEvents" description="Log events"/>
+    <Category name="logStatusError" description="Log error messages"/>
+  </LogCategories>
+
+  <DefaultExperiment startTime="0" stopTime="1" stepSize="0.001"/>
+
+  <ModelVariables>
+    <ScalarVariable name="time" valueReference="0" causality="independent" variability="continuous" description="Simulation time">
+      <Real unit="s"/>
+    </ScalarVariable>
+    <ScalarVariable name="duty" valueReference="1" causality="input" variability="continuous" description="PWM duty, sign = direction (clamped to -1..1)">
+      <Real start="0" min="-1" max="1"/>
+    </ScalarVariable>
+    <ScalarVariable name="load_torque" valueReference="2" causality="input" variability="continuous" description="Load torque on the shaft">
+      <Real start="0" unit="N.m"/>
+    </ScalarVariable>
+    <ScalarVariable name="speed" valueReference="3" causality="output" variability="continuous" initial="exact" description="Shaft speed">
+      <Real start="0" unit="rad/s"/>
+    </ScalarVariable>
+    <ScalarVariable name="speed_rpm" valueReference="4" causality="output" variability="continuous" initial="exact" description="Shaft speed">
+      <Real start="0" unit="rpm"/>
+    </ScalarVariable>
+    <ScalarVariable name="current" valueReference="5" causality="output" variability="continuous" initial="exact" description="Armature current">
+      <Real start="0" unit="A"/>
+    </ScalarVariable>
+    <ScalarVariable name="R" valueReference="6" causality="parameter" variability="fixed" initial="exact" description="Armature resistance">
+      <Real start="2.5" unit="Ohm"/>
+    </ScalarVariable>
+    <ScalarVariable name="L" valueReference="7" causality="parameter" variability="fixed" initial="exact" description="Armature inductance">
+      <Real start="0.001" unit="H"/>
+    </ScalarVariable>
+    <ScalarVariable name="Kt" valueReference="8" causality="parameter" variability="fixed" initial="exact" description="Torque constant">
+      <Real start="0.01" unit="N.m/A"/>
+    </ScalarVariable>
+    <ScalarVariable name="Ke" valueReference="9" causality="parameter" variability="fixed" initial="exact" description="Back-EMF constant">
+      <Real start="0.01" unit="V.s/rad"/>
+    </ScalarVariable>
+    <ScalarVariable name="J" valueReference="10" causality="parameter" variability="fixed" initial="exact" description="Rotor inertia">
+      <Real start="1e-06" unit="kg.m2"/>
+    </ScalarVariable>
+    <ScalarVariable name="b" valueReference="11" causality="parameter" variability="fixed" initial="exact" description="Viscous friction">
+      <Real start="1e-06" unit="N.m.s/rad"/>
+    </ScalarVariable>
+    <ScalarVariable name="Vbus" valueReference="12" causality="parameter" variability="fixed" initial="exact" description="Supply voltage behind the PWM driver">
+      <Real start="6" unit="V"/>
+    </ScalarVariable>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="4"/>
+      <Unknown index="5"/>
+      <Unknown index="6"/>
+    </Outputs>
+  </ModelStructure>
+
+</fmiModelDescription>

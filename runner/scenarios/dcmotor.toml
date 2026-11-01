@@ -1,0 +1,22 @@
+# DC motor plant (libs/plants/dcmotor): duty steps from 0 to 0.5 at t = 0.1 s, a load torque of
+# 0.2 mN*m is applied at t = 0.5 s. fmus/dcmotor.fmu is built with the runner.
+[model]
+fmu = "fmus/dcmotor.fmu"
+step = 0.001
+duration = 1
+params = { Vbus = 6.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "null"
+inputs = ["duty", "load_torque"]
+outputs = ["speed_rpm", "current"]
+stimulus = [
+  { input = "duty", kind = "step", t = 0.1, from = 0, to = 0.5 },
+  { input = "load_torque", kind = "step", t = 0.5, from = 0, to = 0.0002 },
+]
+
+[log]
+file = "runs/dcmotor.csv"

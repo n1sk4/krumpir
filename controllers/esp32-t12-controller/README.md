@@ -93,7 +93,7 @@ python ../../tools/serial/timing_check.py --port COM4 --setup "sp 350" "start" -
 
 ```
 python ../../tools/serial/capture.py --port COM4 --duration 10 --cmd "sp 350" "start" -o docs/capture.csv
-python tools/plot.py docs/capture.csv docs/capture.png
+python tools/plot.py docs/capture.csv docs/cold_start_target.png
 ```
 
 ### Simulate on the PC
@@ -111,11 +111,21 @@ described in [docs/tuning.md](docs/tuning.md).
 
 ## Results
 
+Cold start to 350 C (the board runs the simulated tip, so this compares the firmware on the ESP32
+with the same code on the PC):
+
+| On the board | Simulated on the PC |
+|:---:|:---:|
+| ![Cold start on the board](docs/cold_start_target.png) | ![Cold start in simulation](docs/scenario_cold.png) |
+
+On the board the tip reaches 350 C about 5.7 s after heating starts (6.0 s in the simulation) and
+then holds 350 to 351 C with a duty of about 0.16 and a heater current of 3.00 A.
+
 Closed-loop scenarios (simulation):
 
-| Cold start | Joint load | Thermal runaway |
+| Joint load | Missing tip | Thermal runaway |
 |:---:|:---:|:---:|
-| ![Cold start](docs/scenario_cold.png) | ![Joint load](docs/scenario_load.png) | ![Thermal runaway](docs/scenario_runaway.png) |
+| ![Joint load](docs/scenario_load.png) | ![Missing tip](docs/scenario_open.png) | ![Thermal runaway](docs/scenario_runaway.png) |
 
 ## Hardware
 

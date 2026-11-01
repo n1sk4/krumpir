@@ -55,5 +55,9 @@ pio device monitor
 ```
 The shared libraries have their own tests: `pio test -e native` in `../../libs`.
 
+To check the loop timing on the board (PASS or FAIL) and to record telemetry, see
+[tools/README.md](tools/README.md); those two tools are shared by all controllers in
+`../../tools/serial`.
+
 Scenario runs (cold start, joint load, ambient change, each fault), plots and the gain sweep are in
 [docs/tuning.md](docs/tuning.md). The commands that regenerate them are in that file.

@@ -39,7 +39,9 @@ jobs:
         run: pio run -e esp32dev
 
       - name: Timing tool self-check
-        run: python tools/timing_check.py --selftest
+        run: |
+          python ../../tools/serial/timing_check.py --selftest
+          python ../../tools/serial/capture.py --selftest
 
       - name: Simulation CSVs and plots
         run: |

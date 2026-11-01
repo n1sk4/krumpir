@@ -6,8 +6,8 @@ Board: ESP32-WROOM-32 DevKit (CH340 USB-serial, COM4), CPU 160 MHz (ESP-IDF defa
 - GPTimer at 1 kHz; its ISR only notifies the control task (core 1, priority `configMAX_PRIORITIES - 2`).
 - Period = CPU cycle-counter delta between consecutive wakeups; exec = wakeup to end of body.
 - The body is the closed loop: PID + simulated motor, parameter copy and telemetry push.
-- `tools/timing_check.py` starts the controller at 3000 rpm and reads the loop stats from the
-  `status` command over about 5.6 s (the first status call discards the startup window).
+- `../../tools/serial/timing_check.py` (shared by all controllers) starts the controller at 3000 rpm
+  (`--setup "sp 3000" "start"`) and reads the loop stats from the `status` command over about 5.6 s (the first status call discards the startup window).
   Commands and pass limits: [tools/README.md](../tools/README.md#timing_checkpy).
 
 ## Results

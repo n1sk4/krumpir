@@ -35,6 +35,11 @@ jobs:
       - name: Unit tests (native)
         run: pio test -e native
 
+      - name: Serial tools self-check
+        run: |
+          python ../../tools/serial/capture.py --selftest
+          python ../../tools/serial/timing_check.py --selftest
+
       - name: Build firmware
         run: pio run -e esp32dev
 

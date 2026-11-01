@@ -75,7 +75,7 @@ t_ms,setpoint_rpm,speed_rpm,duty_permille
 | `duty_permille` | 1/1000 | actuator command, -1000 to +1000 |
 
 Command replies and the prompt share the same serial stream, so a parser should keep only lines
-that match `^\d+,-?\d+,-?\d+,-?\d+$` (see `tools/capture.py`). Up to 128 samples are buffered; the
+that match `^\d+,-?\d+,-?\d+,-?\d+$` (see `../../tools/serial/capture.py`). Up to 128 samples are buffered; the
 `telemetry dropped` count in `status` shows if the host fell behind.
 
 ## Timing signal
@@ -108,7 +108,8 @@ motor.
 3. Disturbance: `load 0.001`; speed dips under 5 % and recovers within 0.3 s, duty rises.
 4. Fault: `load -0.06`; `status` shows `fault overspeed`, `stopped`, duty 0. `start` is refused.
 5. Recover: `load 0`, `clear`, `start`.
-6. Timing: `python tools/timing_check.py --port COM4` gives PASS or FAIL against the loop limits.
+6. Timing: `python ../../tools/serial/timing_check.py --port COM4 --setup "sp 3000" "start" --teardown "stop"`
+   gives PASS or FAIL against the loop limits.
 
 ## Motor I/O
 

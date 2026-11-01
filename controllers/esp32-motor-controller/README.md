@@ -68,7 +68,7 @@ Example: `sp 3000`, `start`, then `status` shows the speed settling at 3000 rpm.
 Close the monitor first (the port can only be open once):
 
 ```
-python tools/capture.py --port COM4 --duration 3 --cmd "start" "sp 3000" -o docs/capture.csv
+python ../../tools/serial/capture.py --port COM4 --duration 3 --cmd "start" "sp 3000" -o docs/capture.csv
 python tools/plot.py docs/capture.csv docs/step_response_target.png
 ```
 

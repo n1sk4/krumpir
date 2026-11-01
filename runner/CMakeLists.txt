@@ -31,6 +31,11 @@ target_compile_options(miniz PRIVATE -w)
 # Drops the zlib-style wrappers (static functions in miniz.h that -Wunused-function flags).
 target_compile_definitions(miniz PUBLIC MINIZ_NO_ZLIB_APIS)
 
+# Vendored JSON library for the service, built without our warning flags.
+add_library(cjson STATIC vendor/cjson/cJSON.c)
+target_include_directories(cjson PUBLIC vendor/cjson)
+target_compile_options(cjson PRIVATE -w)
+
 find_package(EXPAT REQUIRED)
 
 add_library(krumpir_core STATIC
@@ -57,8 +62,8 @@ target_include_directories(krumpir_core SYSTEM PUBLIC vendor/fmi3)
 target_link_libraries(krumpir_core PUBLIC Threads::Threads tomlc99 miniz EXPAT::EXPAT
   ${CMAKE_DL_LIBS} m)
 
-add_executable(krumpir src/app/main.c)
-target_link_libraries(krumpir PRIVATE krumpir_core)
+add_executable(krumpir src/app/main.c src/app/serve.c)
+target_link_libraries(krumpir PRIVATE krumpir_core cjson)
 
 # Plant FMUs (libs/plants), built with the runner and copied to fmus/ for the scenarios and tests.
 if(EXISTS "${PROJECT_SOURCE_DIR}/../libs/vendor/Reference-FMUs/src/fmi3Functions.c")

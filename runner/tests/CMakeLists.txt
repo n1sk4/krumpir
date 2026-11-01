@@ -89,8 +89,13 @@ if(Python3_Interpreter_FOUND)
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
     set_tests_properties(golden_${name} PROPERTIES SKIP_RETURN_CODE 77)
   endforeach()
+  # The model-access service over TCP (krumpir serve)
+  add_test(NAME serve
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_serve.py $<TARGET_FILE:krumpir>
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+  set_tests_properties(serve PROPERTIES SKIP_RETURN_CODE 77)
 else()
-  message(STATUS "Golden tests not added: Python 3.11+ not found")
+  message(STATUS "Golden and service tests not added: Python 3.11+ not found")
 endif()
 
 add_executable(test_writer test_writer.c)

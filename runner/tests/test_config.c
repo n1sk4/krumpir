@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -168,6 +169,26 @@ static void test_stimulus_errors(void)
 #undef SEG
 }
 
+/* No duration: the run goes on until it is stopped. One stimulus parsed on its own. */
+static void test_open_end_and_single_stimulus(void)
+{
+  scenario_t sc;
+  expect_ok("[model]\nfmu = \"a.fmu\"\nstep = 0.001\n" IO LOG, &sc);
+  assert(isinf(sc.duration) && sc.n_steps == UINT64_MAX);
+
+  stimulus_t s;
+  char err[256];
+  assert(config_parse_stimulus("{ input = \"u\", segments = [{ kind = \"const\", value = 2 }] }",
+                               &sc, &s, err, sizeof err) == 0);
+  assert(s.kind == STIM_SEGMENTS && s.n_segs == 1 && s.segs[0].value == 2.0);
+  assert(config_parse_stimulus("{ input = \"y\", kind = \"constant\", value = 1 }", &sc, &s, err,
+                               sizeof err) == -1 &&
+         strstr(err, "not listed in io.inputs"));
+  assert(config_parse_stimulus("3", &sc, &s, err, sizeof err) == -1 && strstr(err, "inline"));
+  assert(config_parse_stimulus("{ input = ", &sc, &s, err, sizeof err) == -1 &&
+         strstr(err, "stimulus:"));
+}
+
 static void test_unknown_keys_and_bad_toml(void)
 {
   expect_err("bogus = 1\n" MODEL IO LOG, "unknown key 'bogus' in the top level");
@@ -205,6 +226,7 @@ int main(void)
   test_bad_values();
   test_too_many_channels();
   test_stimulus_errors();
+  test_open_end_and_single_stimulus();
   test_unknown_keys_and_bad_toml();
   test_load();
   puts("test_config: ok");

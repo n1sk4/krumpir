@@ -292,10 +292,59 @@ static int parse_segments(ctx_t *c, const toml_table_t *t, stimulus_t *s)
   return 0;
 }
 
-static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc)
+/* One io.stimulus entry; its input must be one of sc's inputs. */
+static int parse_stimulus_entry(ctx_t *c, const toml_table_t *t, const scenario_t *sc,
+                                stimulus_t *s)
 {
   static const char *const keys[] = {"input",  "kind",      "value",   "t",        "from", "to",
                                      "offset", "amplitude", "freq_hz", "segments", "loops", NULL};
+  char kind[CFG_MAX_NAME];
+  *s = (stimulus_t){0};
+  bool segmented = toml_key_exists(t, "segments");
+  if (check_keys(c, t, "io.stimulus", keys) < 0 ||
+      get_string(c, t, "io.stimulus", "input", s->input, sizeof s->input, true) < 0 ||
+      (!segmented && get_string(c, t, "io.stimulus", "kind", kind, sizeof kind, true) < 0)) {
+    return -1;
+  }
+  if (segmented && toml_key_exists(t, "kind")) {
+    return fail(c, "io.stimulus has both kind and segments");
+  }
+  if (!segmented && toml_key_exists(t, "loops")) {
+    return fail(c, "io.stimulus loops needs segments");
+  }
+  if (!has_input(sc, s->input)) {
+    return fail(c, "io.stimulus input '%s' is not listed in io.inputs", s->input);
+  }
+  if (segmented) {
+    return parse_segments(c, t, s);
+  }
+  if (strcmp(kind, "constant") == 0) {
+    s->kind = STIM_CONSTANT;
+    return get_number(c, t, "io.stimulus", "value", &s->value, true) < 0 ? -1 : 0;
+  }
+  if (strcmp(kind, "step") == 0) {
+    s->kind = STIM_STEP;
+    if (get_number(c, t, "io.stimulus", "t", &s->t, true) < 0 ||
+        get_number(c, t, "io.stimulus", "from", &s->from, true) < 0 ||
+        get_number(c, t, "io.stimulus", "to", &s->to, true) < 0) {
+      return -1;
+    }
+    return s->t < 0 ? fail(c, "io.stimulus step time must be >= 0") : 0;
+  }
+  if (strcmp(kind, "sine") == 0) {
+    s->kind = STIM_SINE;
+    if (get_number(c, t, "io.stimulus", "offset", &s->offset, false) < 0 ||
+        get_number(c, t, "io.stimulus", "amplitude", &s->amplitude, true) < 0 ||
+        get_number(c, t, "io.stimulus", "freq_hz", &s->freq_hz, true) < 0) {
+      return -1;
+    }
+    return s->freq_hz <= 0 ? fail(c, "io.stimulus freq_hz must be > 0") : 0;
+  }
+  return fail(c, "io.stimulus kind '%s' is not constant, step or sine", kind);
+}
+
+static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc)
+{
   if (!toml_key_exists(tab, "stimulus")) {
     return 0;
   }
@@ -308,65 +357,42 @@ static int parse_stimulus(ctx_t *c, const toml_table_t *tab, scenario_t *sc)
     return fail(c, "io.stimulus has more than %d entries", TELEM_MAX_CH);
   }
   for (int i = 0; i < count; i++) {
-    toml_table_t *t = toml_table_at(arr, i);
     stimulus_t *s = &sc->stimuli[i];
-    char kind[CFG_MAX_NAME];
-    *s = (stimulus_t){0};
-    bool segmented = toml_key_exists(t, "segments");
-    if (check_keys(c, t, "io.stimulus", keys) < 0 ||
-        get_string(c, t, "io.stimulus", "input", s->input, sizeof s->input, true) < 0 ||
-        (!segmented && get_string(c, t, "io.stimulus", "kind", kind, sizeof kind, true) < 0)) {
+    if (parse_stimulus_entry(c, toml_table_at(arr, i), sc, s) < 0) {
       return -1;
-    }
-    if (segmented && toml_key_exists(t, "kind")) {
-      return fail(c, "io.stimulus has both kind and segments");
-    }
-    if (!segmented && toml_key_exists(t, "loops")) {
-      return fail(c, "io.stimulus loops needs segments");
-    }
-    if (!has_input(sc, s->input)) {
-      return fail(c, "io.stimulus input '%s' is not listed in io.inputs", s->input);
     }
     for (int j = 0; j < i; j++) {
       if (strcmp(sc->stimuli[j].input, s->input) == 0) {
         return fail(c, "io.stimulus has two entries for input '%s'", s->input);
       }
     }
-    if (segmented) {
-      if (parse_segments(c, t, s) < 0) {
-        return -1;
-      }
-    } else if (strcmp(kind, "constant") == 0) {
-      s->kind = STIM_CONSTANT;
-      if (get_number(c, t, "io.stimulus", "value", &s->value, true) < 0) {
-        return -1;
-      }
-    } else if (strcmp(kind, "step") == 0) {
-      s->kind = STIM_STEP;
-      if (get_number(c, t, "io.stimulus", "t", &s->t, true) < 0 ||
-          get_number(c, t, "io.stimulus", "from", &s->from, true) < 0 ||
-          get_number(c, t, "io.stimulus", "to", &s->to, true) < 0) {
-        return -1;
-      }
-      if (s->t < 0) {
-        return fail(c, "io.stimulus step time must be >= 0");
-      }
-    } else if (strcmp(kind, "sine") == 0) {
-      s->kind = STIM_SINE;
-      if (get_number(c, t, "io.stimulus", "offset", &s->offset, false) < 0 ||
-          get_number(c, t, "io.stimulus", "amplitude", &s->amplitude, true) < 0 ||
-          get_number(c, t, "io.stimulus", "freq_hz", &s->freq_hz, true) < 0) {
-        return -1;
-      }
-      if (s->freq_hz <= 0) {
-        return fail(c, "io.stimulus freq_hz must be > 0");
-      }
-    } else {
-      return fail(c, "io.stimulus kind '%s' is not constant, step or sine", kind);
-    }
     sc->n_stimuli++;
   }
   return 0;
+}
+
+int config_parse_stimulus(const char *entry, const scenario_t *sc, stimulus_t *s, char *err,
+                          size_t errlen)
+{
+  ctx_t c = {err, errlen};
+  err[0] = '\0';
+  size_t len = strlen(entry) + 8;
+  char *text = malloc(len);
+  if (text == NULL) {
+    return fail(&c, "out of memory");
+  }
+  snprintf(text, len, "s = %s\n", entry);
+  char perr[200];
+  toml_table_t *root = toml_parse(text, perr, sizeof perr);
+  free(text);
+  if (root == NULL) {
+    return fail(&c, "stimulus: %s", perr);
+  }
+  toml_table_t *t = toml_table_in(root, "s");
+  int rc = t != NULL ? parse_stimulus_entry(&c, t, sc, s)
+                     : fail(&c, "a stimulus must be an inline table { input = ..., ... }");
+  toml_free(root);
+  return rc;
 }
 
 static int parse_model(ctx_t *c, const toml_table_t *model, scenario_t *sc)
@@ -375,12 +401,20 @@ static int parse_model(ctx_t *c, const toml_table_t *model, scenario_t *sc)
   if (check_keys(c, model, "[model]", keys) < 0 ||
       get_string(c, model, "model", "fmu", sc->fmu, sizeof sc->fmu, true) < 0 ||
       get_number(c, model, "model", "step", &sc->step, true) < 0 ||
-      get_number(c, model, "model", "duration", &sc->duration, true) < 0 ||
       parse_params(c, model, sc) < 0) {
     return -1;
   }
   if (sc->step < 1e-9) {
     return fail(c, "model.step must be at least 1e-9 s");
+  }
+  int has_duration = get_number(c, model, "model", "duration", &sc->duration, false);
+  if (has_duration < 0) {
+    return -1;
+  }
+  if (has_duration == 0) { /* runs until it is stopped */
+    sc->duration = INFINITY;
+    sc->n_steps = UINT64_MAX;
+    return 0;
   }
   if (sc->duration < sc->step) {
     return fail(c, "model.duration must be at least one step");

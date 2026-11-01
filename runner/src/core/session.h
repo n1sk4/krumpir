@@ -58,6 +58,8 @@ lifecycle_t session_state(session_t *s);
 const char *session_fault(const session_t *s);
 /* The loaded model's variables; NULL when IDLE. */
 const modeldesc_t *session_model(const session_t *s);
+/* The loaded scenario; NULL when IDLE. */
+const scenario_t *session_scenario(const session_t *s);
 /* Setting it to 1 ends a running loop after the current step (async-signal-safe). */
 volatile sig_atomic_t *session_stop_flag(session_t *s);
 

@@ -31,7 +31,7 @@ file = "runs/dahlquist.csv"
 |-----|------|---------|
 | `fmu` | string | Path to an FMI 3.0 co-simulation FMU. The shared library for this platform (`x86_64-linux` or `aarch64-linux`) must be inside. |
 | `step` | number | Communication step in seconds, at least `1e-9`. |
-| `duration` | number | Simulated time in seconds. Must be a whole number of steps (`duration / step`). |
+| `duration` | number | Simulated time in seconds. Must be a whole number of steps (`duration / step`). Optional: without it the run goes on until it is stopped (Ctrl-C, or `stop` through the service). |
 | `params` | table | `name = number`, up to 16. Each must be a Float64 variable with causality `parameter`. |
 
 ## `[rt]` (optional)

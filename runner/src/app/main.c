@@ -1,10 +1,13 @@
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "config.h"
 #include "loader.h"
 #include "runner.h"
+#include "serve.h"
 
 static int cmd_info(const char *path)
 {
@@ -61,8 +64,12 @@ static int cmd_run(const char *path)
   }
   printf("state:     %s%s\n", lifecycle_name(res.state),
          res.stopped_early ? " (stopped early)" : "");
-  printf("steps:     %llu of %llu\n", (unsigned long long)res.steps,
-         (unsigned long long)sc.n_steps);
+  if (sc.n_steps == UINT64_MAX) {
+    printf("steps:     %llu (no duration: until stopped)\n", (unsigned long long)res.steps);
+  } else {
+    printf("steps:     %llu of %llu\n", (unsigned long long)res.steps,
+           (unsigned long long)sc.n_steps);
+  }
   printf("overruns:  %llu\n", (unsigned long long)res.overruns);
   printf("dropped:   %llu\n", (unsigned long long)res.dropped);
   printf("rows:      %llu -> %s\n", (unsigned long long)res.rows, sc.log_file);
@@ -79,7 +86,27 @@ int main(int argc, char **argv)
   if (argc == 3 && strcmp(argv[1], "run") == 0) {
     return cmd_run(argv[2]);
   }
+  if ((argc == 2 || argc == 3) && strcmp(argv[1], "serve") == 0) {
+    /* [host:]port, default 127.0.0.1:7700 */
+    char host[64] = "127.0.0.1";
+    int port = 7700;
+    const char *arg = argc == 3 ? argv[2] : "";
+    const char *colon = strrchr(arg, ':');
+    if (colon != NULL && (size_t)(colon - arg) < sizeof host) {
+      snprintf(host, sizeof host, "%.*s", (int)(colon - arg), arg);
+      arg = colon + 1;
+    }
+    char *end;
+    if (*arg != '\0') {
+      port = (int)strtol(arg, &end, 10);
+      if (*end != '\0') {
+        port = -1;
+      }
+    }
+    return serve(host, port);
+  }
   fprintf(stderr, "usage: krumpir run <scenario.toml>\n"
+                  "       krumpir serve [[host:]port]   (default 127.0.0.1:7700)\n"
                   "       krumpir info <model.fmu>\n");
   return 2;
 }

@@ -35,6 +35,7 @@ FMU is freed cleanly.
 | Module | Responsibility | Runs in |
 | --- | --- | --- |
 | `app/` | CLI parsing, loading `scenario.toml`, wiring modules together | Linux cores |
+| `app/serve` | Model-access service: one session over TCP, JSON lines (`runner/docs/service-protocol.md`) | Linux cores |
 | `core/rt_setup` | CPU affinity, `SCHED_FIFO`, `mlockall`, stack prefault | setup only |
 | `core/loop` | Tick timing, step sequence, overrun monitor | isolated core |
 | `core/session` | One run with explicit phases (load, start, stop, unload); the loop runs on its own thread; reads and writes while it runs | Linux cores |

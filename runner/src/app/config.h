@@ -61,8 +61,8 @@ typedef struct {
   /* [model] */
   char fmu[CFG_MAX_PATH];
   double step;      /* s */
-  double duration;  /* s */
-  uint64_t n_steps; /* duration / step, validated to be a whole number */
+  double duration;  /* s; INFINITY when absent: the run goes on until it is stopped */
+  uint64_t n_steps; /* duration / step, validated to be a whole number; UINT64_MAX: no end */
   param_t params[CFG_MAX_PARAMS];
   size_t n_params;
 
@@ -88,6 +88,11 @@ typedef struct {
 /* Parse and validate scenario text. Returns 0 on success. On failure returns -1 and writes a
  * one-line message to err. Unknown keys are errors. */
 int config_parse(const char *text, scenario_t *sc, char *err, size_t errlen);
+
+/* Parses one stimulus written as a TOML inline table (the form of an io.stimulus entry) for an
+ * input of `sc`. Returns 0, or -1 with a message in err. */
+int config_parse_stimulus(const char *entry, const scenario_t *sc, stimulus_t *s, char *err,
+                          size_t errlen);
 
 /* Reads the file and calls config_parse. Relative paths in the file are kept as written. */
 int config_load(const char *path, scenario_t *sc, char *err, size_t errlen);

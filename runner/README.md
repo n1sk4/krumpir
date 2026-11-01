@@ -29,6 +29,7 @@ need the Python venv from `tools/setup_wsl.sh`.
 cd runner
 ~/build/krumpir/krumpir info fmus/Dahlquist.fmu       # model description and variables
 ~/build/krumpir/krumpir run scenarios/dahlquist.toml  # run a scenario, write runs/dahlquist.csv
+~/build/krumpir/krumpir serve                         # drive runs over TCP (docs/service-protocol.md)
 ```
 
 Paths in a scenario are relative to the directory `krumpir` is started from. Ctrl-C stops a run

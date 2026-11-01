@@ -63,6 +63,11 @@ const modeldesc_t *session_model(const session_t *s)
   return s->pkg_open ? &s->pkg.md : NULL;
 }
 
+const scenario_t *session_scenario(const session_t *s)
+{
+  return s->state != LC_IDLE ? &s->sc : NULL;
+}
+
 /* Creates the log file's directory if it is a single missing level (e.g. runs/). */
 static void ensure_parent_dir(const char *path)
 {

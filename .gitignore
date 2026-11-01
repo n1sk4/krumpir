@@ -1,4 +1,6 @@
 /temp
 /docs/temp
 __pycache__/
+*.egg-info/
+.pytest_cache/
 /tools/kicad/__pycache__

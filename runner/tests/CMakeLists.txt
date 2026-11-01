@@ -72,6 +72,18 @@ if(EXISTS "${KRUMPIR_PYTHON}")
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
     set_tests_properties(fmpy_${name} PROPERTIES SKIP_RETURN_CODE 77)
   endforeach()
+  # The Python client (tools/krumpir) against this build's service, if pytest is installed
+  execute_process(COMMAND ${KRUMPIR_PYTHON} -c "import pytest" RESULT_VARIABLE no_pytest
+                  OUTPUT_QUIET ERROR_QUIET)
+  if(no_pytest EQUAL 0)
+    add_test(NAME client
+      COMMAND ${KRUMPIR_PYTHON} -m pytest -q ${PROJECT_SOURCE_DIR}/../tools/krumpir/tests
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/../tools/krumpir)
+    set_tests_properties(client PROPERTIES ENVIRONMENT
+      "KRUMPIR_EXE=$<TARGET_FILE:krumpir>;PYTHONPATH=${PROJECT_SOURCE_DIR}/../tools/krumpir")
+  else()
+    message(STATUS "Client tests not added: pytest not found in ${KRUMPIR_PYTHON}")
+  endif()
 else()
   message(STATUS "FMPy comparison tests not added: ${KRUMPIR_PYTHON} not found (tools/setup_wsl.sh)")
 endif()

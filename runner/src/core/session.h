@@ -1,7 +1,7 @@
 #ifndef KRUMPIR_SESSION_H
 #define KRUMPIR_SESSION_H
 
-#include <signal.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -60,8 +60,9 @@ const char *session_fault(const session_t *s);
 const modeldesc_t *session_model(const session_t *s);
 /* The loaded scenario; NULL when IDLE. */
 const scenario_t *session_scenario(const session_t *s);
-/* Setting it to 1 ends a running loop after the current step (async-signal-safe). */
-volatile sig_atomic_t *session_stop_flag(session_t *s);
+/* Setting it to 1 ends a running loop after the current step. Lock-free, so it may be set from a
+ * signal handler as well as from another thread. */
+atomic_int *session_stop_flag(session_t *s);
 
 /* Plays a signal on the scenario input `st->input` from now on (replacing its value or signal):
  * from t = 0 when INITIALIZED, or from the next step boundary when RUNNING. Data files are read

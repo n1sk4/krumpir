@@ -1,7 +1,7 @@
 #ifndef KRUMPIR_LOOP_H
 #define KRUMPIR_LOOP_H
 
-#include <signal.h>
+#include <stdatomic.h>
 #include <stdint.h>
 
 #include "cmdq.h"
@@ -34,8 +34,7 @@ typedef struct {
   fmu_t *fmu;
   io_t *io;
   ring_t *ring;
-  const volatile sig_atomic_t
-      *stop; /* set from a signal handler or another thread to end the run */
+  const atomic_int *stop; /* set from a signal handler or another thread to end the run */
   /* Optional (NULL for none): commands handled at the start of each step, and their replies */
   cmdq_t *cmd;
   cmdq_t *reply;

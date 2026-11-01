@@ -7,6 +7,7 @@
 #include <netinet/tcp.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,14 +22,15 @@
 #define MAX_LINE (8u << 20) /* bytes per request */
 
 static volatile sig_atomic_t g_quit;
-static volatile sig_atomic_t *g_run_stop;
+static _Atomic(atomic_int *) g_run_stop;
 
 static void on_signal(int sig)
 {
   (void)sig;
   g_quit = 1;
-  if (g_run_stop != NULL) {
-    *g_run_stop = 1; /* also ends a run, so a blocking wait returns */
+  atomic_int *stop = g_run_stop;
+  if (stop != NULL) {
+    *stop = 1; /* also ends a run, so a blocking wait returns */
   }
 }
 

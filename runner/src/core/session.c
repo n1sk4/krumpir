@@ -37,7 +37,7 @@ struct session {
   pthread_t thread;
   bool thread_started;
   atomic_bool done; /* the loop thread has returned */
-  volatile sig_atomic_t stop;
+  atomic_int stop;
   loop_stats_t ls;
 
   cmdq_t cmd, reply;
@@ -54,7 +54,11 @@ struct session {
 
 session_t *session_create(void) { return calloc(1, sizeof(session_t)); }
 
-volatile sig_atomic_t *session_stop_flag(session_t *s) { return &s->stop; }
+/* The stop flag is set from signal handlers: only a lock-free atomic is async-signal-safe. */
+_Static_assert(ATOMIC_INT_LOCK_FREE == 2 && ATOMIC_POINTER_LOCK_FREE == 2,
+               "the stop flag needs lock-free atomics");
+
+atomic_int *session_stop_flag(session_t *s) { return &s->stop; }
 
 const char *session_fault(const session_t *s) { return s->fault; }
 

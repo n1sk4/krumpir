@@ -8,11 +8,11 @@
 
 /* The stop flag of the run in progress, for runner_request_stop (signal handlers, other threads).
  * A request that arrives before the run starts is cleared by the run, as before. */
-static volatile sig_atomic_t *volatile g_stop;
+static _Atomic(atomic_int *) g_stop;
 
 void runner_request_stop(void)
 {
-  volatile sig_atomic_t *stop = g_stop;
+  atomic_int *stop = g_stop;
   if (stop != NULL) {
     *stop = 1;
   }

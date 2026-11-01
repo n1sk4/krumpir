@@ -80,6 +80,11 @@ What stays in a controller is its control body, its parameters, its own console 
    }
    ```
    `status` should end with `console_print_loop_stats()`.
+
+   Parameters (setpoint, gains, ...), start/stop/clear, the trip rule and the calibration page do
+   not need hand-written handlers: describe them in an `rte_param_t` table, call
+   `rte_tick_begin`/`rte_tick_end` around the controller's tick and `rte_cmd_register_params` /
+   `rte_cmd_register_run` in the console (`libs/rte`; both controllers in `controllers/` do this).
 4. `app_main` starts the three parts and gives telemetry its CSV header and row printer:
    ```c
    static void print_row(const telem_sample_t *s)

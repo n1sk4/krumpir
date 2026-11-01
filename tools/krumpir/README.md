@@ -35,6 +35,26 @@ with Testbench("127.0.0.1", 7700) as tb:
 
 A refused request raises `KrumpirError` with the service's reason.
 
+## EcuPort: the controller over XCP
+
+`EcuPort` measures and calibrates a controller over XCP on UDP (XIL: ECUMPort and ECUCPort),
+straight to the board, with the addresses and types from the A2L that `xcpclient` generates for the
+running build (`controllers/esp32-t12-controller/README.md`, XCP). On connect it checks the EPK, so
+an A2L of another build is refused.
+
+```python
+from krumpir import EcuPort
+
+with EcuPort("controllers/esp32-t12-controller/docs/t12.a2l") as ecu:   # address from the A2L
+    print(ecu.read("s_loop.temp", "s_loop.duty"))                      # measurement
+    ecu.write({"t12_cal_page.setpoint": 300})                          # calibration
+```
+
+Names are the A2L's, struct members joined by dots; arrays read as lists. Reads and writes are
+polled (about 5 ms each over Wi-Fi). Synchronous recording (DAQ) is not implemented: use
+`xcpclient --mea ... --csv` for that. Errors raise `XcpError` (no answer, a refused command, EPK
+mismatch, unknown name).
+
 ## Tests
 
 ```sh
@@ -45,6 +65,8 @@ cd tools/krumpir && python -m pytest
 |------|---------------|
 | `test_client.py` | the client itself, against the Reference FMU Feedthrough |
 | `test_dcmotor.py` | steady speed and current, step-response time constant, a load applied while the motor runs; expected values from the model's own parameters |
+| `test_xcp.py` | the A2L parser and the XCP master, against a fake ECU (no hardware) |
+| `test_ecu_board.py` | measurement and a calibration write on the T12 board; skipped unless `KRUMPIR_ECU_A2L` names the running build's A2L |
 | `test_t12.py` | energy balance while heating, the thermocouple reading after switch-off, the four fault modes, and a two-point thermostat run by the test over the service in real time, with a load disturbance |
 
 The `scenario` fixture builds a scenario for an FMU in `runner/fmus`: `wait="none"` runs as fast as

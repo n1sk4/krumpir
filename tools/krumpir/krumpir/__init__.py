@@ -21,7 +21,10 @@ import json
 import socket
 import time
 
-__all__ = ["KrumpirError", "Testbench", "MAPort", "Signal", "Capture", "CaptureResult"]
+from .xcp import A2L, EcuPort, XcpError
+
+__all__ = ["KrumpirError", "Testbench", "MAPort", "Signal", "Capture", "CaptureResult",
+           "EcuPort", "A2L", "XcpError"]
 
 
 class KrumpirError(RuntimeError):

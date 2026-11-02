@@ -90,7 +90,8 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
       list.insert(list.end(), v.fmus.begin(), v.fmus.end());
       if (list != s->files) {
         s->files = std::move(list);
-        s->selected = std::min(s->selected, std::max(0, static_cast<int>(s->files.size()) - 1));
+        // The menu sets -1 while the list is empty: clamp from both sides.
+        s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->files.size()) - 1));
         if (s->path.empty() && !s->files.empty()) {
           pick(s->files[static_cast<std::size_t>(s->selected)]);
         }

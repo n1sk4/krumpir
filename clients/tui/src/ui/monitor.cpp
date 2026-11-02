@@ -1,7 +1,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <deque>
+#include <iterator>
 #include <memory>
+#include <set>
 #include <vector>
 
 #include <ftxui/component/event.hpp>
@@ -35,12 +38,13 @@ Element Header(const Snapshot &v)
   return hbox(std::move(e));
 }
 
-// The samples of one variable over the time they cover, scaled to the box.
-Element Plot(std::vector<Sample> h)
+const Color kColors[] = {Color::Cyan, Color::Yellow, Color::Magenta, Color::Green, Color::Blue,
+                         Color::Red};
+
+// One variable's samples over [t0, t1] (shared by the stacked plots), scaled to the box.
+Element Plot(const std::string &name, const std::vector<Sample> &h, double t0, double t1,
+             Color colour)
 {
-  if (h.size() < 2) {
-    return text("samples come in while it runs") | dim | center;
-  }
   double lo = INFINITY, hi = -INFINITY;
   for (const auto &p : h) {
     if (std::isfinite(p.v)) {
@@ -48,27 +52,42 @@ Element Plot(std::vector<Sample> h)
       hi = std::max(hi, p.v);
     }
   }
-  if (!(lo <= hi)) {
-    return text("no finite values") | dim | center;
+  auto title = text(name) | bold | color(colour);
+  if (h.size() < 2 || !(lo <= hi) || !(t1 > t0)) {
+    return vbox({title, text(h.empty() ? "samples come in while it runs" : "not enough samples") |
+                            dim | center | flex});
   }
+  const double top = hi, bottom = lo;
   if (hi - lo < 1e-12 * std::max(1.0, std::fabs(hi))) { // flat: centre the line
     lo -= 1;
     hi += 1;
   }
-  const double t0 = h.front().t, t1 = h.back().t;
-  auto plot = canvas([h, lo, hi, t0, t1](Canvas &c) {
+  auto plot = canvas([h, lo, hi, t0, t1, colour](Canvas &c) {
     const double w = c.width() - 1, ht = c.height() - 1;
     auto x = [&](double t) { return static_cast<int>((t - t0) / (t1 - t0) * w); };
     auto y = [&](double v) { return static_cast<int>((hi - v) / (hi - lo) * ht); };
     for (std::size_t i = 1; i < h.size(); i++) {
       if (std::isfinite(h[i - 1].v) && std::isfinite(h[i].v)) {
-        c.DrawPointLine(x(h[i - 1].t), y(h[i - 1].v), x(h[i].t), y(h[i].v), Color::Cyan);
+        c.DrawPointLine(x(h[i - 1].t), y(h[i - 1].v), x(h[i].t), y(h[i].v), colour);
       }
     }
   });
-  return vbox({text(Format("%.6g", hi)) | dim, plot | flex,
-               hbox({text(Format("%.6g", lo)) | dim, filler(),
-                     text(Format("t %.3f .. %.3f s", t0, t1)) | dim})});
+  return vbox({hbox({title, filler(), text(Format("max %.6g", top)) | dim}), plot | flex,
+               hbox({filler(), text(Format("min %.6g", bottom)) | dim})});
+}
+
+// At most ~4000 points of a history, to draw.
+std::vector<Sample> Thin(const std::deque<Sample> &h)
+{
+  std::vector<Sample> out;
+  const std::size_t stride = std::max<std::size_t>(1, h.size() / 4000);
+  for (std::size_t i = 0; i < h.size(); i += stride) {
+    out.push_back(h[i]);
+  }
+  if (!h.empty() && out.back().t != h.back().t) {
+    out.push_back(h.back());
+  }
+  return out;
 }
 
 // The whole text as a finite number, or false.
@@ -90,6 +109,7 @@ Component MonitorTab(Model &m)
   struct State {
     std::vector<std::string> rows;
     int selected = 0;
+    std::set<std::string> checked; // plotted; none: the selected one
     Variable sel;     // the selected row, as last rendered
     std::string hint; // one-line feedback under the header
 
@@ -101,6 +121,7 @@ Component MonitorTab(Model &m)
     std::string fields[4];
     std::string error;
     int write_row = 0, signal_row = 0; // focus in the dialogs: reset when one opens
+    int value_cursor = 0, field_cursor[4] = {}; // at the end of the filled-in text
   };
   auto s = std::make_shared<State>();
   for (const auto &p : presets()) {
@@ -114,6 +135,7 @@ Component MonitorTab(Model &m)
     const Preset &p = presets()[static_cast<std::size_t>(s->kind)];
     for (std::size_t i = 0; i < 4; i++) {
       s->fields[i] = i < p.defaults.size() ? (p.defaults[i][0] ? p.defaults[i] : current()) : "";
+      s->field_cursor[i] = static_cast<int>(s->fields[i].size());
     }
     s->error.clear();
   };
@@ -124,6 +146,7 @@ Component MonitorTab(Model &m)
     }
     s->target = s->sel;
     s->value = current();
+    s->value_cursor = static_cast<int>(s->value.size());
     s->error.clear();
     s->write_row = 0;
     s->show_write = true;
@@ -175,26 +198,25 @@ Component MonitorTab(Model &m)
 
   auto view = Renderer(layout, [=, &m] {
     Element header, events;
-    std::string plotted;
-    std::vector<Sample> samples;
+    std::vector<std::string> plotted;
+    std::vector<std::vector<Sample>> samples;
     m.view([&](const Snapshot &v) {
       s->rows.clear();
       for (const auto &x : v.vars) {
-        s->rows.push_back(Format("%-24.24s %-6s %13.6g", x.name.c_str(), x.kind.c_str(), x.value));
+        s->rows.push_back(Format("%s %-22.22s %-6s %12.6g", s->checked.count(x.name) ? "[x]" : "[ ]",
+                                 x.name.c_str(), x.kind.c_str(), x.value));
+        if (s->checked.count(x.name)) {
+          plotted.push_back(x.name);
+        }
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
       s->sel = v.vars.empty() ? Variable{} : v.vars[static_cast<std::size_t>(s->selected)];
-      plotted = s->sel.name;
-      const auto it = v.history.find(plotted);
-      if (it != v.history.end() && !it->second.empty()) { // at most ~4000 points to draw
-        const auto &h = it->second;
-        const std::size_t stride = std::max<std::size_t>(1, h.size() / 4000);
-        for (std::size_t i = 0; i < h.size(); i += stride) {
-          samples.push_back(h[i]);
-        }
-        if (samples.back().t != h.back().t) {
-          samples.push_back(h.back());
-        }
+      if (plotted.empty() && !s->sel.name.empty()) {
+        plotted.push_back(s->sel.name);
+      }
+      for (const auto &name : plotted) {
+        const auto it = v.history.find(name);
+        samples.push_back(it != v.history.end() ? Thin(it->second) : std::vector<Sample>{});
       }
       header = Header(v);
       Elements lines;
@@ -210,12 +232,30 @@ Component MonitorTab(Model &m)
 
     auto vars_pane =
         window(text(" Variables "),
-               vbox({text(Format("  %-24s %-6s %13s", "name", "kind", "value")) | dim,
+               vbox({text(Format("      %-22s %-6s %12s", "name", "kind", "value")) | dim,
                      vars->Render() | vscroll_indicator | frame | flex})) |
         size(WIDTH, EQUAL, 50);
-    auto plot_pane = window(text(" Plot: " + (plotted.empty() ? "-" : plotted) + " "),
-                            Plot(std::move(samples))) |
-                     flex;
+    // Stacked, one per variable, over the time all of them cover
+    double t0 = INFINITY, t1 = -INFINITY;
+    for (const auto &h : samples) {
+      if (!h.empty()) {
+        t0 = std::min(t0, h.front().t);
+        t1 = std::max(t1, h.back().t);
+      }
+    }
+    Elements plots;
+    for (std::size_t i = 0; i < plotted.size(); i++) {
+      if (i > 0) {
+        plots.push_back(separatorLight());
+      }
+      plots.push_back(Plot(plotted[i], samples[i], t0, t1, kColors[i % std::size(kColors)]) | flex);
+    }
+    if (plotted.empty()) {
+      plots.push_back(text("nothing to plot") | dim | center | flex);
+    } else if (t1 > t0) {
+      plots.push_back(hbox({filler(), text(Format("t %.3f .. %.3f s", t0, t1)) | dim}));
+    }
+    auto plot_pane = window(text(" Plot (space: check variables) "), vbox(std::move(plots))) | flex;
     return vbox({
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
               unload->Render(), text(" ")}),
@@ -230,6 +270,7 @@ Component MonitorTab(Model &m)
   one_line.multiline = false;
   auto value_opt = one_line;
   value_opt.on_enter = apply_write;
+  value_opt.cursor_position = &s->value_cursor;
   auto value = Input(&s->value, "number", value_opt);
   auto write_buttons = Container::Horizontal({Button("Write", apply_write, ButtonOption::Ascii()),
                                               Button("Cancel", close, ButtonOption::Ascii())});
@@ -256,7 +297,9 @@ Component MonitorTab(Model &m)
   Components fields{kind};
   for (std::size_t i = 0; i < 4; i++) {
     auto shown = [s, i] { return i < presets()[static_cast<std::size_t>(s->kind)].fields.size(); };
-    fields.push_back(Maybe(Input(&s->fields[i], "number", field_opt), shown));
+    auto opt = field_opt;
+    opt.cursor_position = &s->field_cursor[i];
+    fields.push_back(Maybe(Input(&s->fields[i], "number", opt), shown));
   }
   auto signal_buttons = Container::Horizontal({Button("Apply", apply_signal, ButtonOption::Ascii()),
                                                Button("Cancel", close, ButtonOption::Ascii())});
@@ -298,6 +341,12 @@ Component MonitorTab(Model &m)
       open_write();
     } else if (e == Event::Character('g')) {
       open_signal();
+    } else if (e == Event::Character(' ') && !s->sel.name.empty()) {
+      if (!s->checked.erase(s->sel.name)) {
+        s->checked.insert(s->sel.name);
+      }
+    } else if (e == Event::Character('c')) {
+      s->checked.clear();
     } else {
       return false;
     }

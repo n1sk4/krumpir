@@ -1,10 +1,10 @@
 # Hardware
 
-KiCad 10 schematic of the intended wiring: ESP32 DevKit, DRV8833 motor driver, a 6 V N20 gearmotor
+KiCad 10 schematic of the wiring: ESP32 DevKit, DRV8833 motor driver, a 6 V N20 gearmotor
 with a quadrature hall encoder, and the connections to Krumpir (Raspberry Pi).
 
-**Status:** this documents the planned hardware. The firmware currently simulates the motor and
-uses only GPIO 23 (loop timing) and UART0. The other pins below are proposed and not driven yet.
+**Status:** the firmware simulates the motor and uses only GPIO 23 (loop timing) and UART0; the
+other pins below are not driven.
 
 | File | Content |
 |---|---|

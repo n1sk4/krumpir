@@ -110,7 +110,7 @@ load 0.5, start     trip "thermal runaway" after about a minute
 On the board the loop ran with an execution time of 23 us on average (about 100 us at worst),
 a period of 1000 us +-15 us and no overruns. The simulation runs in double precision in the same
 loop. Verified there: the heating and hold, the joint load, the no-tip and stuck-switch trips and
-the refused start. Not yet exercised: the short, wrong-resistance, over-temperature, sensor and
-runaway trips (covered by the native tests). A 10 s capture of the cold start on the board
+the refused start. The short, wrong-resistance, over-temperature, sensor and runaway trips are
+covered by the native tests only. A 10 s capture of the cold start on the board
 (`tools/serial/capture.py`) matches the simulation: 350 C is reached 5.7 s after heating starts
 (6.0 s simulated), then the tip holds 350 to 351 C with a duty of 0.16 (0.17 simulated).

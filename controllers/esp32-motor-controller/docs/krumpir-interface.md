@@ -11,7 +11,7 @@ How a test bench (Krumpir or any host with a serial port) drives and observes th
 | Telemetry | CSV rows at 100 Hz, enabled with `log on` |
 | Loop timing pin | GPIO 23, high while the control loop body runs |
 | Control loop | 1 kHz, period 1 ms |
-| Motor | simulated inside the firmware (no physical motor pins yet) |
+| Motor | simulated inside the firmware (no motor pins) |
 
 The firmware boots stopped, setpoint 0, no trip, with the tuned gains. Every setting is lost on
 reset; nothing is stored in flash.
@@ -122,7 +122,7 @@ The speed measurement and the duty output go through the `motor_io_t` interface 
 | `duty_write` | duty from -1 to +1 |
 | `safe_state` | outputs to a safe state (duty 0) |
 
-The firmware currently uses the simulated motor (`motor_io_sim`). Physical pins for a real motor driver,
-a speed sensor or Krumpir-injected signals are not implemented yet. The intended wiring and the
-proposed pins are in the schematic ([../hardware/README.md](../hardware/README.md)); using them
-means writing another `motor_io_t` backend, with the controller and the tests unchanged.
+The firmware uses the simulated motor (`motor_io_sim`); the motor driver, speed sensor and
+Krumpir-injected signal pins are not driven. The wiring and pins are in the schematic
+([../hardware/README.md](../hardware/README.md)); using them means writing another `motor_io_t`
+backend, with the controller and the tests unchanged.

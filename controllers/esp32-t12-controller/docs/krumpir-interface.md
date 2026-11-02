@@ -11,7 +11,7 @@ How a test bench (Krumpir or any host with a serial port) drives and observes th
 | Telemetry | CSV rows every heater cycle (about 10 Hz), enabled with `log on` |
 | Loop timing pin | GPIO 23, high while the control loop body runs |
 | Control loop | 1 kHz, period 1 ms; one heater cycle is 100 ticks |
-| Tip | simulated inside the firmware (no physical heater or sensor pins yet) |
+| Tip | simulated inside the firmware (no heater or sensor pins) |
 
 The firmware boots stopped, setpoint 350 C, gains `kp 0.05 ki 0.05 kd 0`, ramp off, simulated
 load 0, no injected fault, ambient 25 C, no trip. Every setting is lost on reset; nothing is stored
@@ -161,7 +161,7 @@ The measurements and the heater command go through the `t12_io_t` port in
 | `heartbeat_toggle` | keeps the series switch Q3 on |
 | `safe_state` | heater off |
 
-The firmware currently uses the simulated tip (`t12_io_sim`). Physical pins for the heater driver,
-the sensors and the heartbeat are not implemented yet. The intended circuit is the schematic in [../hardware/README.md](../hardware/README.md), described in
+The firmware uses the simulated tip (`t12_io_sim`); the heater driver, sensor and heartbeat pins are
+not driven. The circuit is the schematic in [../hardware/README.md](../hardware/README.md), described in
 [../../../docs/T12 Controller Design.md](../../../docs/T12%20Controller%20Design.md); using it means
 writing another `t12_io_t` backend, with the controller and the tests unchanged.

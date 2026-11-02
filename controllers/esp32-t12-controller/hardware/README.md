@@ -5,9 +5,9 @@ KiCad 10 schematic of the protected controller for a T12 / T15 soldering tip, as
 switched on the high side by two P-MOSFETs in series, high-side current sensing, a thermocouple
 amplifier and a 3.3 V buck converter that powers an ESP32 DevKit.
 
-**Status:** an untested reference design. Prototype it on a current-limited bench supply. The
-firmware currently simulates the tip and uses only GPIO 23 (loop timing) and UART0; the other pins
-below are proposed and not driven yet. There is no PCB layout.
+**Status:** an untested reference design with no PCB layout; prototype it on a current-limited bench
+supply. The firmware simulates the tip and uses only GPIO 23 (loop timing) and UART0; the other
+pins below are not driven.
 
 | File | Content |
 |---|---|

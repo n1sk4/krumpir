@@ -122,9 +122,18 @@ file = "{log}"
         c.fails("capture_fetch", "no capture", id=5)
 
         assert c.call("stop")["state"] == "STOPPED"
-        s = c.call("unload")["summary"]
+        r = c.call("reset")  # STOPPED -> INITIALIZED: the same scenario again from t = 0
+        s = r["summary"]
+        assert r["state"] == "INITIALIZED", r
         assert s["state"] == "STOPPED" and s["stopped_early"] and s["steps"] == s["rows"] > 100
+        c.fails("reset", "cannot reset in state INITIALIZED")
+        assert c.call("read", names=[OUT])["values"][OUT] == 0.0  # a fresh FMU
+        assert c.call("start")["state"] == "RUNNING"
+        c.call("read", names=[OUT])  # answered at a step boundary: the loop is stepping
+        assert c.call("stop")["state"] == "STOPPED"
+        assert c.call("unload")["summary"]["steps"] > 0
         assert c.call("state")["state"] == "IDLE"
+        c.fails("reset", "cannot reset in state IDLE")
         c.close()
 
         srv.send_signal(signal.SIGTERM)

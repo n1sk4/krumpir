@@ -40,6 +40,7 @@ has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
 | `files` | | `scenarios`: `scenarios/*.toml`, `fmus`: `fmus/*.fmu` in the service's directory, sorted | |
 | `text` | `path`: a `.toml` file on the server (up to 64 kB) | `text` | |
 | `wait` | `timeout_ms` (default: forever) | `done`, `state` | |
+| `reset` | | `summary` (of the run that ended), `state` | |
 | `unload` | | `summary`, `state` | |
 | `read` | `names`: `[name, ...]` | `values`: `{name: number}` | `Read` |
 | `write` | `values`: `{name: number}` | | `Write` |
@@ -50,6 +51,14 @@ has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
 
 `state` is `IDLE`, `LOADED`, `INITIALIZED`, `RUNNING`, `STOPPED` or `FAULT`; `fault` says why a
 run went to `FAULT`.
+
+**reset**: from `STOPPED` or `FAULT` back to `INITIALIZED`, to run the same scenario again. It
+unloads the run and loads its scenario anew: a fresh FMU from t = 0 and the scenario's stimuli.
+The log continues: the new run's rows are appended after the old ones, without a second header,
+and `n` and `t` count on from where the ended run stopped, so the file stays one rising timeline
+(the run's own time, in `state` and captures, starts again from 0). Values written and
+signals set during the run are gone; the reply's `summary` is the ended run's, as `unload` gives
+it. Refused in any other state. If the reload fails, the session is `IDLE`.
 
 **load**: the scenario format is [scenario-reference.md](scenario-reference.md). Leave out
 `model.duration` to run until `stop`. Paths in the scenario are on the server, relative to the

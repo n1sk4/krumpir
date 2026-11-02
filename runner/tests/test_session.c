@@ -127,10 +127,40 @@ static void test_drive_running(void)
   assert(session_wait(s, 5000));
   assert(session_state(s) == LC_STOPPED);
   assert(read_ok(s, OUT) == 1.0); /* no override in this run: the stimulus */
+
+  /* Reset: STOPPED -> INITIALIZED, the same scenario again from t = 0 */
+  assert(session_reset(s, &sum, err, sizeof err) == 0);
+  assert(sum.steps == 100 && sum.state == LC_STOPPED);
+  assert(session_state(s) == LC_INITIALIZED && session_model(s) != NULL);
+  assert(session_reset(s, NULL, err, sizeof err) == -1 && strstr(err, "INITIALIZED"));
+  assert(session_state(s) == LC_INITIALIZED); /* a refused reset changes nothing */
+  assert(session_start(s, err, sizeof err) == 0);
+  assert(session_wait(s, 5000));
   session_unload(s, &sum);
   assert(sum.steps == 100 && !sum.stopped_early && sum.rows == 100);
+  /* the log continued: one header, both runs' rows, n and t rising through the restart */
+  FILE *fp = fopen(logp, "r");
+  char line[512];
+  int lines = 0, headers = 0;
+  unsigned long long n, prev_n = 0;
+  double t, prev_t = 0;
+  while (fp != NULL && fgets(line, sizeof line, fp)) {
+    lines++;
+    if (strncmp(line, "n,t,", 4) == 0) {
+      headers++;
+      continue;
+    }
+    assert(sscanf(line, "%llu,%lf", &n, &t) == 2);
+    assert(lines == 2 || (n == prev_n + 1 && fabs(t - prev_t - 0.001) < 1e-9));
+    prev_n = n;
+    prev_t = t;
+  }
+  assert(fp != NULL && lines == 201 && headers == 1);
+  assert(prev_n == 199 && fabs(prev_t - 0.2) < 1e-9);
+  fclose(fp);
 
-  assert(session_start(s, err, sizeof err) == -1); /* nothing loaded */
+  assert(session_reset(s, NULL, err, sizeof err) == -1); /* nothing loaded */
+  assert(session_start(s, err, sizeof err) == -1);
   session_destroy(s);
   fprintf(stderr, "drive running: ok\n");
 }

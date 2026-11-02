@@ -568,6 +568,15 @@ static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, sb
     add_state(s, r);
     return 0;
   }
+  if (strcmp(op, "reset") == 0) {
+    session_summary_t m;
+    if (session_reset(s, &m, err, errlen) < 0) {
+      return -1;
+    }
+    add_summary(r, &m);
+    add_state(s, r);
+    return 0;
+  }
   if (strcmp(op, "unload") == 0) {
     session_summary_t m;
     session_unload(s, &m);

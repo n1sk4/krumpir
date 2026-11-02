@@ -17,7 +17,7 @@ int main(void)
   assert(ring_init(&ring, 16) == 0);
   const char *in_names[] = {"u"};
   const char *out_names[] = {"y", "z"};
-  writer_t *w = writer_start(&ring, path, in_names, 1, out_names, 2, NULL, NULL);
+  writer_t *w = writer_start(&ring, path, NULL, in_names, 1, out_names, 2, NULL, NULL);
   assert(w != NULL);
 
   for (uint64_t i = 0; i < 3; i++) {
@@ -48,9 +48,34 @@ int main(void)
   assert(!fgets(line, sizeof line, fp));
   fclose(fp);
 
+  /* Continuing: the rows go after the old ones, without a second header, n and t offset */
+  const writer_cont_t cont = {.n = 3, .t = 1.5};
+  w = writer_start(&ring, path, &cont, in_names, 1, out_names, 2, NULL, NULL);
+  assert(w != NULL);
+  telem_rec_t again = {.n = 0, .t = 0.5, .in = {7}};
+  assert(ring_push(&ring, &again));
+  assert(writer_stop(w) == 1);
+  fp = fopen(path, "r");
+  int lines = 0, headers = 0;
+  while (fgets(line, sizeof line, fp)) {
+    lines++;
+    headers += strncmp(line, "n,t,", 4) == 0;
+  }
+  fclose(fp);
+  assert(lines == 5 && headers == 1);
+  assert(strcmp(line, "3,2,7,0,0,0,0,0\n") == 0); /* the 4th row, at 1.5 + 0.5 s */
+
+  /* Continuing a file that does not exist yet writes the header */
+  remove(path);
+  w = writer_start(&ring, path, &cont, in_names, 1, out_names, 2, NULL, NULL);
+  assert(w != NULL && writer_stop(w) == 0);
+  fp = fopen(path, "r");
+  assert(fgets(line, sizeof line, fp) && strcmp(line, "n,t,u,y,z,wake_ns,step_ns,flags\n") == 0);
+  fclose(fp);
+
   /* Unwritable path is reported, not crashed on. */
-  assert(writer_start(&ring, "/nonexistent-dir/x.csv", in_names, 1, out_names, 2, NULL, NULL) ==
-         NULL);
+  assert(writer_start(&ring, "/nonexistent-dir/x.csv", NULL, in_names, 1, out_names, 2, NULL,
+                      NULL) == NULL);
 
   remove(path);
   ring_free(&ring);

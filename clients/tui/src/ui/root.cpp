@@ -69,7 +69,7 @@ Component Root(Model &m, std::string address, std::function<void()> quit)
     std::vector<std::string> names{"F1 Load", "F2 Monitor"};
     std::vector<std::string> keys{
         " Tab/arrows move   Enter load   F2 monitor   F10 quit",
-        " s start  x stop  u unload  space check  c uncheck all  m one/many graphs  "
+        " s start  x stop  r reset  u unload  space check  c uncheck all  m one/many graphs  "
         "w/Enter write  g signal  Esc close  F1 load  F10 quit"};
   };
   auto s = std::make_shared<State>();

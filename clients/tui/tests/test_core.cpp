@@ -127,6 +127,11 @@ static void watch(bool capture)
       state = "INITIALIZED";
     } else if (op == "start") {
       state = "RUNNING";
+    } else if (op == "reset") {
+      CHECK((state == "STOPPED" || state == "FAULT"));
+      state = "INITIALIZED";
+      t = 0;
+      ok["summary"] = {{"steps", 42}};
     } else if (op == "capture_start" && capture) {
       ok["id"] = 0;
     } else if (op == "capture_fetch") {
@@ -250,6 +255,59 @@ TEST_CASE("model: write and signal send what the service expects")
   }
   CHECK(wrote);
   CHECK(signalled);
+}
+
+TEST_CASE("model: start on a stopped run resets it first")
+{
+  std::vector<std::string> ops;
+  std::mutex mu;
+  std::string state = "STOPPED";
+  FakeServer srv([&](const json &req) -> json {
+    std::lock_guard<std::mutex> lock(mu);
+    const std::string op = req["op"];
+    ops.push_back(op);
+    json ok = {{"ok", true}, {"fault", ""}, {"scenarios", json::array()}, {"fmus", json::array()},
+               {"variables", json::array()}, {"values", json::object()}};
+    if (op == "reset") {
+      if (state != "STOPPED") {
+        return {{"ok", false}, {"error", "cannot reset in state " + state}};
+      }
+      state = "INITIALIZED";
+      ok["summary"] = {{"steps", 7}};
+    } else if (op == "start") {
+      state = "RUNNING";
+    } else if (op == "capture_start") {
+      ok["id"] = 0;
+    } else if (op == "capture_fetch") {
+      ok["capture_state"] = "RUNNING";
+      ok["names"] = {"t"};
+      ok["rows"] = json::array();
+    }
+    ok["state"] = state;
+    return ok;
+  });
+  auto has = [&](const char *op) {
+    std::lock_guard<std::mutex> lock(mu);
+    return std::find(ops.begin(), ops.end(), op) != ops.end();
+  };
+  {
+    krumpir::Model m([] {}, 10ms);
+    m.connect(srv.address());
+    m.start();
+    for (int i = 0; i < 300 && !has("start"); i++) {
+      std::this_thread::sleep_for(10ms);
+    }
+    CHECK(m.view([](const krumpir::Snapshot &v) {
+      return std::any_of(v.events.begin(), v.events.end(), [](const std::string &e) {
+        return e.find("reset: the run of 7 steps") != std::string::npos;
+      });
+    }));
+  }
+  std::lock_guard<std::mutex> lock(mu);
+  const auto reset = std::find(ops.begin(), ops.end(), "reset");
+  const auto start = std::find(ops.begin(), ops.end(), "start");
+  REQUIRE(reset != ops.end());
+  CHECK(reset < start);
 }
 
 TEST_CASE("model: connect, load, run, watch by polling") { watch(false); }

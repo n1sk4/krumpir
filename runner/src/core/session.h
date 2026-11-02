@@ -52,6 +52,14 @@ void session_stop(session_t *s);
 bool session_wait(session_t *s, int timeout_ms);
 /* Frees the run and returns to IDLE. `out` (may be NULL) gets the run's summary. */
 void session_unload(session_t *s, session_summary_t *out);
+/* STOPPED or FAULT -> INITIALIZED: unloads the run (`out`, may be NULL, gets its summary) and
+ * loads the same scenario again, so the next start runs from t = 0 with a fresh FMU and signals.
+ * The log continues: the new run's rows are appended, n and t counting on from where the ended
+ * run stopped (its own time, as session_live and captures see it, starts at 0). Values written
+ * and signals set during the run are gone.
+ * Returns 0, or -1 with a message in err (in the wrong state nothing changes; if loading fails
+ * the session is IDLE). */
+int session_reset(session_t *s, session_summary_t *out, char *err, size_t errlen);
 
 lifecycle_t session_state(session_t *s);
 /* The run's counters so far (steps, overruns, max_wake_ns, max_step_ns, state), also while it

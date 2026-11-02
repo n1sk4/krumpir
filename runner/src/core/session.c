@@ -52,6 +52,8 @@ struct session {
   capture_t *caps[SESSION_MAX_CAPTURES];
   const char *cap_names[SESSION_MAX_CAPTURES][1 + 2 * TELEM_MAX_CH];
   char fault[512];
+  bool append_log;        /* the next load continues the log file (set by session_reset) */
+  writer_cont_t log_cont; /* where it continues: the steps and time of the runs before */
 };
 
 session_t *session_create(void) { return calloc(1, sizeof(session_t)); }
@@ -140,6 +142,34 @@ lifecycle_t session_state(session_t *s)
 {
   reap(s);
   return s->state;
+}
+
+int session_reset(session_t *s, session_summary_t *out, char *err, size_t errlen)
+{
+  const lifecycle_t st = session_state(s);
+  if (st != LC_STOPPED && st != LC_FAULT) {
+    snprintf(err, errlen, "cannot reset in state %s (only STOPPED or FAULT)", lifecycle_name(st));
+    return -1;
+  }
+  scenario_t *sc = malloc(sizeof *sc); /* large: off the stack */
+  if (sc == NULL) {
+    snprintf(err, errlen, "out of memory");
+    return -1;
+  }
+  *sc = s->sc;
+  session_summary_t sum;
+  session_unload(s, &sum);
+  if (out != NULL) {
+    *out = sum;
+  }
+  /* The new run's rows go after the old ones, n and t counting on from where it ended */
+  s->log_cont.n += sum.steps;
+  s->log_cont.t += (double)sum.steps * sc->step;
+  s->append_log = true;
+  const int rc = session_load(s, sc, err, errlen);
+  s->append_log = false;
+  free(sc);
+  return rc;
 }
 
 void session_live(session_t *s, session_summary_t *out)
@@ -234,6 +264,9 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
     return -1;
   }
   s->fault[0] = '\0';
+  if (!s->append_log) { /* a new scenario: a new log */
+    s->log_cont = (writer_cont_t){0};
+  }
   s->sc = *sc;
   s->stop = 0;
   cmdq_init(&s->cmd);
@@ -280,8 +313,8 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
     goto fail;
   }
   s->cap_lock_ok = true;
-  s->writer = writer_start(&s->ring, s->sc.log_file, in_names, sc->n_inputs, out_names,
-                           sc->n_outputs, feed_captures, s);
+  s->writer = writer_start(&s->ring, s->sc.log_file, s->append_log ? &s->log_cont : NULL,
+                           in_names, sc->n_inputs, out_names, sc->n_outputs, feed_captures, s);
   if (s->writer == NULL) {
     snprintf(err, errlen, "cannot create log file '%s'", sc->log_file);
     goto fail;

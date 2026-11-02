@@ -70,8 +70,9 @@ public:
   void refresh_files();
   void preview(std::string path);
   void load(std::string path); // a .toml as it is, an .fmu as its `init` starter scenario
-  void start();
+  void start(); // on a STOPPED or FAULT run: resets first, so it runs again from t = 0
   void stop();
+  void reset(); // STOPPED or FAULT -> INITIALIZED: the same scenario again
   void unload();
   void write(std::string name, double value); // an input (replaces its signal) or a tunable param
   void signal(json stimulus);                 // one io.stimulus entry, see preset()
@@ -84,6 +85,7 @@ private:
   void fetch_vars();
   void fetch_capture();
   void add_sample(const std::string &name, double t, double v); // caller holds mu_
+  void do_reset(); // worker thread
   void event(const std::string &text); // takes the lock
 
   Service svc_;

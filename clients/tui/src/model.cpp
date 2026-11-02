@@ -365,6 +365,10 @@ void Model::load(std::string path)
 void Model::start()
 {
   post([this] {
+    const std::string st = str(svc_.call("state"), "state");
+    if (st == "STOPPED" || st == "FAULT") {
+      do_reset();
+    }
     cap_id_ = -1;
     cap_from_ = 0;
     captured_.clear();
@@ -402,6 +406,25 @@ void Model::signal(json stimulus)
     what.erase("input");
     event(stimulus["input"].get<std::string>() + ": " + what.dump());
   });
+}
+
+void Model::do_reset()
+{
+  const json s = svc_.call("reset").at("summary");
+  cap_id_ = -1;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    snap_.history.clear();
+  }
+  char line[160];
+  std::snprintf(line, sizeof line, "reset: the run of %.0f steps ended, again from t = 0",
+                num(s, "steps"));
+  event(line);
+}
+
+void Model::reset()
+{
+  post([this] { do_reset(); });
 }
 
 void Model::unload()

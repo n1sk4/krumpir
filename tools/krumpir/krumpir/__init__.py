@@ -127,6 +127,12 @@ class MAPort:
         """Frees the run; returns its summary (steps, overruns, dropped, rows, timing)."""
         return self._tb.request("unload")["summary"]
 
+    def reset(self):
+        """STOPPED or FAULT -> INITIALIZED: the same scenario again from t = 0 (a fresh FMU; the
+        log continues, its n and t counting on; writes and signals of the run are gone). Returns
+        the ended run's summary."""
+        return self._tb.request("reset")["summary"]
+
     def read(self, *names):
         """One name: its value. Several: {name: value} (XIL: Read)."""
         values = self._tb.request("read", names=list(names))["values"]

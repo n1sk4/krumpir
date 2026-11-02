@@ -234,13 +234,15 @@ Component MonitorTab(Model &m)
   // The run view
   auto start = Button("Start", [&m] { m.start(); }, ButtonOption::Ascii());
   auto stop = Button("Stop", [&m] { m.stop(); }, ButtonOption::Ascii());
+  auto reset = Button("Reset", [&m] { m.reset(); }, ButtonOption::Ascii());
   auto unload = Button("Unload", [&m] { m.unload(); }, ButtonOption::Ascii());
   MenuOption menu = MenuOption::Vertical();
   menu.entries = &s->rows;
   menu.selected = &s->selected;
   menu.on_enter = open_write;
   auto vars = Menu(menu);
-  auto layout = Container::Vertical({vars, Container::Horizontal({start, stop, unload})});
+  auto layout =
+      Container::Vertical({vars, Container::Horizontal({start, stop, reset, unload})});
 
   auto view = Renderer(layout, [=, &m] {
     Element header, events;
@@ -312,7 +314,7 @@ Component MonitorTab(Model &m)
         flex;
     return vbox({
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
-              unload->Render(), text(" ")}),
+              reset->Render(), text(" "), unload->Render(), text(" ")}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
         hbox({vars_pane, plot_pane}) | flex,
         window(text(" Events "), events) | size(HEIGHT, EQUAL, 8),
@@ -391,6 +393,8 @@ Component MonitorTab(Model &m)
       m.stop();
     } else if (e == Event::Character('u')) {
       m.unload();
+    } else if (e == Event::Character('r')) {
+      m.reset();
     } else if (e == Event::Character('w')) {
       open_write();
     } else if (e == Event::Character('g')) {

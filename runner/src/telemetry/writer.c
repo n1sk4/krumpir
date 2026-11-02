@@ -18,11 +18,12 @@ struct writer {
   writer_tap_t tap;
   void *tap_ctx;
   _Atomic size_t done; /* records written and tapped */
+  writer_cont_t off;   /* added to n and t in the file */
 };
 
 static void write_row(writer_t *w, const telem_rec_t *rec)
 {
-  fprintf(w->fp, "%" PRIu64 ",%.17g", rec->n, rec->t);
+  fprintf(w->fp, "%" PRIu64 ",%.17g", rec->n + w->off.n, rec->t + w->off.t);
   for (size_t i = 0; i < w->n_in; i++) {
     fprintf(w->fp, ",%.17g", rec->in[i]);
   }
@@ -60,9 +61,9 @@ static void *drain(void *arg)
   return NULL;
 }
 
-writer_t *writer_start(ring_t *ring, const char *path, const char *const *in_names, size_t n_in,
-                       const char *const *out_names, size_t n_out, writer_tap_t tap,
-                       void *tap_ctx)
+writer_t *writer_start(ring_t *ring, const char *path, const writer_cont_t *cont,
+                       const char *const *in_names, size_t n_in, const char *const *out_names,
+                       size_t n_out, writer_tap_t tap, void *tap_ctx)
 {
   if (n_in > TELEM_MAX_CH || n_out > TELEM_MAX_CH) {
     return NULL;
@@ -78,19 +79,24 @@ writer_t *writer_start(ring_t *ring, const char *path, const char *const *in_nam
   w->tap_ctx = tap_ctx;
   atomic_init(&w->stop, false);
   atomic_init(&w->done, 0);
-  w->fp = fopen(path, "w");
+  if (cont != NULL) {
+    w->off = *cont;
+  }
+  w->fp = fopen(path, cont != NULL ? "a" : "w");
   if (w->fp == NULL) {
     free(w);
     return NULL;
   }
-  fputs("n,t", w->fp);
-  for (size_t i = 0; i < n_in; i++) {
-    fprintf(w->fp, ",%s", in_names[i]);
+  if (fseek(w->fp, 0, SEEK_END) == 0 && ftell(w->fp) == 0) { /* a new or empty file */
+    fputs("n,t", w->fp);
+    for (size_t i = 0; i < n_in; i++) {
+      fprintf(w->fp, ",%s", in_names[i]);
+    }
+    for (size_t i = 0; i < n_out; i++) {
+      fprintf(w->fp, ",%s", out_names[i]);
+    }
+    fputs(",wake_ns,step_ns,flags\n", w->fp);
   }
-  for (size_t i = 0; i < n_out; i++) {
-    fprintf(w->fp, ",%s", out_names[i]);
-  }
-  fputs(",wake_ns,step_ns,flags\n", w->fp);
   if (pthread_create(&w->thread, NULL, drain, w) != 0) {
     fclose(w->fp);
     free(w);

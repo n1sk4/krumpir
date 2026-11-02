@@ -7,4 +7,5 @@ __pycache__/
 /tools/kicad/__pycache__
 /*.py
 /runs
+/clients/tui/build
 /docs/img/temp

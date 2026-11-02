@@ -36,7 +36,9 @@ has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
 | `variables` | | `variables`: `[{name, vr, type, causality, tunable}]` | `GetVariableNames`, `GetVariableInfo` |
 | `start` | | `state` | `StartSimulation` |
 | `stop` | | `state` | `StopSimulation` |
-| `state` | | `state`, `fault` | `State` |
+| `state` | | `state`, `fault`; once loaded also `fmu`, `step`, `duration` (when set), `t`, `steps`, `overruns`, `max_step_ns`, `max_wake_ns` of the run so far | `State` |
+| `files` | | `scenarios`: `scenarios/*.toml`, `fmus`: `fmus/*.fmu` in the service's directory, sorted | |
+| `text` | `path`: a `.toml` file on the server (up to 64 kB) | `text` | |
 | `wait` | `timeout_ms` (default: forever) | `done`, `state` | |
 | `unload` | | `summary`, `state` | |
 | `read` | `names`: `[name, ...]` | `values`: `{name: number}` | `Read` |

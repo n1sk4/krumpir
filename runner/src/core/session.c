@@ -142,6 +142,17 @@ lifecycle_t session_state(session_t *s)
   return s->state;
 }
 
+void session_live(session_t *s, session_summary_t *out)
+{
+  *out = (session_summary_t){
+      .state = session_state(s),
+      .steps = atomic_load_explicit(&s->ls.steps, memory_order_relaxed),
+      .overruns = atomic_load_explicit(&s->ls.overruns, memory_order_relaxed),
+      .max_wake_ns = atomic_load_explicit(&s->ls.max_wake_ns, memory_order_relaxed),
+      .max_step_ns = atomic_load_explicit(&s->ls.max_step_ns, memory_order_relaxed),
+  };
+}
+
 void session_unload(session_t *s, session_summary_t *out)
 {
   session_stop(s);
@@ -341,6 +352,7 @@ int session_start(session_t *s, char *err, size_t errlen)
     return -1;
   }
   atomic_store(&s->done, false);
+  memset(&s->ls, 0, sizeof s->ls); /* before the thread exists: session_live reads it */
   int e = pthread_create(&s->thread, &attr, loop_thread, s);
   pthread_attr_destroy(&attr);
   if (e != 0) {

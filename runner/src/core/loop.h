@@ -51,12 +51,14 @@ typedef enum {
   LOOP_TOO_MANY_OVERRUNS
 } loop_end_t;
 
+/* The four counters are atomic so another thread can watch a run while it goes (the loop
+ * stores them relaxed; the rest is read only after the loop has returned). */
 typedef struct {
   loop_end_t end;
-  uint64_t steps;      /* completed steps */
-  uint64_t overruns;   /* steps that finished after their deadline (paced runs only) */
-  int64_t max_wake_ns; /* worst lateness of waking up for a tick */
-  int64_t max_step_ns; /* longest fmu_step() */
+  _Atomic uint64_t steps;      /* completed steps */
+  _Atomic uint64_t overruns;   /* steps that finished after their deadline (paced runs only) */
+  _Atomic int64_t max_wake_ns; /* worst lateness of waking up for a tick */
+  _Atomic int64_t max_step_ns; /* longest fmu_step() */
   double sum_step_ns;
   uint64_t fail_step;       /* LOOP_FMU_FAIL: index of the failing step */
   fmu_result_t fail_result; /* LOOP_FMU_FAIL */
@@ -71,7 +73,8 @@ typedef struct {
  * With wait = none the run is unpaced and lossless (it waits for the log writer instead of
  * dropping). With sleep or busy the ticks are absolute (start + n*step), a late step is counted as
  * an overrun, and the run ends with LOOP_TOO_MANY_OVERRUNS past max_overruns. The telemetry
- * record of step n has t = (n+1)*step, the time its outputs are valid. Does not allocate. */
+ * record of step n has t = (n+1)*step, the time its outputs are valid. Does not allocate.
+ * *st must be zeroed by the caller. */
 void loop_run(const loop_ctx_t *c, loop_stats_t *st);
 
 #endif

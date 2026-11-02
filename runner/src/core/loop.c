@@ -79,8 +79,7 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
   double out[TELEM_MAX_CH] = {0};
   telem_rec_t rec;
 
-  memset(st, 0, sizeof *st);
-  st->end = LOOP_DONE;
+  st->end = LOOP_DONE; /* the caller has zeroed *st */
 
   const int64_t start = plat_now_ns();
   for (uint64_t n = 0; n < sc->n_steps; n++) {
@@ -157,17 +156,20 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
     }
     ring_push(c->ring, &rec);
 
-    st->steps++;
+    /* The loop is the only writer, so relaxed load + store is enough (no lock prefix on x86). */
+    const memory_order rx = memory_order_relaxed;
+    atomic_store_explicit(&st->steps, atomic_load_explicit(&st->steps, rx) + 1, rx);
     st->sum_step_ns += (double)rec.step_ns;
-    if (rec.step_ns > st->max_step_ns) {
-      st->max_step_ns = rec.step_ns;
+    if (rec.step_ns > atomic_load_explicit(&st->max_step_ns, rx)) {
+      atomic_store_explicit(&st->max_step_ns, rec.step_ns, rx);
     }
-    if (wake_ns > st->max_wake_ns) {
-      st->max_wake_ns = wake_ns;
+    if (wake_ns > atomic_load_explicit(&st->max_wake_ns, rx)) {
+      atomic_store_explicit(&st->max_wake_ns, wake_ns, rx);
     }
     if (late) {
-      st->overruns++;
-      if (st->overruns > (uint64_t)sc->max_overruns) {
+      const uint64_t overruns = atomic_load_explicit(&st->overruns, rx) + 1;
+      atomic_store_explicit(&st->overruns, overruns, rx);
+      if (overruns > (uint64_t)sc->max_overruns) {
         st->end = LOOP_TOO_MANY_OVERRUNS;
         return;
       }

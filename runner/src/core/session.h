@@ -54,6 +54,9 @@ bool session_wait(session_t *s, int timeout_ms);
 void session_unload(session_t *s, session_summary_t *out);
 
 lifecycle_t session_state(session_t *s);
+/* The run's counters so far (steps, overruns, max_wake_ns, max_step_ns, state), also while it
+ * runs; the other fields stay 0. */
+void session_live(session_t *s, session_summary_t *out);
 /* Why the run went to FAULT (empty otherwise). */
 const char *session_fault(const session_t *s);
 /* The loaded model's variables; NULL when IDLE. */

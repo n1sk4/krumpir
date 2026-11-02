@@ -1,6 +1,7 @@
 #include "serve.h"
 
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <errno.h>
 #include <math.h>
 #include <netinet/in.h>
@@ -171,6 +172,96 @@ static void add_state(session_t *s, cJSON *r)
 {
   cJSON_AddStringToObject(r, "state", lifecycle_name(session_state(s)));
   cJSON_AddStringToObject(r, "fault", session_fault(s));
+}
+
+/* add_state plus the loaded run's progress, for a client that watches it. */
+static void add_status(session_t *s, cJSON *r)
+{
+  add_state(s, r);
+  const scenario_t *sc = session_scenario(s);
+  if (sc == NULL) {
+    return;
+  }
+  session_summary_t m;
+  session_live(s, &m);
+  cJSON_AddStringToObject(r, "fmu", sc->fmu);
+  cJSON_AddNumberToObject(r, "step", sc->step);
+  if (isfinite(sc->duration)) {
+    cJSON_AddNumberToObject(r, "duration", sc->duration);
+  }
+  cJSON_AddNumberToObject(r, "t", (double)m.steps * sc->step);
+  cJSON_AddNumberToObject(r, "steps", (double)m.steps);
+  cJSON_AddNumberToObject(r, "overruns", (double)m.overruns);
+  cJSON_AddNumberToObject(r, "max_wake_ns", (double)m.max_wake_ns);
+  cJSON_AddNumberToObject(r, "max_step_ns", (double)m.max_step_ns);
+}
+
+static int by_name(const void *a, const void *b)
+{
+  return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+/* Adds key: the sorted paths "dir/name" of the files in dir ending in ext (none if dir is
+ * missing). */
+static void add_listing(cJSON *r, const char *key, const char *dir, const char *ext)
+{
+  cJSON *arr = cJSON_AddArrayToObject(r, key);
+  DIR *d = opendir(dir);
+  if (d == NULL) {
+    return;
+  }
+  char *names[256]; /* ponytail: first 256 files per directory; a bench has a handful */
+  size_t n = 0, el = strlen(ext);
+  struct dirent *e;
+  while ((e = readdir(d)) != NULL && n < 256) {
+    size_t len = strlen(e->d_name);
+    if (len > el && strcmp(e->d_name + len - el, ext) == 0) {
+      names[n] = malloc(strlen(dir) + len + 2);
+      if (names[n] != NULL) {
+        sprintf(names[n++], "%s/%s", dir, e->d_name);
+      }
+    }
+  }
+  closedir(d);
+  qsort(names, n, sizeof names[0], by_name);
+  for (size_t i = 0; i < n; i++) {
+    cJSON_AddItemToArray(arr, cJSON_CreateString(names[i]));
+    free(names[i]);
+  }
+}
+
+/* The scenarios and FMUs a client can load, relative to the directory the service runs in. */
+static void op_files(cJSON *r)
+{
+  add_listing(r, "scenarios", "scenarios", ".toml");
+  add_listing(r, "fmus", "fmus", ".fmu");
+}
+
+/* The text of a scenario file on the server (*.toml only), for a client to show before loading. */
+static int op_text(const cJSON *req, cJSON *r, char *err, size_t errlen)
+{
+  const char *path = get_str(req, "path");
+  size_t len = path != NULL ? strlen(path) : 0;
+  if (len < 5 || strcmp(path + len - 5, ".toml") != 0) {
+    snprintf(err, errlen, "text takes \"path\" of a .toml file");
+    return -1;
+  }
+  FILE *f = fopen(path, "rb");
+  if (f == NULL) {
+    snprintf(err, errlen, "cannot open %s: %s", path, strerror(errno));
+    return -1;
+  }
+  static char buf[1u << 16]; /* ponytail: one request at a time; scenarios are a few kB */
+  size_t n = fread(buf, 1, sizeof buf - 1, f);
+  bool more = fgetc(f) != EOF;
+  fclose(f);
+  if (more) {
+    snprintf(err, errlen, "%s is larger than %u bytes", path, (unsigned)sizeof buf - 1);
+    return -1;
+  }
+  buf[n] = '\0';
+  cJSON_AddStringToObject(r, "text", buf);
+  return 0;
 }
 
 static int op_load(session_t *s, const cJSON *req, cJSON *r, char *err, size_t errlen)
@@ -437,8 +528,15 @@ static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, sb
     return 0;
   }
   if (strcmp(op, "state") == 0) {
-    add_state(s, r);
+    add_status(s, r);
     return 0;
+  }
+  if (strcmp(op, "files") == 0) {
+    op_files(r);
+    return 0;
+  }
+  if (strcmp(op, "text") == 0) {
+    return op_text(req, r, err, errlen);
   }
   if (strcmp(op, "load") == 0) {
     return op_load(s, req, r, err, errlen);

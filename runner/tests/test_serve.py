@@ -77,6 +77,13 @@ file = "{log}"
         c.fails("load", "scenario:", toml="[model]\n")
         c.fails("init", "takes \"fmu\"")
         c.fails("init", "cannot open", fmu="/nonexistent.fmu")
+        files = c.call("files")  # the test runs from runner/
+        assert "fmus/Feedthrough.fmu" in files["fmus"], files
+        assert "scenarios/feedthrough.toml" in files["scenarios"], files
+        assert "[model]" in c.call("text", path="scenarios/feedthrough.toml")["text"]
+        c.fails("text", "of a .toml file", path="fmus/Feedthrough.fmu")
+        c.fails("text", "cannot open", path="nope.toml")
+        assert "t" not in c.call("state")  # progress only once loaded
         starter = c.call("init", fmu=str(fmu))["toml"]
         assert f'"{IN}",' in starter and f'"{OUT}",' in starter, starter
         starter = starter.replace('"runs/Feedthrough.csv"', f'"{log}"')
@@ -97,7 +104,10 @@ file = "{log}"
         c.close()  # the run goes on without a client
 
         c = Client(port)
-        assert c.call("state")["state"] == "RUNNING"
+        st = c.call("state")
+        assert st["state"] == "RUNNING" and st["step"] == 0.001 and "duration" not in st
+        assert st["steps"] > 0 and abs(st["t"] - st["steps"] * 0.001) < 1e-9 and st["fmu"] == str(fmu)
+        assert st["max_step_ns"] > 0 and "overruns" in st and "max_wake_ns" in st
         assert not c.call("wait", timeout_ms=100)["done"]
         assert c.call("read", names=[OUT])["values"][OUT] == 4.0
         c.call("write", values={IN: 6.0})

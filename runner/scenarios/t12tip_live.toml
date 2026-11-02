@@ -1,0 +1,19 @@
+# T12 tip plant in real time until it is stopped: for steering it by hand (krumpir-tui, the
+# Python client). Starts cold with the heater off; the heater is on while its input is >= 0.5,
+# load_wk is a joint touching the tip (W/K, e.g. 0.1). Try a pulse signal on heater (low 0,
+# high 1, period 0.2 s, duty 0.5). The log grows by about 60 kB per second.
+[model]
+fmu = "fmus/t12tip.fmu"
+step = 0.001
+
+[rt]
+wait = "sleep"
+max_overruns = 1000000  # a desktop is not real time: count late steps, do not end the run
+
+[io]
+backend = "null"
+inputs = ["heater", "load_wk"]
+outputs = ["t_tip_c", "v_amp", "i_heater"]
+
+[log]
+file = "runs/t12tip_live.csv"

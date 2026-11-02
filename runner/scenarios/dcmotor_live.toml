@@ -1,0 +1,19 @@
+# DC motor plant in real time until it is stopped: for steering it by hand (krumpir-tui, the
+# Python client). Starts at rest; set duty and load_torque while it runs. The log grows by about
+# 50 kB per second.
+[model]
+fmu = "fmus/dcmotor.fmu"
+step = 0.001
+params = { Vbus = 6.0 }
+
+[rt]
+wait = "sleep"
+max_overruns = 1000000  # a desktop is not real time: count late steps, do not end the run
+
+[io]
+backend = "null"
+inputs = ["duty", "load_torque"]
+outputs = ["speed_rpm", "current"]
+
+[log]
+file = "runs/dcmotor_live.csv"

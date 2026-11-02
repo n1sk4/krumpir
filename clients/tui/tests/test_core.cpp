@@ -4,8 +4,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <asio.hpp>
 #include <atomic>
+#include <mutex>
 #include <chrono>
 #include <functional>
 #include <thread>
@@ -192,6 +194,62 @@ static void watch(bool capture)
     return 0;
   });
   CHECK(changes > 0);
+}
+
+TEST_CASE("presets: every kind builds the stimulus the service takes")
+{
+  using krumpir::preset;
+  REQUIRE(krumpir::presets().size() == 5);
+  for (std::size_t k = 0; k < krumpir::presets().size(); k++) {
+    const auto &p = krumpir::presets()[k];
+    CHECK(p.fields.size() == p.defaults.size());
+    CHECK(preset("u", k, std::vector<double>(p.fields.size(), 1.0))["input"] == "u");
+  }
+  CHECK(preset("u", 0, {2}) == json{{"input", "u"}, {"kind", "constant"}, {"value", 2.0}});
+  json step = preset("u", 1, {0.1, 0.5, 0.8}); // from 0.1, after 0.5 s to 0.8
+  CHECK(step["segments"][0] == json{{"kind", "const"}, {"value", 0.1}, {"duration", 0.5}});
+  CHECK(step["segments"][1] == json{{"kind", "const"}, {"value", 0.8}});
+  CHECK(preset("u", 1, {0.1, 0, 0.8})["kind"] == "constant"); // no delay: at once
+  CHECK(preset("u", 2, {0, 1, 2})["segments"][0]["duration"] == 2.0);
+  CHECK(preset("u", 3, {0, 1, 5})["freq_hz"] == 5.0);
+  CHECK(preset("u", 4, {0, 1, 0.1, 0.25})["segments"][0]["duty"] == 0.25);
+  CHECK_THROWS(preset("u", 5, {}));
+  CHECK_THROWS(preset("u", 1, {1})); // too few numbers
+}
+
+TEST_CASE("model: write and signal send what the service expects")
+{
+  std::vector<json> seen;
+  std::mutex mu;
+  FakeServer srv([&](const json &req) -> json {
+    std::lock_guard<std::mutex> lock(mu);
+    seen.push_back(req);
+    json ok = {{"ok", true}, {"state", "IDLE"}, {"fault", ""}};
+    ok["scenarios"] = json::array();
+    ok["fmus"] = json::array();
+    return ok;
+  });
+  auto got_signal = [&] {
+    std::lock_guard<std::mutex> lock(mu);
+    return std::any_of(seen.begin(), seen.end(), [](const json &r) { return r["op"] == "signal"; });
+  };
+  {
+    krumpir::Model m([] {}, 10ms);
+    m.connect(srv.address());
+    m.write("duty", 0.25);
+    m.signal(krumpir::preset("duty", 0, {0.5}));
+    for (int i = 0; i < 300 && !got_signal(); i++) {
+      std::this_thread::sleep_for(10ms);
+    }
+  }
+  std::lock_guard<std::mutex> lock(mu);
+  bool wrote = false, signalled = false;
+  for (const auto &r : seen) {
+    wrote |= r["op"] == "write" && r["values"] == json{{"duty", 0.25}};
+    signalled |= r["op"] == "signal" && r["stimulus"]["kind"] == "constant";
+  }
+  CHECK(wrote);
+  CHECK(signalled);
 }
 
 TEST_CASE("model: connect, load, run, watch by polling") { watch(false); }

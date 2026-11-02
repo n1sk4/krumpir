@@ -32,6 +32,50 @@ bool ends_with(const std::string &s, const std::string &tail)
   return s.size() >= tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0;
 }
 
+const std::vector<Preset> &presets()
+{
+  static const std::vector<Preset> p{
+      {"constant", {"value"}, {""}},
+      {"step", {"from", "after s", "to"}, {"", "1", ""}},
+      {"ramp", {"from", "to", "over s"}, {"", "", "1"}},
+      {"sine", {"offset", "amplitude", "freq Hz"}, {"", "1", "1"}},
+      {"pulse", {"low", "high", "period s", "duty 0..1"}, {"", "1", "1", "0.5"}},
+  };
+  return p;
+}
+
+json preset(const std::string &input, std::size_t kind, const std::vector<double> &f)
+{
+  switch (kind) {
+  case 0:
+    return {{"input", input}, {"kind", "constant"}, {"value", f.at(0)}};
+  case 1: // the signal starts now, so the step is `after` seconds from now
+    if (!(f.at(1) > 0)) {
+      return {{"input", input}, {"kind", "constant"}, {"value", f.at(2)}};
+    }
+    return {{"input", input},
+            {"segments", {{{"kind", "const"}, {"value", f.at(0)}, {"duration", f.at(1)}},
+                          {{"kind", "const"}, {"value", f.at(2)}}}}};
+  case 2: // then holds `to`
+    return {{"input", input},
+            {"segments", {{{"kind", "ramp"}, {"from", f.at(0)}, {"to", f.at(1)},
+                           {"duration", f.at(2)}}}}};
+  case 3:
+    return {{"input", input},
+            {"kind", "sine"},
+            {"offset", f.at(0)},
+            {"amplitude", f.at(1)},
+            {"freq_hz", f.at(2)}};
+  case 4:
+    return {{"input", input},
+            {"segments",
+             {{{"kind", "pulse"}, {"low", f.at(0)}, {"high", f.at(1)}, {"period", f.at(2)},
+               {"duty", f.at(3)}}}}};
+  default:
+    throw std::out_of_range("no preset " + std::to_string(kind));
+  }
+}
+
 Model::Model(std::function<void()> on_change, std::chrono::milliseconds period)
     : on_change_(std::move(on_change)), period_(period), thread_([this] { worker(); })
 {
@@ -337,6 +381,26 @@ void Model::stop()
 {
   post([this] {
     event("stop: " + str(svc_.call("stop"), "state"));
+  });
+}
+
+void Model::write(std::string name, double value)
+{
+  post([this, name, value] {
+    svc_.call("write", {{"values", {{name, value}}}});
+    char line[160];
+    std::snprintf(line, sizeof line, "%s = %.6g", name.c_str(), value);
+    event(line);
+  });
+}
+
+void Model::signal(json stimulus)
+{
+  post([this, stimulus] {
+    svc_.call("signal", {{"stimulus", stimulus}});
+    json what = stimulus;
+    what.erase("input");
+    event(stimulus["input"].get<std::string>() + ": " + what.dump());
   });
 }
 

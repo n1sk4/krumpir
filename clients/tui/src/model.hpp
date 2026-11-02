@@ -73,6 +73,8 @@ public:
   void start();
   void stop();
   void unload();
+  void write(std::string name, double value); // an input (replaces its signal) or a tunable param
+  void signal(json stimulus);                 // one io.stimulus entry, see preset()
 
 private:
   void post(std::function<void()> job);
@@ -102,5 +104,16 @@ private:
 };
 
 bool ends_with(const std::string &s, const std::string &tail);
+
+// Signal presets for an input, as the `signal` op takes them. Each has up to four numbers, in
+// the order of its `fields` (the UI's labels and defaults).
+struct Preset {
+  const char *name;
+  std::vector<const char *> fields;
+  std::vector<const char *> defaults; // "" = the input's current value
+};
+const std::vector<Preset> &presets();
+// The stimulus for presets()[kind] with numbers f (same order as its fields), starting now.
+json preset(const std::string &input, std::size_t kind, const std::vector<double> &f);
 
 } // namespace krumpir

@@ -46,6 +46,9 @@ krumpir-tui 192.168.1.20:7700                         # a runner on the Pi (serv
 | Enter | on a file or the path: load it |
 | s / x / u | (Monitor) start / stop / unload |
 | up / down | (Monitor) the variable to plot |
+| w, Enter | (Monitor) write a value to the selected input or tunable parameter |
+| g | (Monitor) play a signal on the selected input |
+| Esc | close a dialog |
 | F10, Ctrl+C | quit |
 
 **Load** lists `scenarios/*.toml` and `fmus/*.fmu` on the runner and shows the selected file:
@@ -56,6 +59,20 @@ FMU loads that starter. A run that is still loaded is unloaded first.
 inputs, outputs and tunable parameters with their values, a plot of the selected one, and the
 events. Start arms a capture of the scenario's inputs and outputs, so the plot holds every step,
 also for unpaced runs that end at once. Other variables are sampled at 10 Hz while it runs.
+
+A written value takes effect at the next step; on an input it replaces the input's signal. Signal
+presets (the dialog keeps the last one picked; numbers default to the input's value):
+
+| Preset | Numbers | Plays |
+|--------|---------|-------|
+| constant | value | the value |
+| step | from, after s, to | `from`, then `to` once `after` seconds have passed |
+| ramp | from, to, over s | a ramp from `from` to `to`, then holds `to` |
+| sine | offset, amplitude, freq Hz | `offset + amplitude sin(2 pi f t)` |
+| pulse | low, high, period s, duty | `high` for `duty` of each period, else `low` |
+
+Both work once a run is loaded (from the start of the run) and while it runs (from the next
+step); outputs and fixed parameters are refused.
 
 ## Design
 

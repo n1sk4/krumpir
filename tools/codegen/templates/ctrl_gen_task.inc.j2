@@ -13,8 +13,9 @@ struct {{ page }} {
 {% for p in m.cal %}
   float {{ p.cal }};{{ (" /* [" ~ p.unit ~ "] */") if p.unit else "" }}
 {% endfor %}
+  uint32_t request; /* run request: low byte 1 start, 2 stop, 3 clear; upper bytes a sequence */
 };
-const struct {{ page }} {{ page }} = {{ "{" }}{% for p in m.cal %}{{ p.default | c_float }}{{ ", " if not loop.last }}{% endfor %}{{ "}" }};
+const struct {{ page }} {{ page }} = {{ "{" }}{% for p in m.cal %}{{ p.default | c_float }}, {% endfor %}0{{ "}" }};
 CalSegDecl({{ page }});
 {% for p in m.cal %}
 {% if p.unit %}
@@ -28,13 +29,16 @@ static rte_calib_t s_calib;
 
 void ctrl_gen_cal_init(rte_t *r) { rte_calib_init(&s_calib, r, s_cal_names, {{ m.cal | length }}); }
 
-/* A changed page overrides the console settings once (rte_calib.h). */
+/* A changed page overrides the console settings once, and a new request runs start, stop or clear
+ * like the console (rte_calib.h). */
 void ctrl_gen_cal_apply(rte_t *r)
 {
   const struct {{ page }} *c = CalSegLock({{ page }});
   const float v[] = {{ "{" }}{% for p in m.cal %}c->{{ p.cal }}{{ ", " if not loop.last }}{% endfor %}{{ "}" }};
+  const uint32_t req = c->request;
   CalSegUnlock({{ page }});
   rte_calib_update(&s_calib, r, v);
+  rte_calib_request(&s_calib, r, req);
 }
 {% else %}
 void ctrl_gen_cal_init(rte_t *r) { (void)r; }

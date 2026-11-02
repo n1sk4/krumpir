@@ -67,5 +67,8 @@ timing, PASS or FAIL). Their commands are in each controller's `tools/README.md`
 
 The env `esp32dev-xcp` builds the same firmware with XCP on Ethernet over Wi-Fi: every variable of
 the control loop can be measured at 1 kHz, and setpoint and gains calibrated through a calibration
-page. Setup, the `xcpclient` commands and the measured cost on the loop are in
+page. Writing the page's `request` field starts, stops or clears the controller like the console
+does (`<name>_cal_page.request`: low byte 1 start, 2 stop, 3 clear, upper bytes a sequence number
+to count up; see [../tools/codegen](../tools/codegen/README.md)). Setup, the `xcpclient` commands
+and the measured cost on the loop are in
 [../libs/esp/xcpglue/README.md](../libs/esp/xcpglue/README.md).

@@ -12,8 +12,9 @@ struct motor_cal_page {
   float kp;
   float ki;
   float kd;
+  uint32_t request; /* run request: low byte 1 start, 2 stop, 3 clear; upper bytes a sequence */
 };
-const struct motor_cal_page motor_cal_page = {0.0f, 0.00072f, 0.03f, 0.0f};
+const struct motor_cal_page motor_cal_page = {0.0f, 0.00072f, 0.03f, 0.0f, 0};
 CalSegDecl(motor_cal_page);
 XCP_UNIT(motor_cal_page__setpoint, "rpm");
 XCP_LIMITS(motor_cal_page__setpoint, -10000.0f, 10000.0f);
@@ -26,12 +27,15 @@ static rte_calib_t s_calib;
 
 void ctrl_gen_cal_init(rte_t *r) { rte_calib_init(&s_calib, r, s_cal_names, 4); }
 
-/* A changed page overrides the console settings once (rte_calib.h). */
+/* A changed page overrides the console settings once, and a new request runs start, stop or clear
+ * like the console (rte_calib.h). */
 void ctrl_gen_cal_apply(rte_t *r)
 {
   const struct motor_cal_page *c = CalSegLock(motor_cal_page);
   const float v[] = {c->setpoint, c->kp, c->ki, c->kd};
+  const uint32_t req = c->request;
   CalSegUnlock(motor_cal_page);
   rte_calib_update(&s_calib, r, v);
+  rte_calib_request(&s_calib, r, req);
 }
 #endif

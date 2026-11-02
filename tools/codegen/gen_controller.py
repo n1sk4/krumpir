@@ -12,6 +12,7 @@ fails when they differ from what the description gives.
 """
 import argparse
 import difflib
+import json
 import re
 import sys
 import tomllib
@@ -37,6 +38,7 @@ OUTPUTS = [
 ]
 
 IDENT = re.compile(r"[a-z_][a-z0-9_]*$")
+A2L_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
 class DescriptionError(Exception):
@@ -95,7 +97,7 @@ def load(ctrl_dir: Path) -> dict:
             d = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise DescriptionError(f"{path}: {e}") from None
-    _table(d, "controller.toml", ["controller", "param", "telemetry"], ["command", "ci"])
+    _table(d, "controller.toml", ["controller", "param", "telemetry"], ["command", "ci", "xcp"])
 
     c = d["controller"]
     _table(c, "[controller]", ["name", "plant", "lib"])
@@ -165,6 +167,19 @@ def load(ctrl_dir: Path) -> dict:
     if "ci" in d:
         _table(d["ci"], "[ci]", [], ["step"])
 
+    # What a tool shows as the controller's state, as A2L names in the control task's unit
+    x = d.get("xcp", {})
+    _table(x, "[xcp]", [], ["running", "trip", "monitor"])
+    xcp = {"running": _str(x, "running", "[xcp]") if "running" in x else "s_rte.run_applied",
+           "trip": _str(x, "trip", "[xcp]") if "trip" in x else "s_trip"}
+    if "monitor" in x:
+        if not isinstance(x["monitor"], list) or not all(isinstance(s, str) and s
+                                                         for s in x["monitor"]):
+            _fail("[xcp]", "monitor must be a list of names")
+        xcp["monitor"] = x["monitor"]
+    else:  # the telemetry columns that are plain variables
+        xcp["monitor"] = [q["value"] for q in columns if A2L_NAME.match(q["value"])]
+
     return {
         "name": name,
         "dir": ctrl_dir.name,
@@ -175,6 +190,7 @@ def load(ctrl_dir: Path) -> dict:
         "commands": commands,
         "telemetry": columns,
         "ci_steps": steps,
+        "xcp": xcp,
     }
 
 
@@ -209,7 +225,26 @@ def render(model: dict) -> dict:
         rel = target.format(root="", dir=model["dir"])
         path = ROOT / rel.lstrip("/") if target.startswith("{root}") else ROOT / ctrl_rel / rel
         out[path] = text
+    out[ROOT / ctrl_rel / "src/gen/ctrl_gen.json"] = describe(model, ctrl_rel)
     return out
+
+
+def describe(model, ctrl_rel):
+    """The controller for tools (the TUI): what the A2L alone does not say, as JSON."""
+    page = f"{model['name']}_cal_page"
+    d = {
+        "generated": banner("", ctrl_rel).strip(),
+        "name": model["name"],
+        "a2l": f"docs/{model['name']}.a2l",
+        "params": [{"name": p["name"], "help": p["help"], "unit": p["unit"], "min": p["min"],
+                    "max": p["max"], "default": p["default"],
+                    "cal": f"{page}.{p['cal']}" if p["cal"] else None} for p in model["params"]],
+        "request": ({"name": f"{page}.request", "start": 1, "stop": 2, "clear": 3}
+                    if model["cal"] else None),
+        "status": {"running": model["xcp"]["running"], "trip": model["xcp"]["trip"]},
+        "monitor": model["xcp"]["monitor"],
+    }
+    return json.dumps(d, indent=2) + "\n"
 
 
 def main():

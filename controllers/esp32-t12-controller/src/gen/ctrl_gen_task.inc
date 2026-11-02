@@ -12,8 +12,9 @@ struct t12_cal_page {
   float kp;
   float ki;
   float kd;
+  uint32_t request; /* run request: low byte 1 start, 2 stop, 3 clear; upper bytes a sequence */
 };
-const struct t12_cal_page t12_cal_page = {350.0f, 0.05f, 0.05f, 0.0f};
+const struct t12_cal_page t12_cal_page = {350.0f, 0.05f, 0.05f, 0.0f, 0};
 CalSegDecl(t12_cal_page);
 XCP_UNIT(t12_cal_page__setpoint, "degC");
 XCP_LIMITS(t12_cal_page__setpoint, 100.0f, 450.0f);
@@ -26,12 +27,15 @@ static rte_calib_t s_calib;
 
 void ctrl_gen_cal_init(rte_t *r) { rte_calib_init(&s_calib, r, s_cal_names, 4); }
 
-/* A changed page overrides the console settings once (rte_calib.h). */
+/* A changed page overrides the console settings once, and a new request runs start, stop or clear
+ * like the console (rte_calib.h). */
 void ctrl_gen_cal_apply(rte_t *r)
 {
   const struct t12_cal_page *c = CalSegLock(t12_cal_page);
   const float v[] = {c->setpoint, c->kp, c->ki, c->kd};
+  const uint32_t req = c->request;
   CalSegUnlock(t12_cal_page);
   rte_calib_update(&s_calib, r, v);
+  rte_calib_request(&s_calib, r, req);
 }
 #endif

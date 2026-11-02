@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Self-check of gen_controller.py: float literals, the description checks, and the rendering of a
 small description. Run: python tools/codegen/test_gen_controller.py (exit 0 = ok)."""
+import json
 import struct
 import sys
 import tempfile
@@ -90,6 +91,18 @@ def main():
     assert files["ctrl_gen.c"].index("rte_cmd_register_run") < files["ctrl_gen.c"].index('"status"')
     assert "struct demo_cal_page {" in files["ctrl_gen_task.inc"]
     assert 'XCP_UNIT(demo_cal_page__setpoint, "rpm");' in files["ctrl_gen_task.inc"]
+    assert "  uint32_t request;" in files["ctrl_gen_task.inc"]
+    assert "= {1.5f, 0.00072f, 0};" in files["ctrl_gen_task.inc"]
+    assert "rte_calib_request(&s_calib, r, req);" in files["ctrl_gen_task.inc"]
+    j = json.loads(files["ctrl_gen.json"])
+    assert j["a2l"] == "docs/demo.a2l" and j["request"]["name"] == "demo_cal_page.request"
+    assert j["params"][0]["cal"] == "demo_cal_page.setpoint" and j["params"][0]["unit"] == "rpm"
+    assert j["status"] == {"running": "s_rte.run_applied", "trip": "s_trip"}
+    assert j["monitor"] == ["s_loop.speed", "s_loop.temp"]
+    j = json.loads({p.name: t for p, t in g.render(model(
+        GOOD + '[xcp]\ntrip = "s_fault"\nmonitor = ["a.b"]\n')).items()}["ctrl_gen.json"])
+    assert j["status"]["trip"] == "s_fault" and j["monitor"] == ["a.b"]
+    expect_error(GOOD + "[xcp]\nmonitor = 1\n", "monitor must be a list")
     assert "lib_deps = ctrlcore, dcmotor" in files["platformio.ini"]
     assert "gen_controller.py . --check" in files["demo-controller.yml"]
 

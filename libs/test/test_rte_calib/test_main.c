@@ -42,10 +42,28 @@ static void test_change_writes_values_in_range(void)
   TEST_ASSERT_EQUAL(-1, c.ids[2]);
 }
 
+static void test_request_runs_each_new_value_once(void)
+{
+  TEST_ASSERT_EQUAL(0, rte_calib_request(&c, &r, 0x0101u)); /* left on the page: only recorded */
+  TEST_ASSERT_FALSE(rte_running(&r));
+  TEST_ASSERT_EQUAL(RTE_REQ_START, rte_calib_request(&c, &r, 0x0201u));
+  TEST_ASSERT_TRUE(rte_running(&r));
+  TEST_ASSERT_EQUAL(0, rte_calib_request(&c, &r, 0x0201u)); /* unchanged */
+  TEST_ASSERT_EQUAL(RTE_REQ_STOP, rte_calib_request(&c, &r, 0x0302u));
+  TEST_ASSERT_FALSE(rte_running(&r));
+  TEST_ASSERT_EQUAL(RTE_REQ_START, rte_calib_request(&c, &r, 0x0401u)); /* again, new sequence */
+  TEST_ASSERT_TRUE(rte_running(&r));
+  TEST_ASSERT_EQUAL(RTE_REQ_CLEAR, rte_calib_request(&c, &r, 0x0503u));
+  TEST_ASSERT_TRUE(r.clear_req);
+  TEST_ASSERT_EQUAL(0, rte_calib_request(&c, &r, 0x0609u)); /* unknown command */
+  TEST_ASSERT_TRUE(rte_running(&r));
+}
+
 int main(void)
 {
   UNITY_BEGIN();
   RUN_TEST(test_first_page_only_records);
   RUN_TEST(test_change_writes_values_in_range);
+  RUN_TEST(test_request_runs_each_new_value_once);
   return UNITY_END();
 }

@@ -76,6 +76,51 @@ Element Plot(const std::string &name, const std::vector<Sample> &h, double t0, d
                hbox({filler(), text(Format("min %.6g", bottom)) | dim})});
 }
 
+// Several variables in one graph, each scaled to its own min..max (their units differ), with a
+// legend of the ranges.
+Element Overlay(const std::vector<std::string> &names, const std::vector<std::vector<Sample>> &hs,
+                double t0, double t1)
+{
+  std::vector<double> lo(hs.size(), INFINITY), hi(hs.size(), -INFINITY);
+  Elements legend;
+  for (std::size_t k = 0; k < hs.size(); k++) {
+    for (const auto &p : hs[k]) {
+      if (std::isfinite(p.v)) {
+        lo[k] = std::min(lo[k], p.v);
+        hi[k] = std::max(hi[k], p.v);
+      }
+    }
+    const Color c = kColors[k % std::size(kColors)];
+    legend.push_back(text("-- " + names[k]) | bold | color(c));
+    legend.push_back(text(lo[k] <= hi[k] ? Format(" %.4g..%.4g   ", lo[k], hi[k]) : " -   ") |
+                     dim);
+  }
+  if (!(t1 > t0)) {
+    return vbox({hbox(std::move(legend)), text("samples come in while it runs") | dim | center |
+                                              flex});
+  }
+  auto plot = canvas([hs, lo, hi, t0, t1](Canvas &c) {
+    const double w = c.width() - 1, ht = c.height() - 1;
+    for (std::size_t k = 0; k < hs.size(); k++) {
+      const auto &h = hs[k];
+      if (!(lo[k] <= hi[k])) {
+        continue;
+      }
+      const double span = hi[k] - lo[k] > 0 ? hi[k] - lo[k] : 1.0;
+      const double base = hi[k] - lo[k] > 0 ? lo[k] : lo[k] - 0.5; // flat: centred
+      auto x = [&](double t) { return static_cast<int>((t - t0) / (t1 - t0) * w); };
+      auto y = [&](double v) { return static_cast<int>((1.0 - (v - base) / span) * ht); };
+      const Color col = kColors[k % std::size(kColors)];
+      for (std::size_t i = 1; i < h.size(); i++) {
+        if (std::isfinite(h[i - 1].v) && std::isfinite(h[i].v)) {
+          c.DrawPointLine(x(h[i - 1].t), y(h[i - 1].v), x(h[i].t), y(h[i].v), col);
+        }
+      }
+    }
+  });
+  return vbox({hbox(std::move(legend)), plot | flex});
+}
+
 // At most ~4000 points of a history, to draw.
 std::vector<Sample> Thin(const std::deque<Sample> &h)
 {
@@ -110,6 +155,7 @@ Component MonitorTab(Model &m)
     std::vector<std::string> rows;
     int selected = 0;
     std::set<std::string> checked; // plotted; none: the selected one
+    bool single = false;           // checked ones in one graph instead of one graph each
     Variable sel;     // the selected row, as last rendered
     std::string hint; // one-line feedback under the header
 
@@ -244,7 +290,11 @@ Component MonitorTab(Model &m)
       }
     }
     Elements plots;
-    for (std::size_t i = 0; i < plotted.size(); i++) {
+    const bool single = s->single && plotted.size() > 1;
+    if (single) {
+      plots.push_back(Overlay(plotted, samples, t0, t1) | flex);
+    }
+    for (std::size_t i = 0; i < plotted.size() && !single; i++) {
       if (i > 0) {
         plots.push_back(separatorLight());
       }
@@ -255,7 +305,11 @@ Component MonitorTab(Model &m)
     } else if (t1 > t0) {
       plots.push_back(hbox({filler(), text(Format("t %.3f .. %.3f s", t0, t1)) | dim}));
     }
-    auto plot_pane = window(text(" Plot (space: check variables) "), vbox(std::move(plots))) | flex;
+    auto plot_pane =
+        window(text(s->single ? " Plot: one graph, each scaled to its range (m: one each) "
+                              : " Plot: one graph each (m: all in one) "),
+               vbox(std::move(plots))) |
+        flex;
     return vbox({
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
               unload->Render(), text(" ")}),
@@ -347,6 +401,8 @@ Component MonitorTab(Model &m)
       }
     } else if (e == Event::Character('c')) {
       s->checked.clear();
+    } else if (e == Event::Character('m')) {
+      s->single = !s->single;
     } else {
       return false;
     }

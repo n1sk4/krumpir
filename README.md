@@ -19,6 +19,12 @@ An I/O stage connects the runner to the device under test, which sees the simula
 The same controller code also runs against the same plant on the PC, so a test can climb from software-in-the-loop to
 hardware-in-the-loop without changing the controller.
 
+## Demo
+The terminal UI steering the T12 tip plant live: load a scenario, start it, check the variables to
+plot, play a pulse on the heater and touch a joint to the tip.
+
+![krumpir-tui driving the T12 tip plant](docs/img/tui-demo.svg)
+
 The repository contains:
 
 - **Controllers**: the firmware under test ([controllers/](controllers/README.md)).
@@ -29,3 +35,4 @@ The repository contains:
 - **Tools**: a Python client for scripting tests, controller code generation, serial capture and
   timing scripts, and schematic generation ([tools/](tools/)).
 - **Docs**: ([docs/](docs/)).
+

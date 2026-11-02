@@ -7,6 +7,7 @@
 #include "config.h"
 #include "loader.h"
 #include "runner.h"
+#include "scaffold.h"
 #include "serve.h"
 
 static int cmd_info(const char *path)
@@ -20,11 +21,16 @@ static int cmd_info(const char *path)
   printf("fmu:             %s\n", path);
   printf("fmiVersion:      %s\n", pkg.md.fmi_version);
   printf("modelIdentifier: %s\n", pkg.md.model_identifier);
+  if (pkg.md.step_size > 0 || pkg.md.stop_time > 0) {
+    printf("default:         step %g s, stop %g s\n", pkg.md.step_size, pkg.md.stop_time);
+  }
   printf("variables:       %zu\n\n", pkg.md.n_vars);
-  printf("%-40s %6s  %-10s %s\n", "name", "vr", "type", "causality");
+  printf("%-32s %6s  %-8s %-12s %-12s %-10s %s\n", "name", "vr", "type", "causality", "start",
+         "unit", "description");
   for (size_t i = 0; i < pkg.md.n_vars; i++) {
     const mvar_t *v = &pkg.md.vars[i];
-    printf("%-40s %6u  %-10s %s\n", v->name, v->vr, v->type, v->causality_str);
+    printf("%-32s %6u  %-8s %-12s %-12s %-10s %s\n", v->name, v->vr, v->type, v->causality_str,
+           v->start, v->unit, v->description);
   }
   fmu_close(&pkg);
   return 0;
@@ -83,6 +89,14 @@ int main(int argc, char **argv)
   if (argc == 3 && strcmp(argv[1], "info") == 0) {
     return cmd_info(argv[2]);
   }
+  if (argc == 3 && strcmp(argv[1], "init") == 0) {
+    char err[512];
+    if (scaffold_scenario(stdout, argv[2], err, sizeof err) < 0) {
+      fprintf(stderr, "krumpir: %s\n", err);
+      return 1;
+    }
+    return 0;
+  }
   if (argc == 3 && strcmp(argv[1], "run") == 0) {
     return cmd_run(argv[2]);
   }
@@ -107,6 +121,7 @@ int main(int argc, char **argv)
   }
   fprintf(stderr, "usage: krumpir run <scenario.toml>\n"
                   "       krumpir serve [[host:]port]   (default 127.0.0.1:7700)\n"
-                  "       krumpir info <model.fmu>\n");
+                  "       krumpir info <model.fmu>\n"
+                  "       krumpir init <model.fmu>      (prints a starter scenario)\n");
   return 2;
 }

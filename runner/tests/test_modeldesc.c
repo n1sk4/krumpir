@@ -10,13 +10,14 @@
 #define COSIM "<CoSimulation modelIdentifier=\"m\"/>\n"
 
 static const char VALID[] = HEAD COSIM
+    "<DefaultExperiment startTime=\"0\" stopTime=\"2.5\" stepSize=\"0.01\"/>\n"
     "<ModelVariables>\n"
     " <Float64 name=\"time\" valueReference=\"0\" causality=\"independent\" "
     "variability=\"continuous\"/>\n"
     " <Float64 name=\"u\" valueReference=\"1\" causality=\"input\" start=\"0\"/>\n"
     " <Float64 name=\"y\" valueReference=\"2\" causality=\"output\"/>\n"
     " <Float64 name=\"k\" valueReference=\"3\" causality=\"parameter\" variability=\"fixed\" "
-    "start=\"1\"/>\n"
+    "start=\"1\" unit=\"1/s\" description=\"Decay rate\"/>\n"
     " <Int32 name=\"n\" valueReference=\"4\" causality=\"parameter\" variability=\"fixed\" "
     "start=\"1\"/>\n"
     " <Float64 name=\"x\" valueReference=\"5\"/>\n"
@@ -53,6 +54,10 @@ static void test_valid(void)
   assert(v != NULL && v->vr == 2 && v->causality == CAUS_OUTPUT);
   v = modeldesc_find(&md, "k");
   assert(v != NULL && v->vr == 3 && v->causality == CAUS_PARAMETER);
+  assert(strcmp(v->start, "1") == 0 && strcmp(v->unit, "1/s") == 0 &&
+         strcmp(v->description, "Decay rate") == 0);
+  assert(modeldesc_find(&md, "y")->start[0] == '\0'); /* absent attributes stay empty */
+  assert(md.step_size == 0.01 && md.stop_time == 2.5);
   v = modeldesc_find(&md, "n");
   assert(v != NULL && !mvar_is_float64(v) && strcmp(v->type, "Int32") == 0);
   v = modeldesc_find(&md, "time");

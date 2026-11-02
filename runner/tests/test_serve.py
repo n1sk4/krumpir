@@ -75,6 +75,13 @@ file = "{log}"
         c.fails("nope", "unknown op")
         c.fails("variables", "no scenario loaded")
         c.fails("load", "scenario:", toml="[model]\n")
+        c.fails("init", "takes \"fmu\"")
+        c.fails("init", "cannot open", fmu="/nonexistent.fmu")
+        starter = c.call("init", fmu=str(fmu))["toml"]
+        assert f'"{IN}",' in starter and f'"{OUT}",' in starter, starter
+        starter = starter.replace('"runs/Feedthrough.csv"', f'"{log}"')
+        assert c.call("load", toml=starter)["state"] == "INITIALIZED"
+        c.call("unload")
 
         assert c.call("load", toml=scenario)["state"] == "INITIALIZED"
         names = {v["name"]: v for v in c.call("variables")["variables"]}

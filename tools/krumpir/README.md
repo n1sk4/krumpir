@@ -27,7 +27,7 @@ with Testbench("127.0.0.1", 7700) as tb:
 
 | Class | Methods | XIL |
 |-------|---------|-----|
-| `Testbench(host, port)` | `info()`, `ma_port()`, `close()` | Testbench |
+| `Testbench(host, port)` | `info()`, `scenario_for(fmu)` (starter scenario text, as `krumpir init`), `ma_port()`, `close()` | Testbench |
 | `MAPort` | `load(path)`, `load_toml(text)`, `variables()`, `variable_names()`, `start()`, `stop()`, `state`, `fault`, `wait(timeout)`, `unload()`, `read(*names)`, `write(dict, **values)`, `signal(input, Signal)`, `capture(vars, start, stop, duration, max_rows)` | MAPort |
 | `Signal` | `const`, `ramp`, `sine`, `pulse`, `idle`, `data`, `loops` | SignalGenerator segments |
 | `Capture` | `state`, `fetch(wait, timeout)`, `stop()` | Capture |

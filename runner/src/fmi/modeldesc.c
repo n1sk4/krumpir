@@ -1,6 +1,7 @@
 #include "modeldesc.h"
 
 #include <expat.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -109,7 +110,30 @@ static void add_variable(pctx_t *c, const char *type, const XML_Char **atts)
   nv->causality = map_causality(nv->causality_str);
   const char *variability = attr(atts, "variability");
   nv->tunable = variability != NULL && strcmp(variability, "tunable") == 0;
+  const char *s = attr(atts, "start");
+  if (s != NULL && strlen(s) < sizeof nv->start) {
+    strcpy(nv->start, s);
+  }
+  s = attr(atts, "unit");
+  if (s != NULL && strlen(s) < sizeof nv->unit) {
+    strcpy(nv->unit, s);
+  }
+  s = attr(atts, "description");
+  if (s != NULL) {
+    snprintf(nv->description, sizeof nv->description, "%s", s);
+  }
   md->n_vars++;
+}
+
+/* A positive finite number, or 0 for anything else (absent or invalid). */
+static double positive(const char *s)
+{
+  if (s == NULL) {
+    return 0;
+  }
+  char *end;
+  double v = strtod(s, &end);
+  return end != s && *end == '\0' && isfinite(v) && v > 0 ? v : 0;
 }
 
 static void XMLCALL on_start(void *ud, const XML_Char *name, const XML_Char **atts)
@@ -143,6 +167,9 @@ static void XMLCALL on_start(void *ud, const XML_Char *name, const XML_Char **at
       }
     } else if (strcmp(name, "ModelVariables") == 0) {
       c->in_vars = true;
+    } else if (strcmp(name, "DefaultExperiment") == 0) {
+      c->md->step_size = positive(attr(atts, "stepSize"));
+      c->md->stop_time = positive(attr(atts, "stopTime"));
     }
   } else if (c->depth == 2 && c->in_vars) {
     add_variable(c, name, atts);

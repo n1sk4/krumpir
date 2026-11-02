@@ -32,6 +32,7 @@ has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
 |------|---------|-------|-----|
 | `info` | | `protocol` (1), `state`, `fault` | |
 | `load` | `scenario`: path on the server, or `toml`: the scenario text | `state` | `LoadConfiguration`, `Configure` |
+| `init` | `fmu`: path on the server | `toml`: a starter scenario for it, as `krumpir init` prints it | |
 | `variables` | | `variables`: `[{name, vr, type, causality, tunable}]` | `GetVariableNames`, `GetVariableInfo` |
 | `start` | | `state` | `StartSimulation` |
 | `stop` | | `state` | `StopSimulation` |

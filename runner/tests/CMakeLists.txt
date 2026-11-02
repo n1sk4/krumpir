@@ -38,6 +38,13 @@ target_compile_definitions(test_fmi3 PRIVATE KRUMPIR_FMU_DIR="${PROJECT_SOURCE_D
 add_test(NAME fmi3 COMMAND test_fmi3)
 set_tests_properties(fmi3 PROPERTIES SKIP_RETURN_CODE 77)
 
+# krumpir init: every FMU's starter scenario parses and runs; SKIPPED without the FMUs
+add_executable(test_scaffold test_scaffold.c)
+target_link_libraries(test_scaffold PRIVATE krumpir_core)
+target_compile_definitions(test_scaffold PRIVATE KRUMPIR_FMU_DIR="${PROJECT_SOURCE_DIR}/fmus")
+add_test(NAME scaffold COMMAND test_scaffold)
+set_tests_properties(scaffold PROPERTIES SKIP_RETURN_CODE 77)
+
 add_executable(test_loop_time test_loop_time.c)
 target_link_libraries(test_loop_time PRIVATE krumpir_core)
 add_test(NAME loop_time COMMAND test_loop_time)

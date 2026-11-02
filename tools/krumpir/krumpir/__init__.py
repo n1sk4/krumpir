@@ -53,6 +53,11 @@ class Testbench:
     def info(self):
         return self.request("info")
 
+    def scenario_for(self, fmu):
+        """A starter scenario (TOML text) for an FMU on the server, as `krumpir init` writes it.
+        Loads as is with MAPort.load_toml."""
+        return self.request("init", fmu=str(fmu))["toml"]
+
     def ma_port(self):
         """XIL: MAPortFactory.CreateMAPort."""
         return MAPort(self)

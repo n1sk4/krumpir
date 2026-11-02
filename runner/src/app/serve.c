@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include "cJSON.h"
+#include "scaffold.h"
 #include "session.h"
 
 #define PROTOCOL_VERSION 1
@@ -191,6 +192,30 @@ static int op_load(session_t *s, const cJSON *req, cJSON *r, char *err, size_t e
   }
   add_state(s, r);
   return 0;
+}
+
+/* A starter scenario for an FMU on the server (krumpir init), returned as text. */
+static int op_init(const cJSON *req, cJSON *r, char *err, size_t errlen)
+{
+  const char *fmu = get_str(req, "fmu");
+  if (fmu == NULL) {
+    snprintf(err, errlen, "init takes \"fmu\" (a path on the server)");
+    return -1;
+  }
+  char *text = NULL;
+  size_t len = 0;
+  FILE *mem = open_memstream(&text, &len);
+  if (mem == NULL) {
+    snprintf(err, errlen, "out of memory");
+    return -1;
+  }
+  int rc = scaffold_scenario(mem, fmu, err, errlen);
+  fclose(mem);
+  if (rc == 0) {
+    cJSON_AddStringToObject(r, "toml", text);
+  }
+  free(text);
+  return rc;
 }
 
 static int op_variables(session_t *s, cJSON *r, char *err, size_t errlen)
@@ -420,6 +445,9 @@ static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, sb
   }
   if (strcmp(op, "variables") == 0) {
     return op_variables(s, r, err, errlen);
+  }
+  if (strcmp(op, "init") == 0) {
+    return op_init(req, r, err, errlen);
   }
   if (strcmp(op, "start") == 0) {
     if (session_start(s, err, errlen) < 0) {

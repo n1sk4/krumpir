@@ -18,12 +18,18 @@ typedef struct {
   uint32_t vr;
   causality_t causality;
   bool tunable; /* variability="tunable": a parameter that may change while the model runs */
+  /* Optional attributes as written, "" when absent; description is cut to fit, a start or unit
+   * that does not fit is dropped. */
+  char start[32];
+  char unit[24];
+  char description[96];
 } mvar_t;
 
 typedef struct {
   char fmi_version[16];
   char instantiation_token[128];      /* may be empty if the attribute is missing */
   char model_identifier[MD_MAX_NAME]; /* from <CoSimulation> */
+  double step_size, stop_time;        /* <DefaultExperiment>; 0 when absent */
   mvar_t *vars;
   size_t n_vars;
 } modeldesc_t;

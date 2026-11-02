@@ -40,6 +40,7 @@ find_package(EXPAT REQUIRED)
 
 add_library(krumpir_core STATIC
   src/app/config.c
+  src/app/scaffold.c
   src/core/lifecycle.c
   src/core/loop.c
   src/core/platform.c

@@ -1,6 +1,6 @@
 # tools
 
-Host-side scripts. Python ones need the venv from the main README (`pip install -r requirements.txt`).
+Host-side scripts. Python ones need the venv from [../../README.md](../../README.md#initial-setup-windows).
 The board tools are shared by all controllers and live in `../../tools/serial`.
 
 | Script | Purpose |
@@ -45,7 +45,7 @@ The capture has the firmware's CSV columns with the time from zero in seconds
 
 ## step_response.c
 
-Build and run commands are in the main README ("Step response").
+Build and run commands are in [../README.md](../README.md#simulate-on-the-pc).
 
 ## scenarios.c
 

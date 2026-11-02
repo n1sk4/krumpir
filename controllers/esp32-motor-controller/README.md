@@ -1,55 +1,19 @@
-# esp32-motor-controller
+# ESP32 Motor Controller
 
-A PID speed controller for a DC motor, running on an ESP32 (ESP32-WROOM-32 DevKit) in a
-deterministic 1 kHz control loop. It is the device under test for the Krumpir HIL bench.
+A PID speed controller for a DC motor, running on an ESP32 in a 1 kHz control loop. It is a device
+under test for the Krumpir HIL bench. Shared design, setup, build and console basics are in
+[../README.md](../README.md).
 
-- The control logic lives in `lib/motorctrl/` (`motor_loop`: the whole controller per tick) and the shared building blocks (PID, ring buffer, loop
-  statistics, parameter parsing, step metrics) in `libs/ctrlcore/`, as portable C (no ESP-IDF or
-  FreeRTOS includes), so they are unit tested on the PC with Unity and reused unchanged on the target. The ESP-IDF glue (tick task, telemetry, console
-  helpers) is shared with the other controllers in `libs/esp/espglue`.
-- A small I/O abstraction (`motor_io_t`) lets the same controller run against a simulated motor, a real
-  motor, or Krumpir. The firmware currently ships with the simulated motor.
-- A serial console sets the setpoint and gains and starts/stops the controller. CSV telemetry
-  streams at 100 Hz.
-- Safety: latched overspeed and sensor-timeout trips, and a task watchdog that resets the board if
-  the control loop hangs.
-
-## Initial setup (Windows)
-
-1. **PlatformIO**: install the VS Code "PlatformIO IDE" extension, or `pip install platformio`.
-   The CLI is `~\.platformio\penv\Scripts\pio.exe`; add that folder to your PATH to use `pio`.
-2. **Host C compiler** (needed for the `native` tests and the simulation tools): install MinGW-w64
-   gcc, e.g. `winget install BrechtSanders.WinLibs.POSIX.UCRT`, and make sure `gcc --version`
-   works in a new terminal.
-3. **USB driver** for the DevKit's serial chip (CP210x or CH340, depending on the board) if the
-   board does not show up as a COM port.
-
-### Python (host tools)
-
-Python 3.13. Packages are listed in `requirements.txt`. Set up a virtual environment in this folder:
-
-```
-cd krumpir\controllers\esp32-motor-controller
-python -m venv .venv
-.venv\Scripts\activate           # Windows (bash: source .venv/Scripts/activate)
-pip install -r requirements.txt
-```
-
-## Build, test, flash
-
-Run from this folder:
-
-```
-pio test -e native                    # unit tests on the PC
-pio run -e esp32dev                   # build firmware
-pio run -e esp32dev -t upload         # flash the board
-pio device monitor                    # serial console, 115200 baud
-```
+- Control logic in `lib/motorctrl/` (`motor_loop`: the whole controller per tick); a small I/O
+  abstraction (`motor_io_t`) runs it against a simulated motor, a real one, or Krumpir. The
+  firmware ships with the simulated motor.
+- CSV telemetry streams at 100 Hz.
+- Safety: latched overspeed and sensor-timeout trips.
 
 ## Using the controller
 
-Open the serial monitor (`pio device monitor -p COM4`) and type commands at the `motor>` prompt.
-The firmware boots stopped, with the tuned gains.
+Open the serial monitor and type commands at the `motor>` prompt (the common commands are in
+[../README.md](../README.md#serial-console)).
 
 | Command | Effect |
 |---|---|
@@ -64,21 +28,21 @@ The firmware boots stopped, with the tuned gains.
 
 Example: `sp 3000`, `start`, then `status` shows the speed settling at 3000 rpm.
 
-### Capture and plot a step response
+### Capture a run and check the loop timing
 
-Close the monitor first (the port can only be open once):
+Close the monitor first. Record and plot a step response:
 
 ```
 python ../../tools/serial/capture.py --port COM4 --duration 3 --cmd "start" "sp 3000" -o docs/capture.csv
 python tools/plot.py docs/capture.csv docs/step_response_target.png
 ```
 
+The timing check (PASS or FAIL) and its limits are in [tools/README.md](tools/README.md).
+
 ### Measure and calibrate over XCP
 
-The env `esp32dev-xcp` builds the same firmware with XCP on Ethernet over Wi-Fi: every variable of
-the control loop can be measured at 1 kHz, and setpoint and gains can be calibrated through the
-calibration page `motor_cal_page`. Setup, the `xcpclient` commands and the measured cost on the loop
-are in [../../libs/esp/xcpglue/README.md](../../libs/esp/xcpglue/README.md).
+Calibration page `motor_cal_page` (setpoint and gains). Setup and cost on the loop:
+[../../libs/esp/xcpglue/README.md](../../libs/esp/xcpglue/README.md).
 
 ```
 pio run -e esp32dev-xcp -t upload
@@ -88,7 +52,7 @@ xcpclient --udp --dest-addr <ip> --a2l docs/motor.a2l --mea s_loop.speed s_loop.
 
 ### Simulate on the PC
 
-The same PID and motor model run on the PC (needs gcc and the venv above):
+The same PID and motor model run on the PC (needs gcc and the venv, see [../README.md](../README.md#initial-setup-windows)):
 
 ```
 gcc -Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/step_response.c lib/motorctrl/src/motor_io_sim.c lib/motorctrl/src/motor_ctrl.c lib/motorctrl/src/motor_safety.c lib/motorctrl/src/motor_loop.c ../../libs/ctrlcore/src/pid.c ../../libs/plants/dcmotor/src/plant_sim.c -lm -o .pio/step_response.exe
@@ -96,8 +60,7 @@ gcc -Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dc
 python tools/plot.py docs/step_response.csv docs/step_response.png
 ```
 
-Closed-loop scenarios (step, load, saturation, inertia) and the gain sweep are described in
-[docs/tuning.md](docs/tuning.md).
+Closed-loop scenarios (step, load, saturation, inertia) and the gain sweep: [docs/tuning.md](docs/tuning.md).
 
 ## Results
 
@@ -115,8 +78,8 @@ Closed-loop scenarios (simulation):
 
 ## Hardware
 
-Intended wiring (the firmware currently simulates the motor; details and pin table in
-[hardware/README.md](hardware/README.md)):
+Intended wiring; the firmware simulates the motor, so no motor pins are driven. Pin table in
+[hardware/README.md](hardware/README.md).
 
 ![Schematic](hardware/motor-controller.svg)
 
@@ -125,6 +88,5 @@ Intended wiring (the firmware currently simulates the motor; details and pin tab
 - [docs/tuning.md](docs/tuning.md): motor model, gain selection, scenarios and targets, trip behavior.
 - [docs/timing.md](docs/timing.md): measured 1 kHz loop timing on the board.
 - [docs/krumpir-interface.md](docs/krumpir-interface.md): what a test bench needs to drive and observe the controller.
-- [hardware/README.md](hardware/README.md): KiCad schematic and pin table for the motor driver, encoder and Krumpir connections.
+- [hardware/README.md](hardware/README.md): KiCad schematic and pin table.
 - [tools/README.md](tools/README.md): host scripts, including the timing check.
-

@@ -1,7 +1,7 @@
 # tools
 
-Host-side tools. The Python ones need the venv from the main README (`pip install -r
-requirements.txt`: matplotlib for plots, pyserial for the board tools).
+Host-side tools. The Python ones need the venv from [../../README.md](../../README.md#initial-setup-windows)
+(matplotlib for plots, pyserial for the board tools).
 
 | Tool | Purpose |
 |---|---|

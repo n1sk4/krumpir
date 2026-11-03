@@ -169,14 +169,20 @@ Component ControllerSetup(EcuModel &ecu)
   });
 }
 
-Component ControllerMonitor(EcuModel &ecu)
+Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
 {
   struct State {
     std::string filter;
     std::vector<std::string> rows, names, watched;
     int selected = 0;
-    int row = 1; // focus starts on the list, so the keys work
+    int row = 1;   // focus in the signals pane: starts on the list, so the keys work
+    int outer = 0; // focus: the signals pane (hidden: the buttons)
     bool single = false;
+
+    Box area;        // the signals and plot area, as last drawn
+    int total = 0;   // its width, 0 before the first frame
+    int most = 1000; // widest signals pane that leaves the plot its room
+    Element plot;    // drawn by the plot half of the split
   };
   auto s = std::make_shared<State>();
 
@@ -206,10 +212,28 @@ Component ControllerMonitor(EcuModel &ecu)
   opt.selected = &s->selected;
   opt.on_enter = toggle;
   auto sigs = Menu(opt);
-  auto layout =
-      Container::Vertical({filter, sigs, Container::Horizontal({start, stop, clear})}, &s->row);
+  auto pane = Container::Vertical({filter, sigs}, &s->row);
+  auto sig_pane = Renderer(pane, [filter, sigs] {
+    return window(text(" Signals (space: plot) "),
+                  vbox({hbox({text("filter "), filter->Render() | underlined}),
+                        sigs->Render() | vscroll_indicator | frame | flex}));
+  });
+  auto plot = Renderer([s] { return s->plot ? s->plot : text(""); });
+  ResizableSplitOption split_opt;
+  split_opt.main = sig_pane;
+  split_opt.back = plot;
+  split_opt.main_size = &lay->vars_width;
+  split_opt.min = kMinVarsWidth;
+  split_opt.max = &s->most;
+  auto split = ResizableSplit(std::move(split_opt));
+  auto layout = Container::Vertical(
+      {Maybe(split, &lay->vars_shown), Container::Horizontal({start, stop, clear})}, &s->outer);
 
   auto view = Renderer(layout, [=, &ecu] {
+    s->total = s->area.x_max > s->area.x_min ? s->area.x_max - s->area.x_min + 1 : 0;
+    lay->vars_width = ClampSplit(lay->vars_width, s->total, kMinVarsWidth, kMinPlotWidth);
+    s->most = s->total > 0 ? std::max(kMinVarsWidth, s->total - 1 - kMinPlotWidth) : 1000;
+    const int nw = NameWidth(lay->vars_width, 16); // the other columns of a row
     Element header, events;
     std::vector<std::string> plotted;
     std::vector<std::vector<Sample>> samples;
@@ -223,7 +247,7 @@ Component ControllerMonitor(EcuModel &ecu)
         }
         const bool on = std::find(v.watched.begin(), v.watched.end(), name) != v.watched.end();
         const auto val = v.values.find(name);
-        s->rows.push_back(Format("%s %-32.32s %11s", on ? "[x]" : "[ ]", name.c_str(),
+        s->rows.push_back(Format("%s %-*.*s %11s", on ? "[x]" : "[ ]", nw, nw, name.c_str(),
                                  val != v.values.end() ? Value(val->second).c_str() : ""));
         s->names.push_back(name);
       }
@@ -253,23 +277,32 @@ Component ControllerMonitor(EcuModel &ecu)
       return 0;
     });
 
-    auto sig_pane = window(text(" Signals (space: plot) "),
-                           vbox({hbox({text("filter "), filter->Render() | underlined}),
-                                 sigs->Render() | vscroll_indicator | frame | flex})) |
-                    size(WIDTH, EQUAL, 54);
+    s->plot = PlotPane(plotted, samples, s->single);
+    const Element body = lay->vars_shown ? split->Render() : plot->Render();
     return vbox({
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
               clear->Render(), text(" ")}),
-        hbox({sig_pane, PlotPane(plotted, samples, s->single) | flex}) | flex,
+        body | reflect(s->area) | flex,
         events | size(HEIGHT, EQUAL, 6),
     });
   });
 
-  return CatchEvent(view, [&ecu, s, filter, toggle](const Event &e) {
+  return CatchEvent(view, [&ecu, s, lay, filter, toggle](const Event &e) {
     if (filter->Focused()) {
       return false; // typing
     }
-    if (e == Event::Character('s')) {
+    if (e == Event::Character('v')) {
+      lay->vars_shown = !lay->vars_shown;
+      s->outer = lay->vars_shown ? 0 : 1; // not on a hidden pane
+    } else if (e == Event::Character('[') || e == Event::Character(']')) {
+      if (!lay->vars_shown) {
+        lay->vars_shown = true;
+        s->outer = 0;
+      }
+      const int step = e == Event::Character(']') ? kResizeStep : -kResizeStep;
+      lay->vars_width =
+          ClampSplit(lay->vars_width + step, s->total, kMinVarsWidth, kMinPlotWidth);
+    } else if (e == Event::Character('s')) {
       ecu.request("start");
     } else if (e == Event::Character('x')) {
       ecu.request("stop");

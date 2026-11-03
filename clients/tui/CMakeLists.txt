@@ -43,7 +43,7 @@ endif()
 # The client and model: no UI, so the tests and later tools can use them.
 find_package(Threads REQUIRED)
 add_library(krumpir_tui_core STATIC src/service.cpp src/model.cpp src/a2l.cpp src/xcp.cpp
-                                    src/ecu_model.cpp src/form.cpp)
+                                    src/ecu_model.cpp src/form.cpp src/layout.cpp)
 target_include_directories(krumpir_tui_core PUBLIC src)
 target_link_libraries(krumpir_tui_core PUBLIC nlohmann_json::nlohmann_json Threads::Threads
                                        PRIVATE asio)
@@ -62,7 +62,8 @@ if(BUILD_TESTING)
     URL_HASH SHA256=632ed2c05a7f53fa961381497bf8069093f0d6628c5f26286161fbd32a560186)
   set(DOCTEST_NO_INSTALL ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(doctest)
-  add_executable(test_core tests/test_core.cpp tests/test_ecu.cpp tests/test_form.cpp)
+  add_executable(test_core tests/test_core.cpp tests/test_ecu.cpp tests/test_form.cpp
+                           tests/test_layout.cpp)
   target_compile_definitions(test_core PRIVATE KT_REPO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../..")
   target_link_libraries(test_core PRIVATE krumpir_tui_core asio doctest::doctest)
   target_compile_options(test_core PRIVATE ${KT_WARNINGS})

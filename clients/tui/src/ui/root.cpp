@@ -114,16 +114,18 @@ Component Root(Model &m, Controllers ecus, std::string address, std::function<vo
         {" Tab/arrows move   Enter load   F2 monitor   F10 quit",
          " Tab/arrows move   Enter in the grid: write   F2 monitor   F10 quit"},
         {" s start  x stop  r reset  u unload  space check  c uncheck all  m one/many graphs  "
-         "w/Enter write  g signal  Esc close  F1 load  F10 quit",
-         " s start  x stop  c clear trip  space/Enter plot a signal  m one/many graphs  F1 load  "
-         "F10 quit"}};
+         "w/Enter write  g signal  v hide  [ ] resize  Esc close  F1 load  F10 quit",
+         " s start  x stop  c clear trip  space/Enter plot a signal  m one/many graphs  "
+         "v hide  [ ] resize  F1 load  F10 quit"}};
   };
   auto s = std::make_shared<State>();
 
-  Components load{LoadTab(m, std::move(address), [s] { s->tab = 1; })}, monitor{MonitorTab(m)};
+  auto pane = std::make_shared<MonitorLayout>(); // one variables pane size for every Monitor page
+  Components load{LoadTab(m, std::move(address), [s] { s->tab = 1; })},
+      monitor{MonitorTab(m, pane)};
   for (const auto &e : ecus) {
     load.push_back(ControllerSetup(*e.second));
-    monitor.push_back(ControllerMonitor(*e.second));
+    monitor.push_back(ControllerMonitor(*e.second, pane));
   }
   // One entry per tab: the F-key, the title in s->names, the component here.
   auto tabs = Container::Tab({WithCards(Cards(m, ecus, &s->target), load, &s->target, false),

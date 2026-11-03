@@ -59,6 +59,8 @@ krumpir-tui --repo ~/krumpir                          # where controllers/ is (d
 | s / x / c | (Monitor, a controller) start / stop / clear a latched trip |
 | space, Enter | (Monitor, a controller) on a signal: plot it or not |
 | m | (Monitor) one graph each / all in one |
+| v | (Monitor) hide or show the variables (signals) pane; the plot takes the room |
+| [ / ] | (Monitor) make the variables pane narrower / wider by 4 columns (shows it if hidden) |
 | Esc | close a dialog |
 | F10, Ctrl+C | quit |
 
@@ -92,6 +94,16 @@ the FMU's description or what is wrong with the value.
 inputs, outputs and tunable parameters with their values, a plot of the selected one, and the
 events. Start arms a capture of the scenario's inputs and outputs, so the plot holds every step,
 also for unpaced runs that end at once. Other variables are sampled at 10 Hz while it runs.
+
+On every Monitor page the variables (signals) pane and the plot share the room right of the cards:
+drag the divider with the mouse or press `[` and `]` to move it, `v` to hide the pane. The cards, the
+header and the events stay as they are, and the setting is the same for all targets. It is not saved
+between runs.
+
+On every Monitor page the variables (signals) pane and the plot share the room right of the cards:
+drag the divider with the mouse or press `[` and `]` to move it, `v` to hide the pane. The cards, the
+header and the events stay as they are, and the setting is the same for all targets. It is not saved
+between runs.
 
 A written value takes effect at the next step; on an input it replaces the input's signal. Signal
 presets (the dialog keeps the last one picked; numbers default to the input's value):

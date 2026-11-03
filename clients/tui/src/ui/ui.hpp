@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -9,6 +10,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include "ecu_model.hpp"
+#include "layout.hpp"
 #include "model.hpp"
 
 // The screens. Each tab is a component that reads the model's snapshot when it renders and
@@ -26,13 +28,14 @@ ftxui::Component Root(Model &m, Controllers ecus, std::string address, std::func
 // F1: connect, pick a scenario or FMU on the runner, edit it as a form, check, save, load it.
 ftxui::Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded);
 
-// F2: run state and controls, live variables, plot of the selected one, events.
-ftxui::Component MonitorTab(Model &m);
+// F2: run state and controls, live variables, plot of the selected one, events. The variables pane
+// can be hidden (v) and resized (drag the divider, [ and ]); layout is shared by every Monitor page.
+ftxui::Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> layout);
 
 // A controller's card on Load: address, connect, calibration grid.
 ftxui::Component ControllerSetup(EcuModel &ecu);
 // A controller's card on Monitor: state, trip, start/stop/clear, signals and their plot.
-ftxui::Component ControllerMonitor(EcuModel &ecu);
+ftxui::Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> layout);
 
 // Shared look
 ftxui::Color StateColor(const std::string &state);

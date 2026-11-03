@@ -34,6 +34,7 @@ degC).
 |---|---|---|---|
 | `duty` | input | | PWM duty, -1..1 (clamped), sign = direction |
 | `load_torque` | input | N.m | load on the shaft |
+| `fault` | input | | 0 none, 1 encoder lost: `speed_rpm` (the encoder reading) is NaN, `speed` stays the shaft's |
 | `speed`, `speed_rpm` | output | rad/s, rpm | shaft speed |
 | `current` | output | A | armature current |
 | `R`, `L`, `Kt`, `Ke`, `J`, `b` | parameter | | motor constants (`PLANT_PARAMS_N20`) |

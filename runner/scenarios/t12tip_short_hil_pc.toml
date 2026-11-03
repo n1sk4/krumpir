@@ -1,0 +1,23 @@
+# T12 tip plant against the T12 controller's own code on this PC (tools/hil/pc_loop.sh t12-short):
+# the controller heats, then the tip shorts at t = 3 s (fault 2). The controller must trip: the
+# heater command drops and so does series_on (its heartbeat stops, Q3 opens).
+[model]
+fmu = "fmus/t12tip.fmu"
+step = 0.001
+duration = 4
+
+[rt]
+wait = "none"
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 500
+inputs = ["heater", "series_on", "fault"]
+outputs = ["v_amp", "i_heater", "t_handle_c", "t_tip_c"]
+stimulus = [
+  { input = "fault", kind = "step", t = 3.0, from = 0, to = 2 },
+]
+
+[log]
+file = "runs/t12tip_short_hil_pc.csv"

@@ -34,12 +34,14 @@ typedef enum {
   vr_Ke,
   vr_J,
   vr_b,
-  vr_Vbus
+  vr_Vbus,
+  vr_fault
 } ValueReference;
 
 typedef struct {
   double duty;        /* input, -1..1 (clamped) */
   double load_torque; /* input [N*m] */
+  double fault;       /* input: 0 none, 1 encoder lost (speed_rpm reads NaN) */
   double R, L, Kt, Ke, J, b, Vbus; /* parameters, see plant_params_t */
   bool params_changed;             /* coefficients need recomputing */
   plant_sim_t sim;

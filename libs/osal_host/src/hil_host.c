@@ -132,6 +132,9 @@ static void send_frame(const hil_frame_t *f)
   pthread_mutex_unlock(&s_write_mu);
 }
 
+static uint32_t s_mute_at = UINT32_MAX;
+void hil_host_mute_at(uint32_t tick) { s_mute_at = tick; }
+
 static void (*s_after)(uint32_t tick);
 void hil_host_after_tick(void (*fn)(uint32_t tick)) { s_after = fn; }
 
@@ -164,6 +167,12 @@ static void tick(uint16_t seq, bool answer)
   s_body(s_ctx, s_tick);
   if (s_after != NULL) {
     s_after(s_tick);
+  }
+  if (answer && s_tick >= s_mute_at) {
+    if (s_tick == s_mute_at) {
+      fprintf(stderr, "hil: muted at tick %u\n", (unsigned)s_tick);
+    }
+    answer = false;
   }
   s_tick++;
   if (answer) {

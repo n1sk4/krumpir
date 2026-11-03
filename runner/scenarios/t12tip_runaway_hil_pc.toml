@@ -1,0 +1,24 @@
+# T12 tip plant against the T12 controller's own code on this PC (tools/hil/pc_loop.sh
+# t12-runaway): the controller holds 350 degC, then at t = 6 s the tip loses more heat (0.5 W/K)
+# than the heater can make up. After 20 s at full power without the temperature rising, the
+# controller must trip (thermal runaway): heater and series_on drop.
+[model]
+fmu = "fmus/t12tip.fmu"
+step = 0.001
+duration = 30
+
+[rt]
+wait = "none"
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 500
+inputs = ["heater", "series_on", "load_wk"]
+outputs = ["v_amp", "i_heater", "t_handle_c", "t_tip_c"]
+stimulus = [
+  { input = "load_wk", kind = "step", t = 6.0, from = 0, to = 0.5 },
+]
+
+[log]
+file = "runs/t12tip_runaway_hil_pc.csv"

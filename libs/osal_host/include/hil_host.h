@@ -23,6 +23,9 @@ int hil_host_run(bool lockstep, uint32_t hz);
  * tick = seconds * rate). At most 16, in any order; returns false when full. */
 bool hil_host_at(uint32_t tick, const char *line);
 
+/* From this tick on, ticks but sends no more commands: a link that breaks (for tests). */
+void hil_host_mute_at(uint32_t tick);
+
 /* Called after every tick's body with its tick number (main_host: reports trips). */
 void hil_host_after_tick(void (*fn)(uint32_t tick));
 

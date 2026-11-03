@@ -2,11 +2,14 @@
 # The closed loop on this PC: a controller's own code (controllers/<x>/host) against its plant FMU
 # in the runner, over a pty pair from socat. Linux or WSL.
 #
-#   tools/hil/pc_loop.sh motor|t12|t12-open [--live] [--check] [--scenario FILE] [-- ARGS...]
+#   tools/hil/pc_loop.sh KIND [--live] [--check] [--scenario FILE] [-- ARGS...]
 #
-#   motor     dcmotor_hil_pc: speed setpoint 3000 rpm, a load torque step at 0.5 s
-#   t12       t12tip_hil_pc: cold start to 350 degC, a joint touched at 10 s
-#   t12-open  t12tip_open_hil_pc: heating, then the tip goes open at 3 s: the controller must trip
+#   motor        dcmotor_hil_pc: speed setpoint 3000 rpm, a load torque step at 0.5 s
+#   motor-sensor the encoder is lost at 0.5 s: the controller must trip (sensor timeout)
+#   motor-link   the controller stops answering at 0.5 s: the runner must fault after max_late
+#   t12          t12tip_hil_pc: cold start to 350 degC, a joint touched at 10 s
+#   t12-open|-short|-stuck  the tip opens, shorts, or the heater switch sticks at 3 s: must trip
+#   t12-runaway  more heat loss than the heater makes up from 6 s: must trip (thermal runaway)
 #   --live    the controller on its own 1 kHz clock and the runner paced (the *_live scenario)
 #             instead of lockstep; WSL is not real time, so expect late steps
 #   --check   check the run against the controller's acceptance figures (check_loop.py)
@@ -19,7 +22,7 @@
 # serves XCP on that port (a build with -DKRUMPIR_XCP=ON). Exits 77 when socat is missing.
 set -euo pipefail
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 [ $# -ge 1 ] || usage
 kind=$1
 shift
@@ -37,8 +40,10 @@ done
 extra=("$@") # after --: more controller arguments, after the default setpoint and start
 case $kind in
   motor) ctrl=motor scn=dcmotor_hil_pc sp=3000 ;;
+  motor-sensor) ctrl=motor scn=dcmotor_sensor_hil_pc sp=3000 ;;
+  motor-link) ctrl=motor scn=dcmotor_link_hil_pc sp=3000; extra+=(--mute-at 0.5) ;;
   t12) ctrl=t12 scn=t12tip_hil_pc sp=350 ;;
-  t12-open) ctrl=t12 scn=t12tip_open_hil_pc sp=350 ;;
+  t12-open | t12-short | t12-stuck | t12-runaway) ctrl=t12 scn=t12tip_${kind#t12-}_hil_pc sp=350 ;;
   *) usage ;;
 esac
 mode=--lockstep
@@ -72,8 +77,10 @@ done
   -c start "${extra[@]}" </dev/null >"$runner/runs/${scn}_ctrl.csv" 2>"$dir/controller.err" &
 cpid=$!
 cd "$runner"
-"$KRUMPIR" run "$scenario"
+rc=0
+"$KRUMPIR" run "$scenario" || rc=$? # 2: the run faulted
 sleep 0.2 # the controller writes its last rows on BYE
+cp "$dir/controller.err" "runs/${scn}_ctrl.err" # its trips: "trip: <name> at tick <n>"
 cat "$dir/controller.err" >&2
-[ $check = 1 ] || exit 0
-python3 "$here/check_loop.py" "$kind" "runs/${scn}_ctrl.csv" "runs/$scn.csv"
+[ $check = 1 ] || exit $rc
+python3 "$here/check_loop.py" "$kind" "runs/${scn}_ctrl.csv" "runs/$scn.csv" --rc $rc

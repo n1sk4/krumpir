@@ -47,6 +47,7 @@
     <Float64 name="J" valueReference="10" causality="parameter" variability="fixed" start="1e-06" unit="kg.m2" description="Rotor inertia"/>
     <Float64 name="b" valueReference="11" causality="parameter" variability="fixed" start="1e-06" unit="N.m.s/rad" description="Viscous friction"/>
     <Float64 name="Vbus" valueReference="12" causality="parameter" variability="fixed" start="6" unit="V" description="Supply voltage behind the PWM driver"/>
+    <Float64 name="fault" valueReference="13" causality="input" variability="continuous" start="0" description="0 none, 1 encoder lost: speed_rpm (the encoder reading) is NaN, speed stays the shaft's"/>
   </ModelVariables>
 
   <ModelStructure>

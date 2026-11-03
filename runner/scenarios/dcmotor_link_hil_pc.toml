@@ -1,0 +1,26 @@
+# DC motor plant against the motor controller's own code on this PC (tools/hil/pc_loop.sh
+# motor-link): the controller stops answering at t = 0.5 s (pc_loop.sh: --mute-at), as a broken
+# link would. The runner holds the last duty for each late step and faults after max_late of them.
+[model]
+fmu = "fmus/dcmotor.fmu"
+step = 0.001
+duration = 1
+params = { Vbus = 6.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 20
+late = "fault"
+max_late = 10
+inputs = ["duty", "load_torque"]
+outputs = ["speed_rpm", "current"]
+stimulus = [
+  { input = "load_torque", kind = "constant", value = 0 },
+]
+
+[log]
+file = "runs/dcmotor_link_hil_pc.csv"

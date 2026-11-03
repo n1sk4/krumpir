@@ -78,6 +78,9 @@
     <ScalarVariable name="Vbus" valueReference="12" causality="parameter" variability="fixed" initial="exact" description="Supply voltage behind the PWM driver">
       <Real start="6" unit="V"/>
     </ScalarVariable>
+    <ScalarVariable name="fault" valueReference="13" causality="input" variability="continuous" description="0 none, 1 encoder lost: speed_rpm (the encoder reading) is NaN, speed stays the shaft's">
+      <Real start="0"/>
+    </ScalarVariable>
   </ModelVariables>
 
   <ModelStructure>

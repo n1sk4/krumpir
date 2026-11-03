@@ -71,7 +71,8 @@ runner steps the plant FMU and talks to it over a serial line, here a pty pair f
 
 ```sh
 cmake -S controllers/esp32-t12-controller/host -B ~/build/host-t12 && cmake --build ~/build/host-t12
-tools/hil/pc_loop.sh t12 --check      # or motor, t12-open; --live: own clocks instead of lockstep
+tools/hil/pc_loop.sh t12 --check      # or motor; --live: own clocks instead of lockstep
+tools/hil/pc_loop.sh t12-open --check # faults: t12-open|-short|-stuck|-runaway, motor-sensor|-link
 ```
 
 - The values on the link are `[hil]` in `controller.toml` (in frame order): the plant values the
@@ -87,7 +88,13 @@ tools/hil/pc_loop.sh t12 --check      # or motor, t12-open; --live: own clocks i
   controller gets invalid readings and trips `sensor`. The runner's `BYE` (unload, or a fault)
   stops it.
 - `<name>_host --device DEV [--lockstep | --hz N] [--log] [-c "sp 300"]...`: console on stdin, CSV
-  telemetry on stdout (`--log` or `log on`).
+  telemetry on stdout (`--log` or `log on`); trips on stderr (`trip: <name> at tick <n>`).
+  `--at S "cmd"` runs a command at plant time S, `--mute-at S` stops answering (a broken link).
+- **Faults** (CTest `hil_pc_*`, `check_loop.py`): the T12 must trip `no tip`, `heater short`,
+  `heater stuck on` within 0.5 s and `thermal runaway` within 25 s, with Q1 and Q3 off; the motor
+  must trip `sensor timeout` within 0.1 s of a lost encoder (the dcmotor FMU's `fault` input),
+  duty 0; and a controller that stops answering faults the run after `max_late` steps, its last
+  duty held until then.
 
 ### SIL vs PC loop
 

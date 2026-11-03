@@ -1,12 +1,35 @@
 #!/usr/bin/env python3
 """Checks a closed-loop run on the PC (pc_loop.sh) against the controller's acceptance figures
-(docs/tuning.md of each controller), from the controller's telemetry CSV and the runner's log.
+(docs/tuning.md of each controller) or its expected trip, from the controller's telemetry CSV,
+its stderr (<controller.csv minus .csv>.err: "trip: <name> at tick <n>") and the runner's log.
 
-    check_loop.py motor|t12|t12-open <controller.csv> <runner.csv>
+    check_loop.py KIND <controller.csv> <runner.csv> [--rc N]
 
-Exit 0 when every figure is met; prints one line per figure."""
+KIND as pc_loop.sh; --rc is the runner's exit status (2: the run faulted). Exit 0 when every
+figure is met; prints one line per figure."""
 import csv
 import sys
+from pathlib import Path
+
+# Fault kinds: the trip the controller must latch, the plant time of the fault and how long the
+# trip may take (the controllers' safety configs: invalid readings, heater cycles, runaway window)
+TRIPS = {
+    "t12-open": ("no tip", 3.0, 0.5),
+    "t12-short": ("heater short", 3.0, 0.5),
+    "t12-stuck": ("heater stuck on", 3.0, 0.5),
+    "t12-runaway": ("thermal runaway", 6.0, 25.0),
+    "motor-sensor": ("sensor timeout", 0.5, 0.1),
+}
+
+
+def first_trip(err_path):
+    """(name, plant time s) of the first trip the controller reported, or (None, None)."""
+    for line in Path(err_path).read_text().splitlines():
+        if line.startswith("trip: ") and " at tick " in line:
+            name, tick = line[6:].rsplit(" at tick ", 1)
+            if name != "cleared":
+                return name, int(tick) / 1000
+    return None, None
 
 
 def rows(path):
@@ -26,8 +49,19 @@ def step_figures(t, x, sp, t0, t1, band):
 
 
 def main():
-    kind, ctrl, run = sys.argv[1], rows(sys.argv[2]), rows(sys.argv[3])
-    checks = []
+    kind, ctrl_path, run_path = sys.argv[1:4]
+    rc = int(sys.argv[sys.argv.index("--rc") + 1]) if "--rc" in sys.argv else 0
+    ctrl, run = rows(ctrl_path), rows(run_path)
+    want_rc = 2 if kind == "motor-link" else 0
+    print(f"runner exit status {rc} (want {want_rc})")
+    checks = [("runner exit status not as wanted", int(rc != want_rc), 0)]
+    if kind in TRIPS:
+        want, t_fault, limit = TRIPS[kind]
+        name, t = first_trip(Path(ctrl_path).with_suffix(".err"))
+        print(f"trip: {name} at {t} s (want {want} within {limit:g} s of {t_fault:g} s)")
+        checks += [("the expected trip", 0 if name == want else 1, 0),
+                   ("trip after the fault s", (t - t_fault) if t is not None else 1e9, limit),
+                   ("tripped before the fault", 1 if t is not None and t < t_fault else 0, 0)]
     if kind == "motor":
         # step 0 -> 3000 rpm: overshoot under 10 %, settling under 0.3 s, error under 0.5 %
         t = [r["t"] for r in run]
@@ -46,13 +80,21 @@ def main():
         checks += [("overshoot %", over, 2), ("settling s", settle, 8), ("final error K", err, 1)]
         over, settle, err = step_figures(t, x, 350, 10, 14, 7)
         checks += [("load: final error K", err, 1)]
-    elif kind == "t12-open":
-        # the tip goes open at 3 s: the controller trips, Q1 and the heartbeat (Q3) drop
-        heated = max(r["heater"] for r in run if r["t"] < 3)
+    elif kind.startswith("t12-"):
+        # the controller trips: Q1 and the heartbeat (Q3) drop
+        heated = max(r["heater"] for r in run if r["t"] < TRIPS[kind][1])
         last = run[-1]
         checks += [("heater never on before the fault", 1 - heated, 0),
                    ("heater at the end", last["heater"], 0),
                    ("series_on at the end", last["series_on"], 0)]
+    elif kind == "motor-sensor":
+        checks += [("duty at the end", abs(run[-1]["duty"]), 0)]
+    elif kind == "motor-link":
+        # muted at 0.5 s: the runner holds the last duty while late; the 10th late answer
+        # (max_late) faults the run before its step, so 9 steps run on the held duty
+        held = [r["duty"] for r in run if r["t"] > 0.5]
+        checks += [("steps after the link broke, off by", abs(len(held) - 9), 0),
+                   ("duty not held", max(held) - min(held) if held else 1, 0)]
     else:
         sys.exit(f"unknown kind {kind}")
     ok = True

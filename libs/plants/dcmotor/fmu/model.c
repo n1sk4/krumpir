@@ -32,6 +32,7 @@ Status setStartValues(ModelInstance *comp)
   M(Vbus) = 6.0;
   M(duty) = 0.0;
   M(load_torque) = 0.0;
+  M(fault) = 0.0;
   plant_sim_reset(&M(sim));
   M(params_changed) = true;
 
@@ -58,7 +59,7 @@ Status getFloat64(ModelInstance *comp, ValueReference vr, double values[], size_
   case vr_duty: v = M(duty); break;
   case vr_load_torque: v = M(load_torque); break;
   case vr_speed: v = M(sim).w; break;
-  case vr_speed_rpm: v = M(sim).w * RAD_S_TO_RPM; break;
+  case vr_speed_rpm: v = M(fault) >= 0.5 ? NAN : M(sim).w * RAD_S_TO_RPM; break; /* encoder */
   case vr_current: v = M(sim).i; break;
   case vr_R: v = M(R); break;
   case vr_L: v = M(L); break;
@@ -67,6 +68,7 @@ Status getFloat64(ModelInstance *comp, ValueReference vr, double values[], size_
   case vr_J: v = M(J); break;
   case vr_b: v = M(b); break;
   case vr_Vbus: v = M(Vbus); break;
+  case vr_fault: v = M(fault); break;
   default:
     logError(comp, "Get Float64 is not allowed for value reference %u.", vr);
     return Error;
@@ -100,14 +102,17 @@ Status setFloat64(ModelInstance *comp, ValueReference vr, const double values[],
   switch (vr) {
   case vr_duty:
   case vr_load_torque:
+  case vr_fault:
     if (!isfinite(v)) {
       logError(comp, "Input %u must be finite.", vr);
       return Error;
     }
     if (vr == vr_duty)
       M(duty) = v;
-    else
+    else if (vr == vr_load_torque)
       M(load_torque) = v;
+    else
+      M(fault) = v;
     return OK;
   case vr_R: return set_parameter(comp, &M(R), v, true, "R");
   case vr_L: return set_parameter(comp, &M(L), v, true, "L");

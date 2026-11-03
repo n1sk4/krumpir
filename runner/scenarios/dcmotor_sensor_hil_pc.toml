@@ -1,0 +1,24 @@
+# DC motor plant against the motor controller's own code on this PC (tools/hil/pc_loop.sh
+# motor-sensor): at 3000 rpm the encoder signal is lost at t = 0.5 s (fault 1: speed_rpm reads NaN).
+# The controller must trip (sensor timeout) and put the duty to 0.
+[model]
+fmu = "fmus/dcmotor.fmu"
+step = 0.001
+duration = 1
+params = { Vbus = 6.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 500
+inputs = ["duty", "fault"]
+outputs = ["speed_rpm", "current"]
+stimulus = [
+  { input = "fault", kind = "step", t = 0.5, from = 0, to = 1 },
+]
+
+[log]
+file = "runs/dcmotor_sensor_hil_pc.csv"

@@ -69,6 +69,7 @@ static int usage(const char *prog)
           "  -c COMMAND    a console command at boot, e.g. -c \"sp 300\" -c start\n"
           "  --at S COMMAND  a console command at plant time S seconds (tick S * N; lockstep: the\n"
           "                runner's step at 1 kHz), e.g. --at 0.1 \"sp 3000\"\n"
+          "  --mute-at S   stop answering at plant time S (keeps ticking): a broken link, for tests\n"
           "  --xcp PORT    XCP on UDP on this port (a build with -DKRUMPIR_XCP=ON)\n",
           prog);
   return 2;
@@ -80,7 +81,7 @@ int main(int argc, char **argv)
   bool lockstep = true, log = false;
   unsigned hz = 1000, xcp_port = 0;
   char *cmds[32], *at_cmd[16];
-  double at_s[16];
+  double at_s[16], mute_s = -1;
   int n_cmds = 0, n_at = 0;
   for (int i = 1; i < argc; i++) {
     const bool more = i + 1 < argc;
@@ -97,6 +98,8 @@ int main(int argc, char **argv)
       log = true;
     } else if (!strcmp(argv[i], "-c") && more && n_cmds < 32) {
       cmds[n_cmds++] = argv[++i];
+    } else if (!strcmp(argv[i], "--mute-at") && more) {
+      mute_s = strtod(argv[++i], NULL);
     } else if (!strcmp(argv[i], "--at") && i + 2 < argc && n_at < 16) {
       at_s[n_at] = strtod(argv[++i], NULL);
       at_cmd[n_at++] = argv[++i];
@@ -124,6 +127,9 @@ int main(int argc, char **argv)
     run_line(cmds[i]);
   }
   hil_host_after_tick(report_trip);
+  if (mute_s >= 0) {
+    hil_host_mute_at((uint32_t)(mute_s * hz + 0.5));
+  }
   for (int i = 0; i < n_at; i++) {
     hil_host_at((uint32_t)(at_s[i] * hz + 0.5), at_cmd[i]);
   }

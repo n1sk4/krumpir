@@ -8,6 +8,7 @@
 #include <ftxui/component/mouse.hpp>
 
 #include "form.hpp"
+#include "split.hpp"
 #include "ui.hpp"
 
 namespace krumpir::ui {
@@ -41,7 +42,10 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
 {
   struct State {
     std::string address, path; // path: the file picked
-    std::vector<std::string> files; // the runner's scenarios, then its FMUs
+    std::vector<std::string> files;   // the runner's scenarios, then its FMUs
+    std::vector<std::string> visible; // of those, the ones the filter lets through: the list rows
+    std::string filter, seen_filter;  // seen: the text the cursor was last placed for
+    int files_row = 1;                // focus in the list pane: starts on the list
     int selected = 0, row = 1;
     int scroll = 0; // first text line shown
     Box text_box;
@@ -76,8 +80,8 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
     m.describe(path);
   };
   auto pick = [s, describe] {
-    if (s->selected >= 0 && s->selected < static_cast<int>(s->files.size())) {
-      describe(s->files[static_cast<std::size_t>(s->selected)]);
+    if (s->selected >= 0 && s->selected < static_cast<int>(s->visible.size())) {
+      describe(s->visible[static_cast<std::size_t>(s->selected)]);
     }
   };
   auto toml = [s] { return s->form.to_toml(); };
@@ -150,12 +154,12 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
   auto refresh = Button("Refresh", [&m] { m.refresh_files(); }, ButtonOption::Ascii());
 
   MenuOption menu = MenuOption::Vertical();
-  menu.entries = &s->files;
+  menu.entries = &s->visible;
   menu.selected = &s->selected;
   menu.on_change = [s, pick] {
-    const auto it = std::find(s->files.begin(), s->files.end(), s->path);
-    const int shown = static_cast<int>(it - s->files.begin());
-    if (s->form.dirty() && s->selected != shown && it != s->files.end()) {
+    const auto it = std::find(s->visible.begin(), s->visible.end(), s->path);
+    const int shown = static_cast<int>(it - s->visible.begin());
+    if (s->form.dirty() && s->selected != shown && it != s->visible.end()) {
       s->pending = s->selected; // ask before the edits are lost
       s->selected = shown;
       s->discard_row = 0;
@@ -166,6 +170,8 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
   };
   menu.on_enter = load;
   auto files = Menu(menu);
+  auto filter = FilterInput(&s->filter);
+  auto file_list = Container::Vertical({filter, files}, &s->files_row);
 
   // The text scrolls with the arrows when focused, and with the mouse wheel over it.
   // A focusable stand-in: the renderer below draws the text, this only takes the keys.
@@ -197,7 +203,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
 
   auto layout = Container::Vertical({
       Container::Horizontal({addr, connect, disconnect, refresh}),
-      Container::Horizontal({files, Container::Tab({form_view, text_view}, &s->view)}),
+      Container::Horizontal({file_list, Container::Tab({form_view, text_view}, &s->view)}),
       path,
   }, &s->row);
 
@@ -254,11 +260,26 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
       list.insert(list.end(), v.fmus.begin(), v.fmus.end());
       if (list != s->files) {
         s->files = std::move(list);
-        // The menu sets -1 while the list is empty: clamp from both sides.
-        s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->files.size()) - 1));
-        if (s->path.empty() && !s->files.empty()) {
-          pick();
+      }
+      // The rows the filter lets through. When the text changed, the cursor stays on the open
+      // file if it is still listed.
+      s->visible.clear();
+      for (const auto &f : s->files) {
+        if (MatchesFilter(f, s->filter)) {
+          s->visible.push_back(f);
         }
+      }
+      if (s->filter != s->seen_filter) {
+        s->seen_filter = s->filter;
+        const auto open = std::find(s->visible.begin(), s->visible.end(), s->path);
+        if (open != s->visible.end()) {
+          s->selected = static_cast<int>(open - s->visible.begin());
+        }
+      }
+      // The menu sets -1 while the list is empty: clamp from both sides.
+      s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->visible.size()) - 1));
+      if (s->path.empty() && !s->visible.empty()) {
+        pick();
       }
       if (v.described_path == s->path && !s->path.empty()) {
         std::string dump = v.described.dump();
@@ -421,7 +442,8 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
       notes = text(" " + note) | color(note_ok ? Color::Green : Color::Red);
     }
     auto files_pane = window(text(" Files on the runner "),
-                             files->Render() | vscroll_indicator | frame) |
+                             vbox({FilterRow(filter),
+                                   files->Render() | vscroll_indicator | frame | flex})) |
                       size(WIDTH, EQUAL, kFilesWidth);
     auto form_pane = window(text(title) | (text_view->Focused() ? inverted : nothing),
                             vbox({notes, body | flex})) |

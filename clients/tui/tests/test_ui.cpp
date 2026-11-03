@@ -301,6 +301,14 @@ TEST_CASE("ui root: the Load tab of the runner and of a controller both have Con
   CHECK(has(s, "Disconnect"));
 }
 
+TEST_CASE("ui root: the runner's file list on Load has the filter box too")
+{
+  Rig r;
+  const Screen s = draw(r.root, 130, 40);
+  CHECK(has(s, " Files on the runner "));
+  CHECK(has(s, "filter "));
+}
+
 TEST_CASE("ui root: the Load tab of every target has the events pane")
 {
   Rig r;

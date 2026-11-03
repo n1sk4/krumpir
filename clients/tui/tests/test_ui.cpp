@@ -266,6 +266,14 @@ TEST_CASE("ui root: the Load tab of the runner and of a controller both have Con
   CHECK(has(s, "Disconnect"));
 }
 
+TEST_CASE("ui root: the Load tab of every target has the events pane")
+{
+  Rig r;
+  CHECK(has(draw(r.root, 130, 40), " Events "));
+  r.root->OnEvent(Event::ArrowDown); // the controller's card
+  CHECK(has(draw(r.root, 130, 40), " Events "));
+}
+
 TEST_CASE("ui root: the Load tab is not affected by the pane keys")
 {
   Rig r;

@@ -249,7 +249,9 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
   auto view = Renderer(layout, [=, &m] {
     std::string note;
     bool note_ok = false;
+    Element events;
     m.view([&](const Snapshot &v) {
+      events = EventsPane(v.events);
       std::vector<std::string> list = v.scenarios;
       list.insert(list.end(), v.fmus.begin(), v.fmus.end());
       if (list != s->files) {
@@ -427,11 +429,13 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
                             vbox({notes, body | flex})) |
                      flex;
     return vbox({
-        hbox({text(" Runner "), addr->Render() | size(WIDTH, EQUAL, 24) | underlined, text(" "),
+        hbox({text(" Runner "), addr->Render() | size(WIDTH, EQUAL, kAddressWidth) | underlined,
+              text(" "),
               connect->Render(), text(" "), disconnect->Render(), text(" "), refresh->Render()}),
         text(""),
         hbox({files_pane, form_pane}) | flex,
         hbox({text(" Path "), path->Render() | underlined | flex}),
+        events | size(HEIGHT, EQUAL, kEventsRows),
     });
   });
 

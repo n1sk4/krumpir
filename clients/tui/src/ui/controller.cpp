@@ -158,7 +158,7 @@ Component ControllerSetup(EcuModel &ecu)
                       text(Format("%-10s", Value(p.value).c_str())), text(" " + p.help) | dim});
     }
     return vbox({
-        hbox({text(" " + name + " ") | bold, addr->Render() | size(WIDTH, EQUAL, 22) | underlined,
+        hbox({text(" " + name + " ") | bold, addr->Render() | size(WIDTH, EQUAL, kAddressWidth) | underlined,
               text(" "), connect_btn->Render(), text(" "), disconnect_btn->Render(), link}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
         window(text(" Calibration (Enter or Write sends the changed ones) "),

@@ -43,7 +43,6 @@ static void test_running_drives_the_motor(void)
   TEST_ASSERT_EQUAL(0, safe_calls);
   TEST_ASSERT_TRUE(written > 0.0f);
   TEST_ASSERT_EQUAL_FLOAT(written, l.duty);
-  TEST_ASSERT_EQUAL(1, l.ticks);
 }
 
 static void test_trip_stops_and_refuses_start_until_cleared(void)

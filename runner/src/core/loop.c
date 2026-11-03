@@ -13,12 +13,11 @@ int64_t loop_step_ns(double step) { return (int64_t)llround(step * 1e9); }
 
 /* Handles the queued commands at the start of step n. Never allocates or blocks; a full reply
  * queue drops the reply (the control thread then times out). */
-static void handle_commands(const loop_ctx_t *c, uint64_t n, double t)
+static void handle_commands(const loop_ctx_t *c, double t)
 {
   cmd_t cmd;
   while (cmdq_pop(c->cmd, &cmd)) {
     cmd.status = 0;
-    cmd.step = n;
     switch (cmd.kind) {
     case CMD_WRITE_INPUT:
     case CMD_SET_SIGNAL:
@@ -70,7 +69,7 @@ static int64_t wait_until(wait_mode_t mode, int64_t target, const atomic_int *st
   return plat_now_ns();
 }
 
-void loop_run(const loop_ctx_t *c, loop_stats_t *st)
+void loop_run(const loop_ctx_t *c, loop_counters_t *st)
 {
   const scenario_t *sc = c->sc;
   const varmap_t *vm = c->vm;
@@ -118,7 +117,7 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
     }
     const double t = loop_time(n, sc->step);
     if (c->cmd != NULL) {
-      handle_commands(c, n, t);
+      handle_commands(c, t);
     }
 
     if (c->io->api->read(c->io, t, in, vm->n_in) != 0) {

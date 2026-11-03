@@ -10,12 +10,11 @@
 #define SIM_LOAD_MAX_NM 0.1f
 #define SIM_INERTIA_MIN 0.1f
 #define SIM_INERTIA_MAX 10.0f
-#define arg_float console_arg_float
 
 int cmd_load(int argc, char **argv)
 {
   float v;
-  if (!arg_float(argc, argv, -SIM_LOAD_MAX_NM, SIM_LOAD_MAX_NM, &v))
+  if (!console_arg_float(argc, argv, -SIM_LOAD_MAX_NM, SIM_LOAD_MAX_NM, &v))
     return 1;
   control_task_set_load(v);
   return 0;
@@ -24,7 +23,7 @@ int cmd_load(int argc, char **argv)
 int cmd_inertia(int argc, char **argv)
 {
   float v;
-  if (!arg_float(argc, argv, SIM_INERTIA_MIN, SIM_INERTIA_MAX, &v))
+  if (!console_arg_float(argc, argv, SIM_INERTIA_MIN, SIM_INERTIA_MAX, &v))
     return 1;
   control_task_set_inertia_scale(v);
   return 0;

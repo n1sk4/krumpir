@@ -14,8 +14,8 @@ uint16_t t12_tc_counts(double v_amp) { return to_counts(v_amp); }
 
 uint16_t t12_ntc_counts(double handle_c)
 {
-  double t_k = handle_c + 273.15;
-  double r = T12_NTC_R25 * exp(T12_NTC_BETA * (1.0 / t_k - 1.0 / 298.15));
+  double t_k = handle_c + T12_KELVIN;
+  double r = T12_NTC_R25 * exp(T12_NTC_BETA * (1.0 / t_k - 1.0 / T12_NTC_T25_K));
   return to_counts(T12_ADC_VREF * r / (r + T12_NTC_R_FIXED));
 }
 

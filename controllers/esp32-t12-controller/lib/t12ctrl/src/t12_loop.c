@@ -13,7 +13,6 @@ void t12_loop_init(t12_loop_t *l, const t12_ctrl_cfg_t *ctrl, const t12_safety_c
   l->handle = NAN;
   l->amps = 0.0f;
   l->duty = 0.0f;
-  l->cycles = 0;
 }
 
 bool t12_loop_tick(t12_loop_t *l, const t12_io_t *io)
@@ -25,7 +24,6 @@ bool t12_loop_tick(t12_loop_t *l, const t12_io_t *io)
     l->handle = t12_handle_celsius(m.ntc);
     l->amps = t12_heater_amps(m.current);
     l->duty = m.duty;
-    l->cycles++;
     if (t12_safety_update(&l->safety, &m, l->temp) != T12_TRIP_NONE) {
       t12_ctrl_stop(&l->ctrl);
       t12_cycle_set_duty(&l->cycle, 0.0f);

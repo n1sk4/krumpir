@@ -4,8 +4,6 @@
 
 #include "t12_hw.h"
 
-#define KELVIN 273.15f
-
 static float counts_to_volts(uint16_t counts)
 {
   return (float)counts * (float)T12_ADC_VREF / (float)T12_ADC_MAX;
@@ -17,8 +15,8 @@ float t12_handle_celsius(uint16_t ntc)
     return NAN;
   float v = counts_to_volts(ntc);
   float r = (float)T12_NTC_R_FIXED * v / ((float)T12_ADC_VREF - v);
-  float inv_t = 1.0f / 298.15f + logf(r / (float)T12_NTC_R25) / (float)T12_NTC_BETA;
-  return 1.0f / inv_t - KELVIN;
+  float inv_t = 1.0f / (float)T12_NTC_T25_K + logf(r / (float)T12_NTC_R25) / (float)T12_NTC_BETA;
+  return 1.0f / inv_t - (float)T12_KELVIN;
 }
 
 float t12_tip_celsius(const t12_cal_t *cal, uint16_t tc, uint16_t ntc)

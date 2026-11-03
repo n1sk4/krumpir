@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#define AGE_LOST HIL_AGE_NONE
 
 void hil_link_init(hil_link_t *l, hil_slots_t *slots, const char *const *plant, size_t n_plant,
                    const char *const *cmd, size_t n_cmd, hil_write_t write, void *write_ctx)
@@ -15,7 +14,7 @@ void hil_link_init(hil_link_t *l, hil_slots_t *slots, const char *const *plant, 
   l->write = write;
   l->write_ctx = write_ctx;
   hil_parser_init(&l->parser);
-  slots->age = AGE_LOST;
+  slots->age = HIL_AGE_NONE;
 }
 
 static void send(hil_link_t *l, const hil_frame_t *f)
@@ -65,8 +64,8 @@ void hil_link_tick_begin(hil_link_t *l)
   const uint32_t frames = atomic_load_explicit(&l->frames, memory_order_acquire);
   if (frames == l->taken) {
     if (atomic_load(&l->bye_seen) && l->ended++ > 0) {
-      l->slots->age = AGE_LOST; /* the run is over: wait for the next one */
-    } else if (l->slots->age < AGE_LOST) {
+      l->slots->age = HIL_AGE_NONE; /* the run is over: wait for the next one */
+    } else if (l->slots->age < HIL_AGE_NONE) {
       l->slots->age++;
     }
     return;

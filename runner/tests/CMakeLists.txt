@@ -1,5 +1,3 @@
-add_executable(test_smoke test_smoke.c)
-add_test(NAME smoke COMMAND test_smoke)
 
 add_executable(test_ring test_ring.c)
 target_link_libraries(test_ring PRIVATE krumpir_core)

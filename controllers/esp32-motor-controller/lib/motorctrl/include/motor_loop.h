@@ -16,7 +16,6 @@ typedef struct {
   motor_safety_t safety;
   float speed; /* last reading [rpm] */
   float duty;  /* duty of the last tick */
-  uint32_t ticks;
 } motor_loop_t;
 
 void motor_loop_init(motor_loop_t *l, const motor_ctrl_cfg_t *ctrl,

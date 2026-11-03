@@ -5,3 +5,5 @@ sdkconfig.esp32dev-xcp
 __pycache__/
 docs/*.csv
 docs/*.a2l
+out/
+sdkconfig.esp32dev-hil

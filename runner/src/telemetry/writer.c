@@ -54,7 +54,7 @@ static void *drain(void *arg)
       break;
     }
     if (!any) {
-      struct timespec ts = {0, 1000000}; /* ponytail: 1 ms poll, use a condvar if latency matters */
+      struct timespec ts = {0, 1000000}; /* Limitation: 1 ms poll, use a condvar if latency matters */
       nanosleep(&ts, NULL);
     }
   }

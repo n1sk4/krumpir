@@ -39,7 +39,7 @@ void tick_task_start(const tick_cfg_t *cfg, tick_init_t init, tick_body_t body, 
   s_ctx = ctx;
 }
 
-// ponytail: no period/exec statistics on the PC yet; the runner measures the loop.
+// Limitation: no period/exec statistics on the PC yet; the runner measures the loop.
 void tick_task_get_stats(loop_stats_t *period, loop_stats_t *exec, uint32_t *overruns)
 {
   memset(period, 0, sizeof *period);
@@ -159,7 +159,7 @@ static void tick(void)
   s_tick++;
 }
 
-// ponytail: plain SCHED_OTHER; set SCHED_FIFO here once free-running runs on a real-time host.
+// Limitation: plain SCHED_OTHER; set SCHED_FIFO here once free-running runs on a real-time host.
 static void *tick_thread(void *arg)
 {
   (void)arg;

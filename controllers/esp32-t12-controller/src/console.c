@@ -11,12 +11,11 @@
 #define LOAD_MAX_W_PER_K 1.0f
 #define AMBIENT_MIN_C (-20.0f)
 #define AMBIENT_MAX_C 60.0f
-#define arg_float console_arg_float
 
 int cmd_load(int argc, char **argv)
 {
   float v;
-  if (!arg_float(argc, argv, 0.0f, LOAD_MAX_W_PER_K, &v))
+  if (!console_arg_float(argc, argv, 0.0f, LOAD_MAX_W_PER_K, &v))
     return 1;
   control_task_set_load(v);
   return 0;
@@ -25,7 +24,7 @@ int cmd_load(int argc, char **argv)
 int cmd_ambient(int argc, char **argv)
 {
   float v;
-  if (!arg_float(argc, argv, AMBIENT_MIN_C, AMBIENT_MAX_C, &v))
+  if (!console_arg_float(argc, argv, AMBIENT_MIN_C, AMBIENT_MAX_C, &v))
     return 1;
   control_task_set_ambient(v);
   return 0;

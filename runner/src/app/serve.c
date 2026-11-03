@@ -213,7 +213,7 @@ static void add_listing(cJSON *r, const char *key, const char *dir, const char *
   if (d == NULL) {
     return;
   }
-  char *names[256]; /* ponytail: first 256 files per directory; a bench has a handful */
+  char *names[256]; /* Limitation: first 256 files per directory; a bench has a handful */
   size_t n = 0, el = strlen(ext);
   struct dirent *e;
   while ((e = readdir(d)) != NULL && n < 256) {
@@ -254,7 +254,7 @@ static const char *read_toml(const char *op, const char *path, char *err, size_t
     snprintf(err, errlen, "cannot open %s: %s", path, strerror(errno));
     return NULL;
   }
-  static char buf[1u << 16]; /* ponytail: one request at a time; scenarios are a few kB */
+  static char buf[1u << 16]; /* Limitation: one request at a time; scenarios are a few kB */
   size_t n = fread(buf, 1, sizeof buf - 1, f);
   bool more = fgetc(f) != EOF;
   fclose(f);
@@ -433,7 +433,7 @@ static cJSON *scenario_json(const scenario_t *sc)
  * "problem" (the reply is still ok, with what could be read). */
 static int op_describe(const cJSON *req, cJSON *r, char *err, size_t errlen)
 {
-  static scenario_t sc; /* ponytail: one request at a time */
+  static scenario_t sc; /* Limitation: one request at a time */
   const char *path = get_str(req, "scenario"), *text = get_str(req, "toml"),
              *fmu = get_str(req, "fmu");
   if ((path != NULL) + (text != NULL) + (fmu != NULL) != 1) {
@@ -471,7 +471,7 @@ static int op_describe(const cJSON *req, cJSON *r, char *err, size_t errlen)
 /* Parses the text and checks it against its FMU as loading would, without loading. */
 static int check_text(const char *text, char *err, size_t errlen)
 {
-  static scenario_t sc; /* ponytail: one request at a time */
+  static scenario_t sc; /* Limitation: one request at a time */
   char perr[400];
   if (config_parse(text, &sc, perr, sizeof perr) < 0) {
     snprintf(err, errlen, "scenario: %s", perr);
@@ -525,7 +525,7 @@ static int op_save(const cJSON *req, char *err, size_t errlen)
 
 static int op_load(session_t *s, const cJSON *req, cJSON *r, char *err, size_t errlen)
 {
-  static scenario_t sc; /* ponytail: one request at a time, so one buffer will do */
+  static scenario_t sc; /* Limitation: one request at a time, so one buffer will do */
   const char *path = get_str(req, "scenario"), *text = get_str(req, "toml");
   if ((path == NULL) == (text == NULL)) {
     snprintf(err, errlen, "load takes \"scenario\" (a path on the server) or \"toml\" (the text)");
@@ -676,7 +676,7 @@ static int get_cond(const cJSON *req, const char *key, capture_cond_t *c, char *
 
 static int op_capture_start(session_t *s, const cJSON *req, cJSON *r, char *err, size_t errlen)
 {
-  static capture_spec_t spec; /* ponytail: large; one request at a time */
+  static capture_spec_t spec; /* Limitation: large; one request at a time */
   spec = (capture_spec_t){0};
   const cJSON *vars = item(req, "vars"), *v;
   if (vars != NULL && !cJSON_IsArray(vars)) {

@@ -42,7 +42,7 @@ struct session {
   int timing_fd;   /* rt.timing_gpio's line (timing_pin), 0 when none */
   atomic_bool done; /* the loop thread has returned */
   atomic_int stop;
-  loop_stats_t ls;
+  loop_counters_t ls;
 
   cmdq_t cmd, reply;
   uint32_t seq;
@@ -92,7 +92,7 @@ static void ensure_parent_dir(const char *path)
 
 static void describe_failure(session_t *s)
 {
-  const loop_stats_t *ls = &s->ls;
+  const loop_counters_t *ls = &s->ls;
   switch (ls->end) {
   case LOOP_FMU_FAIL: {
     const char *msg = fmu_last_message(s->fmu);
@@ -368,7 +368,7 @@ fail:
 
 int scenario_check(const scenario_t *sc, char *err, size_t errlen)
 {
-  static varmap_t vm; /* ponytail: large; one control thread */
+  static varmap_t vm; /* Limitation: large; one control thread */
   fmu_pkg_t pkg = {0};
   err[0] = '\0';
   int rc = fmu_open(sc->fmu, &pkg, err, errlen);
@@ -550,7 +550,7 @@ int session_set_signal(session_t *s, const stimulus_t *st, char *err, size_t err
   }
   cmd_t c = {.kind = CMD_SET_SIGNAL, .index = i, .sig = g};
   if (roundtrip(s, &c, err, errlen) < 0) {
-    return -1; /* ponytail: g leaks if the loop never answers; it may still be playing it */
+    return -1; /* Limitation: g leaks if the loop never answers; it may still be playing it */
   }
   signal_free(c.sig); /* the replaced one */
   return 0;

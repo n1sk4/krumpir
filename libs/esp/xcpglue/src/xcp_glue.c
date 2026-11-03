@@ -26,7 +26,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     esp_wifi_connect();
   } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
     xEventGroupClearBits(s_wifi, CONNECTED_BIT);
-    esp_wifi_connect(); /* ponytail: retries forever without backoff */
+    esp_wifi_connect(); /* Limitation: retries forever without backoff */
   } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
     const ip_event_got_ip_t *e = data;
     printf("xcp: wifi connected, ip " IPSTR ", XCP on UDP port %d\n", IP2STR(&e->ip_info.ip), XCP_PORT);

@@ -12,5 +12,7 @@
 #define T12_NTC_BETA 3950.0         /* [K] */
 #define T12_NTC_R_FIXED 100e3       /* divider resistor to 3V3; the NTC goes to ground [ohm] */
 #define T12_HEARTBEAT_TIMEOUT_S 0.1 /* Q3 drops this long after the last heartbeat toggle */
+#define T12_NTC_T25_K 298.15        /* 25 degC [K], the NTC reference */
+#define T12_KELVIN 273.15           /* 0 degC [K] */
 
 #endif

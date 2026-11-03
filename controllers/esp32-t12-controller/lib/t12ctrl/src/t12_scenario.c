@@ -60,7 +60,7 @@ t12_scn_result_t t12_scenario_run(t12_scenario_t id, const t12_ctrl_cfg_t *ctrl,
 
   step_metrics_t m;
   step_metrics_init(&m, SETPOINT, BAND_PCT, SAMPLE_DT);
-  t12_scn_result_t res = {.min_temp = 1e9f, .trip = T12_TRIP_NONE, .trip_s = -1.0f};
+  t12_scn_result_t res = {.trip = T12_TRIP_NONE, .trip_s = -1.0f};
   const timing_t tm = TIMING[id];
   double load = 0.0;
   bool event_done = tm.event <= 0.0;
@@ -88,8 +88,6 @@ t12_scn_result_t t12_scenario_run(t12_scenario_t id, const t12_ctrl_cfg_t *ctrl,
       }
       if (t >= tm.event && isfinite(loop.temp)) {
         step_metrics_add(&m, loop.temp);
-        if (loop.temp < res.min_temp)
-          res.min_temp = loop.temp;
       }
       if (loop.safety.latched != T12_TRIP_NONE && res.trip == T12_TRIP_NONE) {
         res.trip = loop.safety.latched;

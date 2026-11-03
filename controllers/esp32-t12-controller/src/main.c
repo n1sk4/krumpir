@@ -1,4 +1,3 @@
-#include <math.h>
 #include <stdio.h>
 
 #include "console.h"
@@ -11,7 +10,6 @@
 #include "hil_uart.h"
 #endif
 
-/* One CSV row: an invalid tip reading prints as -1 so the row keeps its integer shape. */
 void app_main(void)
 {
   ctrl_gen_telemetry_start(); /* CSV header and rows from controller.toml */

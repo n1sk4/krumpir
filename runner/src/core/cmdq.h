@@ -24,7 +24,6 @@ typedef struct {
   void *sig;      /* CMD_SET_SIGNAL: the new signal; reply of both input commands: the replaced
                    * signal (or NULL), for the sender to free */
   int status;     /* reply: 0 ok, otherwise the fmu_result_t of the failed call */
-  uint64_t step;  /* reply: the step at whose start the command was handled */
 } cmd_t;
 
 #define CMDQ_CAPACITY 64 /* power of two */

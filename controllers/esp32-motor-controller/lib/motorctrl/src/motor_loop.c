@@ -7,7 +7,6 @@ void motor_loop_init(motor_loop_t *l, const motor_ctrl_cfg_t *ctrl,
   motor_safety_init(&l->safety, safety);
   l->speed = 0.0f;
   l->duty = 0.0f;
-  l->ticks = 0;
 }
 
 void motor_loop_tick(motor_loop_t *l, const motor_io_t *io)
@@ -22,7 +21,6 @@ void motor_loop_tick(motor_loop_t *l, const motor_io_t *io)
     l->duty = 0.0f;
     io->safe_state(io->ctx); /* the motor coasts */
   }
-  l->ticks++;
 }
 
 bool motor_loop_start(motor_loop_t *l)

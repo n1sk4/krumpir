@@ -4,7 +4,7 @@
 
 #include "console_util.h"
 
-static rte_t *s_rte; /* ponytail: one runtime per firmware; the console API has no context */
+static rte_t *s_rte; /* Limitation: one runtime per firmware; the console API has no context */
 
 static int cmd_param(int argc, char **argv)
 {

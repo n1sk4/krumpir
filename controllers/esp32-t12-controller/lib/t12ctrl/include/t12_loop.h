@@ -22,7 +22,6 @@ typedef struct {
   float handle; /* handle temperature [degC] */
   float amps;   /* heater current while heating in the last cycle [A] */
   float duty;   /* heating duty of the last cycle */
-  uint32_t cycles;
 } t12_loop_t;
 
 void t12_loop_init(t12_loop_t *l, const t12_ctrl_cfg_t *ctrl, const t12_safety_cfg_t *safety,

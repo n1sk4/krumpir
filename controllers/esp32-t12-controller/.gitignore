@@ -6,3 +6,4 @@ docs/*.csv
 out/
 sdkconfig.esp32dev-xcp
 docs/*.a2l
+sdkconfig.esp32dev-hil

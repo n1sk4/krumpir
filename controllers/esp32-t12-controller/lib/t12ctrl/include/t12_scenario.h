@@ -36,7 +36,6 @@ typedef struct {
   float undershoot_pct; /* dip below the target */
   float settling_s;
   float final_error;
-  float min_temp;
   t12_trip_t trip; /* first trip, or NONE */
   float trip_s;    /* time from the event to the trip, -1 if none */
 } t12_scn_result_t;

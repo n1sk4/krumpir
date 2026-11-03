@@ -58,7 +58,7 @@ static void restart(hil_parser_t *p, uint8_t b)
 
 bool hil_parse_byte(hil_parser_t *p, uint8_t b, hil_frame_t *out)
 {
-  // ponytail: a failed frame is dropped whole, without rescanning its bytes for a sync; the next
+  // Limitation: a failed frame is dropped whole, without rescanning its bytes for a sync; the next
   // frame (1 ms later) resyncs.
   if (p->len == 0) {
     if (b == SYNC0) {

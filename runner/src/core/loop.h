@@ -64,7 +64,7 @@ typedef struct {
   double sum_step_ns;
   uint64_t fail_step;       /* LOOP_FMU_FAIL: index of the failing step */
   fmu_result_t fail_result; /* LOOP_FMU_FAIL */
-} loop_stats_t;
+} loop_counters_t;
 
 /* Runs the step loop of a scenario (the RUNNING state):
  *   wait for the tick, handle the queued commands, read inputs (backend, then the value or signal
@@ -77,6 +77,6 @@ typedef struct {
  * an overrun, and the run ends with LOOP_TOO_MANY_OVERRUNS past max_overruns. The telemetry
  * record of step n has t = (n+1)*step, the time its outputs are valid. Does not allocate.
  * *st must be zeroed by the caller. */
-void loop_run(const loop_ctx_t *c, loop_stats_t *st);
+void loop_run(const loop_ctx_t *c, loop_counters_t *st);
 
 #endif

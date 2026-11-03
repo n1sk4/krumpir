@@ -7,7 +7,11 @@ has the EPK at 0xFFFFFF00 and numbers the segments from 0. This moves the EPK an
 segment by one, which is what xcpclient --fix-a2l does when it can reach the controller.
 
     fix_host_a2l.py controllers/<dir>/docs/<name>_host.a2l   (in place)
+    fix_host_a2l.py --selftest
+
+Exit status: 0 ok, 1 the self-check failed, 2 usage.
 """
+import argparse
 import re
 import sys
 
@@ -31,16 +35,38 @@ def fix(text):
     return "\n".join(lines)
 
 
+def selftest():
+    a2l = ("ADDR_EPK 0xFFFFFF00\n"
+           "/begin MEMORY_SEGMENT par \"\" DATA FLASH INTERN 0x80000000 0x100\n"
+           "/begin SEGMENT 0 2 0 0 0\n"
+           "/begin CHARACTERISTIC kp \"\" VALUE 0x80000004 R 0 1 0 1\n"
+           "x 0x80000004\n")
+    out = fix(a2l)
+    assert "ADDR_EPK 0x80000000" in out
+    assert "INTERN 0x80010000 0x100" in out and "VALUE 0x80010004" in out
+    assert "/begin SEGMENT 1 2" in out
+    assert out.endswith("x 0x80000004\n")  # only the address lines move
+    assert fix(out) == out  # a fitted A2L stays as it is
+    print("fix_host_a2l: selftest ok")
+
+
 def main():
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    path = sys.argv[1]
-    with open(path, encoding="utf-8") as f:
+    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    p.add_argument("a2l", nargs="?", help="the offline A2L, fitted in place")
+    p.add_argument("--selftest", action="store_true", help="check the fitting and exit")
+    a = p.parse_args()
+    if a.selftest:
+        selftest()
+        return 0
+    if not a.a2l:
+        p.error("an A2L file is needed")
+    with open(a.a2l, encoding="utf-8") as f:
         text = f.read()
-    with open(path, "w", encoding="utf-8", newline="") as f:
+    with open(a.a2l, "w", encoding="utf-8", newline="") as f:
         f.write(fix(text))
-    print(f"fix_host_a2l: {path}: EPK in segment 0, calibration segments from 1")
+    print(f"fix_host_a2l: {a.a2l}: EPK in segment 0, calibration segments from 1")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

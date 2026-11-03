@@ -130,8 +130,8 @@ def run_pc(build, ctrl, name, case):
     args = ["-c", f"sp {case['sp']}"]
     for t, line in case.get("at", []):
         args += ["--at", f"{t:g}", line]
-    env = {**os.environ, "KRUMPIR": str(Path(build) / "krumpir"),
-           "CONTROLLER": str(Path(build) / f"host-{ctrl}" / f"{ctrl}_host")}
+    env = {**os.environ, "KRUMPIR_RUNNER": str(Path(build) / "krumpir"),
+           "KRUMPIR_CONTROLLER": str(Path(build) / f"host-{ctrl}" / f"{ctrl}_host")}
     r = subprocess.run(["bash", str(ROOT / "tools/hil/pc_loop.sh"), ctrl, "--scenario", str(scn),
                         "--", *args], capture_output=True, text=True, env=env)
     if r.returncode == 77:

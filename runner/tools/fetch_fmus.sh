@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
-# Download the Reference FMUs release and copy the FMUs the runner uses into runner/fmus.
+# Downloads the Reference FMUs release (checked against its SHA-256) and copies the FMUs the
+# runner's tests use into runner/fmus. Needs curl, sha256sum and unzip.
+#
+#   bash runner/tools/fetch_fmus.sh
+#
+# Exit status: 0 ok, 1 a step failed, 2 usage.
 set -euo pipefail
+
+usage() { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+case ${1:-} in
+  -h | --help) usage 0 ;;
+  "") ;;
+  *) usage ;;
+esac
 
 VERSION=v0.0.42
 SHA256=b6b4a195b9c0f6bdd3459cd949cbb35fc21ee2049d6dab4cb7a3ba7da63b1e97

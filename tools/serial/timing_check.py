@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Check the control-loop timing of an ESP32 controller on the connected board: PASS or FAIL.
 
 Measure the firmware already on the board (start the controller with --setup):

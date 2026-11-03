@@ -1,21 +1,16 @@
 #!/usr/bin/env bash
-# Install the build and test tools for the runner on Debian/Ubuntu (WSL or Raspberry Pi OS)
-# and create the Python venv used by the comparison tools.
+# Installs the build and test tools on Debian/Ubuntu (WSL or Raspberry Pi OS) and creates the
+# Python venv (~/.venvs/krumpir, or KRUMPIR_VENV); the same as python3 tools/kb.py setup --system.
+#
+#   bash runner/tools/setup_wsl.sh
+#
+# Exit status: 0 ok, 1 a step failed, 2 usage.
 set -euo pipefail
 
-sudo=""
-[ "$(id -u)" -ne 0 ] && sudo="sudo"
-
-$sudo apt-get update
-$sudo apt-get install -y build-essential cmake ninja-build libexpat1-dev unzip curl \
-  python3-venv python3-pip
-
-# Keep the venv on the Linux filesystem: venvs need symlinks, which /mnt/<drive> may not support.
-venv="${KRUMPIR_VENV:-$HOME/.venvs/krumpir}"
-python3 -m venv "$venv"
-"$venv/bin/pip" install -r "$(dirname "$0")/requirements.txt"
-
-gcc --version | head -1
-cmake --version | head -1
-ninja --version
-"$venv/bin/python" -c "import fmpy; print('fmpy', fmpy.__version__)"
+usage() { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+case ${1:-} in
+  -h | --help) usage 0 ;;
+  "") ;;
+  *) usage ;;
+esac
+exec python3 "$(dirname "$0")/../../tools/kb.py" setup --system

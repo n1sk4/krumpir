@@ -135,7 +135,7 @@ xcpclient --offline --udp --dest-addr 127.0.0.1 --port 5556 --elf <the t12_host 
   --a2l controllers/esp32-t12-controller/docs/t12_host.a2l --elf-unit-filter control_task \
   --default-event tick --embed-aml
 python3 tools/hil/fix_host_a2l.py controllers/esp32-t12-controller/docs/t12_host.a2l
-CONTROLLER=~/build/host-t12-xcp/t12_host XCP_PORT=5556 tools/hil/pc_loop.sh t12 --live
+KRUMPIR_CONTROLLER=~/build/host-t12-xcp/t12_host KRUMPIR_XCP_PORT=5556 tools/hil/pc_loop.sh t12 --live
 ```
 
 - Give each controller its own port (`--xcp`, and the same in the A2L): motor 5555, t12 5556.

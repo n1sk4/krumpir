@@ -59,7 +59,7 @@ if(KRUMPIR_HIL_PC)
     string(REGEX REPLACE "-.*$" "" ctrl ${kind})
     krumpir_add_test(NAME hil_pc_${kind} SKIP_77
       COMMAND bash ${PROJECT_SOURCE_DIR}/../tools/hil/pc_loop.sh ${kind} --check
-      ENV "KRUMPIR=$<TARGET_FILE:krumpir>;CONTROLLER=$<TARGET_FILE:${ctrl}_host>")
+      ENV "KRUMPIR_RUNNER=$<TARGET_FILE:krumpir>;KRUMPIR_CONTROLLER=$<TARGET_FILE:${ctrl}_host>")
     set_tests_properties(hil_pc_${kind} PROPERTIES RESOURCE_LOCK hil_pty)
   endforeach()
   # SIL vs PC loop, signal by signal (tools/hil/compare.py; the report: compare.py without --check)

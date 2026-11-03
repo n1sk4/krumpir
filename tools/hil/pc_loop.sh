@@ -17,12 +17,15 @@
 #             its default setpoint and start, e.g. -- -c "sp 0" --at 0.1 "sp 3000"
 #
 # Logs: runner/runs/<scenario>.csv (the runner) and runner/runs/<scenario>_ctrl.csv (the
-# controller's telemetry). KRUMPIR and CONTROLLER override the programs (default: ~/build/krumpir/
-# krumpir and ~/build/host-<x>/<x>_host, built with cmake -S controllers/<dir>/host); XCP_PORT
-# serves XCP on that port (a build with -DKRUMPIR_XCP=ON). Exits 77 when socat is missing.
+# controller's telemetry). KRUMPIR_RUNNER and KRUMPIR_CONTROLLER override the programs (default:
+# the dev build of tools/kb.py, <build>/runner/krumpir and <build>/runner/host-<x>/<x>_host);
+# KRUMPIR_XCP_PORT serves XCP on that port (a build with -DKRUMPIR_XCP=ON). The older names
+# KRUMPIR, CONTROLLER and XCP_PORT are still read.
+# Exit status: 0 ok, 1 a figure missed (--check), 2 usage or the run faulted, 77 no socat.
 set -euo pipefail
 
-usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+case ${1:-} in -h | --help) usage 0 ;; esac
 [ $# -ge 1 ] || usage
 kind=$1
 shift
@@ -56,8 +59,13 @@ scn=$(basename "$scenario" .toml)
 command -v socat >/dev/null || { echo "pc_loop: socat is not installed (apt install socat)"; exit 77; }
 here=$(cd "$(dirname "$0")" && pwd)
 runner=$(cd "$here/../../runner" && pwd)
-KRUMPIR=${KRUMPIR:-$HOME/build/krumpir/krumpir}
-CONTROLLER=${CONTROLLER:-$HOME/build/host-$ctrl/${ctrl}_host}
+# The build folder as tools/kb.py picks it
+repo=$(cd "$here/../.." && pwd)
+build=${KRUMPIR_BUILD_ROOT:-$([[ $repo == /mnt/* ]] && echo "$HOME/build/krumpir" || echo "$repo/build")}
+build=$build/dev/runner
+runner_bin=${KRUMPIR_RUNNER:-${KRUMPIR:-$build/krumpir}}
+controller_bin=${KRUMPIR_CONTROLLER:-${CONTROLLER:-$build/host-$ctrl/${ctrl}_host}}
+xcp_port=${KRUMPIR_XCP_PORT:-${XCP_PORT:-}}
 
 # The pty pair: the scenarios name /tmp/krumpir-hil/runner, the controller gets the other end
 dir=/tmp/krumpir-hil
@@ -73,12 +81,12 @@ for _ in $(seq 50); do
 done
 
 # shellcheck disable=SC2086 # $mode is two words for --live
-"$CONTROLLER" --device "$dir/controller" $mode ${XCP_PORT:+--xcp $XCP_PORT} --log -c "sp $sp" \
+"$controller_bin" --device "$dir/controller" $mode ${xcp_port:+--xcp $xcp_port} --log -c "sp $sp" \
   -c start "${extra[@]}" </dev/null >"$runner/runs/${scn}_ctrl.csv" 2>"$dir/controller.err" &
 cpid=$!
 cd "$runner"
 rc=0
-"$KRUMPIR" run "$scenario" || rc=$? # 2: the run faulted
+"$runner_bin" run "$scenario" || rc=$? # 2: the run faulted
 sleep 0.2 # the controller writes its last rows on BYE
 cp "$dir/controller.err" "runs/${scn}_ctrl.err" # its trips: "trip: <name> at tick <n>"
 cat "$dir/controller.err" >&2

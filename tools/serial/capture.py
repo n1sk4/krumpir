@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Capture the CSV telemetry of an ESP32 controller console into a file.
 
 Usage:

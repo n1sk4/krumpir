@@ -230,7 +230,9 @@ def cmd_check(a):
     for name, d in controllers().items():
         step(run([py, ROOT / "tools/codegen/gen_controller.py", d, "--check"]) == 0,
              f"codegen --check of {name}")
-    for tool in ("tools/serial/capture.py", "tools/serial/timing_check.py"):
+    for tool in ("tools/serial/capture.py", "tools/serial/timing_check.py",
+                 "tools/hil/check_loop.py", "tools/hil/fix_host_a2l.py",
+                 "libs/plants/tools/merge_fmus.py"):
         step(run([py, ROOT / tool, "--selftest"]) == 0, f"{tool} --selftest")
     if not DRY:  # kb itself (its test runs kb dry)
         step(run([py, ROOT / "tools/test_kb.py"]) == 0, "tools/test_kb.py")
@@ -248,7 +250,7 @@ def cmd_fmus(a):
         sys.exit("kb: the plant FMUs are built on Linux (WSL, the Pi)")
     if a.both_archs:
         return run(["bash", ROOT / "libs/plants/tools/build_fmus.sh", build_dir("plant-fmus")],
-                   env={"PYTHON": python()})
+                   env={"KRUMPIR_PYTHON": python()})
     a.only = "plants"
     return cmd_build(a)
 
@@ -300,7 +302,8 @@ def cmd_loop(a):
     need("socat")
     b = runner_build(a.preset)
     ctrl = a.kind.split("-")[0]
-    env = {"KRUMPIR": str(b / "krumpir"), "CONTROLLER": str(b / f"host-{ctrl}" / f"{ctrl}_host")}
+    env = {"KRUMPIR_RUNNER": str(b / "krumpir"),
+           "KRUMPIR_CONTROLLER": str(b / f"host-{ctrl}" / f"{ctrl}_host")}
     live = ["--live"] if a.live else []
     return run(["bash", ROOT / "tools/hil/pc_loop.sh", a.kind, "--check", *live], env=env)
 

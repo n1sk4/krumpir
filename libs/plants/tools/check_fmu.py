@@ -1,14 +1,16 @@
+#!/usr/bin/env python3
 """Check a plant FMU with FMPy.
 
-Usage: python check_fmu.py <file.fmu>
+    python check_fmu.py <file.fmu>
 
 1. Validates the model description (and buildDescription.xml for FMI 3.0).
 2. Runs the default experiment with the FMU's own binary.
 3. Rebuilds the binary from the FMU's sources/ alone (FMPy's CMake build) and runs it again: the
    result must be the same, which shows the FMU also works as a source FMU on other platforms.
 
-Exit status 0 when all of it passes, otherwise 1.
+Exit status: 0 all of it passes, 1 a check failed, 2 usage.
 """
+import argparse
 import math
 import shutil
 import sys
@@ -30,7 +32,7 @@ def finite(result):
     return True
 
 
-def main(path):
+def check(path):
     problems = validate_fmu(path)
     for p in problems:
         print("problem:", p)
@@ -72,7 +74,11 @@ def main(path):
     return 0
 
 
+def main():
+    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    p.add_argument("fmu", help="the FMU to check")
+    return check(p.parse_args().fmu)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    sys.exit(main(sys.argv[1]))
+    sys.exit(main())

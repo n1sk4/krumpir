@@ -5,8 +5,11 @@ its stderr (<controller.csv minus .csv>.err: "trip: <name> at tick <n>") and the
 
     check_loop.py KIND <controller.csv> <runner.csv> [--rc N]
 
-KIND as pc_loop.sh; --rc is the runner's exit status (2: the run faulted). Exit 0 when every
-figure is met; prints one line per figure."""
+    check_loop.py --selftest
+
+KIND as pc_loop.sh; --rc is the runner's exit status (2: the run faulted). Prints one line per
+figure. Exit status: 0 every figure met, 1 one missed, 2 usage."""
+import argparse
 import csv
 import sys
 from pathlib import Path
@@ -48,10 +51,30 @@ def step_figures(t, x, sp, t0, t1, band):
     return over, settle, abs(sum(tail) / len(tail) - sp)
 
 
+def selftest():
+    # 0 -> 100 at t = 0: up to 110 at 0.2 s, inside +-5 from 0.3 s, then 101
+    t = [i / 10 for i in range(10)]
+    x = [0, 50, 110, 104, 98, 101, 101, 101, 101, 101]
+    over, settle, err = step_figures(t, x, 100, 0, 1.0, 5)
+    assert abs(over - 10) < 1e-9 and abs(settle - 0.2) < 1e-9 and abs(err - 1) < 1e-9
+    print("check_loop: selftest ok")
+
+
 def main():
-    kind, ctrl_path, run_path = sys.argv[1:4]
-    rc = int(sys.argv[sys.argv.index("--rc") + 1]) if "--rc" in sys.argv else 0
-    ctrl, run = rows(ctrl_path), rows(run_path)
+    p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    p.add_argument("kind", nargs="?", help="as pc_loop.sh: motor, t12, t12-open, ...")
+    p.add_argument("ctrl_csv", nargs="?", help="the controller's telemetry")
+    p.add_argument("run_csv", nargs="?", help="the runner's log")
+    p.add_argument("--rc", type=int, default=0, help="the runner's exit status")
+    p.add_argument("--selftest", action="store_true", help="check the step figures and exit")
+    a = p.parse_args()
+    if a.selftest:
+        selftest()
+        return 0
+    if not a.run_csv:
+        p.error("KIND, the controller's CSV and the runner's CSV are needed")
+    kind, ctrl_path, rc = a.kind, a.ctrl_csv, a.rc
+    ctrl, run = rows(ctrl_path), rows(a.run_csv)
     want_rc = 2 if kind == "motor-link" else 0
     print(f"runner exit status {rc} (want {want_rc})")
     checks = [("runner exit status not as wanted", int(rc != want_rc), 0)]
@@ -96,14 +119,14 @@ def main():
         checks += [("steps after the link broke, off by", abs(len(held) - 9), 0),
                    ("duty not held", max(held) - min(held) if held else 1, 0)]
     else:
-        sys.exit(f"unknown kind {kind}")
+        p.error(f"unknown kind {kind}")
     ok = True
     for name, value, limit in checks:
         good = value <= limit
         ok &= good
         print(f"{'ok  ' if good else 'FAIL'} {name}: {value:.3g} (limit {limit:g})")
-    sys.exit(0 if ok else 1)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

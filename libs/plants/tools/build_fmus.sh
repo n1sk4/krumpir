@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
 # Builds and tests the plant FMUs for x86_64-linux and aarch64-linux, and merges them into FMUs
-# that carry both binaries (and the sources):
+# that carry both binaries (and the sources); python3 tools/kb.py fmus --both-archs runs this.
 #
 #   bash libs/plants/tools/build_fmus.sh [BUILD_DIR]     (default ~/build/plant-fmus)
 #
 # Result: BUILD_DIR/fmus/fmi3/*.fmu and BUILD_DIR/fmus/fmi2/*.fmu. Needs cmake, ninja, gcc,
-# gcc-aarch64-linux-gnu and qemu-user; the FMPy checks also need Python with fmpy.
+# gcc-aarch64-linux-gnu and qemu-user. The FMPy checks run with KRUMPIR_PYTHON (or PYTHON;
+# default python3) when it has fmpy. Exit status: 0 ok, 1 a step failed, 2 usage.
 set -euo pipefail
+
+usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+case ${1:-} in
+  -h | --help) usage 0 ;;
+  -*) usage ;;
+esac
+[ $# -le 1 ] || usage
 
 src="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:-$HOME/build/plant-fmus}"
@@ -24,11 +32,11 @@ done
 python3 "$src/tools/merge_fmus.py" "$out/fmus" "$out/x86_64" "$out/aarch64"
 
 # The merged FMUs once more through FMPy (validation, run, rebuild from sources)
-python="${PYTHON:-python3}"
+python="${KRUMPIR_PYTHON:-${PYTHON:-python3}}"
 if "$python" -c "import fmpy" 2>/dev/null; then
   for fmu in "$out"/fmus/fmi*/*.fmu; do
     "$python" "$src/tools/check_fmu.py" "$fmu" >/dev/null && echo "checked $fmu"
   done
 else
-  echo "fmpy not found in $python: merged FMUs not checked (set PYTHON=...)"
+  echo "fmpy not found in $python: merged FMUs not checked (set KRUMPIR_PYTHON=...)"
 fi

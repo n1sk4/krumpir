@@ -147,6 +147,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
   addr_opt.on_enter = [&m, s] { m.connect(s->address); };
   auto addr = Input(&s->address, "host:port", addr_opt);
   auto connect = Button("Connect", [&m, s] { m.connect(s->address); }, ButtonOption::Ascii());
+  auto disconnect = Button("Disconnect", [&m] { m.disconnect(); }, ButtonOption::Ascii());
   auto refresh = Button("Refresh", [&m] { m.refresh_files(); }, ButtonOption::Ascii());
 
   MenuOption menu = MenuOption::Vertical();
@@ -196,7 +197,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
   auto path = Input(&s->path, "path on the runner, e.g. scenarios/dcmotor.toml", path_opt);
 
   auto layout = Container::Vertical({
-      Container::Horizontal({addr, connect, refresh}),
+      Container::Horizontal({addr, connect, disconnect, refresh}),
       Container::Horizontal({files, Container::Tab({form_view, text_view}, &s->view)}),
       path,
   }, &s->row);
@@ -427,7 +428,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
                      flex;
     return vbox({
         hbox({text(" Runner "), addr->Render() | size(WIDTH, EQUAL, 24) | underlined, text(" "),
-              connect->Render(), text(" "), refresh->Render()}),
+              connect->Render(), text(" "), disconnect->Render(), text(" "), refresh->Render()}),
         text(""),
         hbox({files_pane, form_pane}) | flex,
         hbox({text(" Path "), path->Render() | underlined | flex}),

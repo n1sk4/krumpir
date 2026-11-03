@@ -73,6 +73,7 @@ public:
   }
 
   void connect(std::string address);
+  void disconnect(); // closes the link and clears what was shown; a run goes on in the runner
   void refresh_files();
   void describe(std::string path); // a .toml, or an .fmu as its `init` starter scenario
   void load(std::string path); // a .toml as it is, an .fmu as its `init` starter scenario

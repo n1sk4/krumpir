@@ -313,6 +313,25 @@ void Model::connect(std::string address)
   });
 }
 
+void Model::disconnect()
+{
+  post([this] {
+    svc_.close();
+    cap_id_ = -1;
+    cap_from_ = 0;
+    captured_.clear();
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      auto events = std::move(snap_.events);
+      std::string address = std::move(snap_.address);
+      snap_ = Snapshot{};
+      snap_.address = std::move(address);
+      snap_.events = std::move(events);
+    }
+    event("disconnected");
+  });
+}
+
 void Model::refresh_files()
 {
   post([this] {

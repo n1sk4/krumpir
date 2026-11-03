@@ -254,6 +254,18 @@ TEST_CASE("ui root: the runner and the controller pages both have the filter box
   CHECK(has(s, "filter "));
 }
 
+TEST_CASE("ui root: the Load tab of the runner and of a controller both have Connect and Disconnect")
+{
+  Rig r;
+  Screen s = draw(r.root, 130, 36);
+  CHECK(has(s, "Connect"));
+  CHECK(has(s, "Disconnect"));
+  r.root->OnEvent(Event::ArrowDown); // the controller's card
+  s = draw(r.root, 130, 36);
+  CHECK(has(s, "Connect"));
+  CHECK(has(s, "Disconnect"));
+}
+
 TEST_CASE("ui root: the Load tab is not affected by the pane keys")
 {
   Rig r;

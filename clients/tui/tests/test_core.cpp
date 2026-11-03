@@ -201,6 +201,37 @@ static void watch(bool capture)
   CHECK(changes > 0);
 }
 
+TEST_CASE("model: disconnect closes the link and clears what was shown")
+{
+  FakeServer srv([](const json &) -> json {
+    return {{"ok", true},
+            {"state", "IDLE"},
+            {"fault", ""},
+            {"scenarios", {"scenarios/a.toml"}},
+            {"fmus", json::array()}};
+  });
+  krumpir::Model m([] {}, 10ms);
+  auto until = [&](const std::function<bool(const krumpir::Snapshot &)> &cond) {
+    for (int i = 0; i < 300; i++) {
+      if (m.view(cond)) {
+        return true;
+      }
+      std::this_thread::sleep_for(10ms);
+    }
+    return false;
+  };
+  m.connect(srv.address());
+  REQUIRE(until([](const krumpir::Snapshot &v) { return v.connected && !v.scenarios.empty(); }));
+  m.disconnect();
+  REQUIRE(until([](const krumpir::Snapshot &v) { return !v.connected; }));
+  m.view([&](const krumpir::Snapshot &v) {
+    CHECK(v.scenarios.empty());
+    CHECK(v.address == srv.address()); // kept, to connect again
+    CHECK(v.events.back().find("disconnected") != std::string::npos);
+    return 0;
+  });
+}
+
 TEST_CASE("presets: every kind builds the stimulus the service takes")
 {
   using krumpir::preset;

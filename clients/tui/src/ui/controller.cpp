@@ -239,7 +239,16 @@ Component ControllerMonitor(EcuModel &ecu)
       const Element trip = v.trip != 0 ? text("  trip: " + v.trip_name + " (c clears) ") | bold |
                                              color(Color::Red)
                                        : text(v.connected ? "  no trip" : "") | dim;
-      header = hbox({text(" " + Name(v) + " ") | bold, state, trip, Link(v)});
+      const std::size_t polled = v.watched.size() - static_cast<std::size_t>(v.daq_signals);
+      const Element daq =
+          !v.connected || v.watched.empty() ? text("")
+          : v.daq_signals > 0
+              ? text(Format("  DAQ %d @ %.0f/s", v.daq_signals, v.daq_rate) +
+                     (polled > 0 ? Format(", %zu polled", polled) : std::string()) +
+                     Format(", lost %llu", static_cast<unsigned long long>(v.daq_lost))) |
+                    color(v.daq_lost > 0 ? Color(Color::Yellow) : Color(Color::Default))
+              : text(Format("  polled %zu", polled)) | dim;
+      header = hbox({text(" " + Name(v) + " ") | bold, state, trip, Link(v), daq});
       events = EventsPane(v.events);
       return 0;
     });

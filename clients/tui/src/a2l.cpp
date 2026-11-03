@@ -109,6 +109,21 @@ const std::string *keyword(const std::vector<std::string> &a, const char *key)
 
 long long to_int(const std::string &s) { return std::stoll(s, nullptr, 0); }
 
+// The event of IF_DATA XCP / DAQ_EVENT / DEFAULT_EVENT_LIST EVENT n under b, -1 when none.
+int default_event(const Block &b)
+{
+  for (const auto &c : b.children) {
+    if (c.kind == "DEFAULT_EVENT_LIST") {
+      const auto *e = keyword(c.args, "EVENT");
+      return e != nullptr ? static_cast<int>(to_int(*e)) : -1;
+    }
+    if (const int e = default_event(c); e >= 0) {
+      return e;
+    }
+  }
+  return -1;
+}
+
 double to_num(const std::vector<std::string> &a, std::size_t k)
 {
   return k < a.size() ? std::strtod(a[k].c_str(), nullptr) : 0.0;
@@ -195,6 +210,8 @@ A2l parse_a2l(const std::string &text)
       if (const auto *h = keyword(g, "ADDRESS")) {
         a.host = unquote(*h);
       }
+    } else if (b->kind == "EVENT" && g.size() > 2) { // "name" "short name" channel ...
+      a.events[static_cast<int>(to_int(g[2]))] = unquote(g[0]);
     } else if (b->kind == "RECORD_LAYOUT" && g.size() > 3 && kTypes.count(g[3])) {
       layouts[g[0]] = kTypes.at(g[3]);
     } else if (b->kind == "COMPU_VTAB" && g.size() > 3) {
@@ -257,9 +274,9 @@ A2l parse_a2l(const std::string &text)
 
   // ponytail: arrays of structs are not flattened (xcp.py does the same)
   std::function<void(const std::string &, const std::string &, std::uint32_t, std::uint8_t,
-                     std::size_t, int)>
+                     std::size_t, int, int)>
       add = [&](const std::string &name, const std::string &type, std::uint32_t addr,
-                std::uint8_t ext, std::size_t count, int depth) {
+                std::uint8_t ext, std::size_t count, int event, int depth) {
         const auto it = types.find(type);
         if (it == types.end() || depth > 16) {
           return;
@@ -269,10 +286,11 @@ A2l parse_a2l(const std::string &text)
           v.addr = addr;
           v.ext = ext;
           v.count *= count;
+          v.event = event;
           a.symbols[name] = std::move(v);
         } else if (count == 1) {
           for (const auto &c : std::get<std::vector<Component>>(it->second)) {
-            add(name + "." + c.name, c.type, addr + c.offset, ext, c.count, depth + 1);
+            add(name + "." + c.name, c.type, addr + c.offset, ext, c.count, event, depth + 1);
           }
         }
       };
@@ -286,6 +304,7 @@ A2l parse_a2l(const std::string &text)
       const auto *addr = keyword(g, "ECU_ADDRESS");
       s.addr = addr ? static_cast<std::uint32_t>(to_int(*addr)) : 0;
       s.ext = ext;
+      s.event = default_event(*b);
       a.symbols[g[0]] = std::move(s);
     } else if (b->kind == "CHARACTERISTIC" && g.size() > 8 && layouts.count(g[4])) {
       Symbol s = scalar(layouts.at(g[4]), g, 6, 7);
@@ -294,7 +313,7 @@ A2l parse_a2l(const std::string &text)
       s.writable = true;
       a.symbols[g[0]] = std::move(s);
     } else if (b->kind == "INSTANCE" && g.size() > 3) {
-      add(g[0], g[2], static_cast<std::uint32_t>(to_int(g[3])), ext, dims(g), 0);
+      add(g[0], g[2], static_cast<std::uint32_t>(to_int(g[3])), ext, dims(g), default_event(*b), 0);
     }
   }
   return a;

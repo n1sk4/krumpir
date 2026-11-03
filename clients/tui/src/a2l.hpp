@@ -21,6 +21,7 @@ struct Symbol {
   std::string unit;
   double min = 0, max = 0;            // the A2L's limits (both 0: none given)
   std::map<long long, std::string> names; // enum values (COMPU_VTAB), empty when none
+  int event = -1; // the DAQ event it is measured on (DEFAULT_EVENT_LIST), -1: none
 
   std::size_t elem_size() const;
   std::size_t size() const { return elem_size() * count; }
@@ -35,6 +36,9 @@ struct A2l {
   std::uint32_t epk_addr = 0;
   std::string host;
   unsigned port = 5555;
+  std::map<int, std::string> events; // DAQ event channels by number: their names
+
+
 
   const Symbol &at(const std::string &name) const; // throws A2lError
 };

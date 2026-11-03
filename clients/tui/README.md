@@ -123,8 +123,13 @@ against the firmware: an A2L from another build is refused.
   sends the changed ones and refuses those outside the limits. Revert puts the read values back.
   Parameters without a calibration value (e.g. `ramp`) are set on the serial console only.
 - Monitor: signals are the A2L's scalar measurements; the controller's telemetry values are
-  checked at connect. Checked signals are polled every 50 ms, one round trip each (about 10
-  signals at 20 Hz over Wi-Fi), and plotted like the runner's.
+  checked at connect, and plotted like the runner's. A checked signal with a DAQ event in the A2L
+  (all of the controller's, on `tick`) is measured by XCP DAQ: the controller sends it on every
+  event, 1 kHz on `tick`, with its own timestamps, so the plot holds every tick. Each event gets
+  a DAQ list; checking or unchecking a signal sets them up again. Signals without an event are
+  polled every 50 ms, one round trip each. The header shows how many are measured each way, the
+  rate per signal, and DAQ packets lost (counter gaps; yellow when any). If the controller
+  refuses DAQ, everything is polled and the events say why.
 
 The controller takes one XCP master at a time: while the TUI is connected, `xcpclient` and the
 Python `EcuPort` can't connect, and the other way round.

@@ -51,7 +51,10 @@ struct EcuSnapshot {
   std::vector<CalParam> params;
   std::vector<std::string> measurements; // readable scalar names of the A2L, sorted
   std::vector<std::string> monitor;      // the description's default signals
-  std::vector<std::string> watched;      // polled now
+  std::vector<std::string> watched;      // measured now: by DAQ when they have an event, else polled
+  int daq_signals = 0;                   // of them by DAQ (0: DAQ off)
+  double daq_rate = 0;                   // samples per second and signal, recently
+  std::uint64_t daq_lost = 0;            // DAQ packets lost since it started
   std::map<std::string, double> values;  // last values of the watched names
   std::map<std::string, std::deque<Sample>> history; // t: s since connecting
   std::deque<std::string> events;
@@ -62,7 +65,7 @@ struct EcuSnapshot {
 // watched signals every `period`.
 class EcuModel {
 public:
-  static constexpr std::size_t kHistory = 100000;
+  static constexpr std::size_t kHistory = 300000; // 5 min at 1 kHz
   static constexpr std::size_t kEvents = 200;
 
   explicit EcuModel(std::function<void()> on_change,
@@ -91,12 +94,16 @@ private:
   void worker();
   void guarded(const std::function<void()> &job);
   void poll();
+  void restart_daq(); // the watched signals with an event by DAQ (worker thread)
+  void take_daq();    // waits up to period_ for DAQ samples (worker thread)
   void event(const std::string &text);
 
   Ecu ecu_;
   A2l a2l_; // of the opened controller (worker thread only)
   json desc_;
   std::chrono::steady_clock::time_point t0_;
+  std::vector<std::string> daq_names_; // what DAQ measures, in daq_start's order (worker thread)
+  double daq_t0_ = 0;                  // s since t0_ when DAQ started: its samples' time origin
   std::function<void()> on_change_;
   std::chrono::milliseconds period_;
 

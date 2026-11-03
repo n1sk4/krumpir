@@ -109,7 +109,13 @@ void EcuModel::worker()
 {
   std::unique_lock<std::mutex> lock(qmu_);
   while (!quit_) {
-    cv_.wait_for(lock, period_, [this] { return quit_ || !jobs_.empty(); });
+    if (ecu_.daq_running()) { // waits on the socket instead: commands wait up to one period
+      lock.unlock();
+      guarded([this] { take_daq(); });
+      lock.lock();
+    } else {
+      cv_.wait_for(lock, period_, [this] { return quit_ || !jobs_.empty(); });
+    }
     while (!jobs_.empty() && !quit_) {
       auto job = std::move(jobs_.front());
       jobs_.pop_front();
@@ -147,7 +153,11 @@ void EcuModel::poll()
   std::vector<std::string> watched, cals;
   {
     std::lock_guard<std::mutex> lock(mu_);
-    watched = snap_.watched;
+    for (const auto &w : snap_.watched) { // those DAQ measures come in by take_daq
+      if (std::find(daq_names_.begin(), daq_names_.end(), w) == daq_names_.end()) {
+        watched.push_back(w);
+      }
+    }
     for (const auto &p : snap_.params) {
       cals.push_back(p.cal);
     }
@@ -204,6 +214,59 @@ void EcuModel::poll()
   }
 }
 
+void EcuModel::restart_daq()
+{
+  std::vector<std::string> names;
+  std::vector<Symbol> signals;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    for (const auto &w : snap_.watched) {
+      const auto it = a2l_.symbols.find(w);
+      if (it != a2l_.symbols.end() && it->second.event >= 0 && it->second.count == 1) {
+        names.push_back(w);
+        signals.push_back(it->second);
+      }
+    }
+  }
+  ecu_.daq_stop();
+  daq_names_.clear();
+  if (!signals.empty()) {
+    try {
+      ecu_.daq_start(signals);
+      daq_names_ = names;
+      daq_t0_ = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0_).count();
+    } catch (const XcpError &e) {
+      event(std::string("DAQ refused, polling instead: ") + e.what());
+    }
+  }
+  std::lock_guard<std::mutex> lock(mu_);
+  snap_.daq_signals = static_cast<int>(daq_names_.size());
+  snap_.daq_rate = 0;
+  snap_.daq_lost = 0;
+}
+
+void EcuModel::take_daq()
+{
+  const auto start = std::chrono::steady_clock::now();
+  const auto samples = ecu_.daq_take(period_);
+  const double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+  std::lock_guard<std::mutex> lock(mu_);
+  for (const auto &s : samples) {
+    const std::string &name = daq_names_.at(s.signal);
+    snap_.values[name] = s.v;
+    auto &h = snap_.history[name];
+    h.push_back({daq_t0_ + s.t, s.v});
+    if (h.size() > kHistory) {
+      h.pop_front();
+    }
+  }
+  if (dt > 0 && !daq_names_.empty()) {
+    const double rate = static_cast<double>(samples.size()) / daq_names_.size() / dt;
+    snap_.daq_rate += 0.2 * (rate - snap_.daq_rate); // smoothed
+  }
+  snap_.daq_lost = ecu_.daq_lost();
+}
+
 void EcuModel::scan(std::string root)
 {
   post([this, root] {
@@ -231,6 +294,7 @@ void EcuModel::open(std::string dir)
       c = *it;
     }
     ecu_.close();
+    daq_names_.clear();
     desc_ = c.desc;
     a2l_ = A2l{};
     std::string error;
@@ -295,6 +359,7 @@ void EcuModel::connect(std::string address)
       }
     }
     event("connected to " + to + (a2l_.epk.empty() ? "" : ", EPK " + a2l_.epk));
+    restart_daq();
   });
 }
 
@@ -302,9 +367,11 @@ void EcuModel::disconnect()
 {
   post([this] {
     ecu_.close();
+    daq_names_.clear();
     {
       std::lock_guard<std::mutex> lock(mu_);
       snap_.connected = false;
+      snap_.daq_signals = 0;
     }
     event("disconnected");
   });
@@ -359,11 +426,17 @@ void EcuModel::request(std::string command)
 void EcuModel::watch(std::vector<std::string> names)
 {
   post([this, names] {
-    std::lock_guard<std::mutex> lock(mu_);
-    snap_.watched = names;
-    for (auto it = snap_.values.begin(); it != snap_.values.end();) {
-      it = std::find(names.begin(), names.end(), it->first) == names.end() ? snap_.values.erase(it)
-                                                                           : std::next(it);
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      snap_.watched = names;
+      for (auto it = snap_.values.begin(); it != snap_.values.end();) {
+        it = std::find(names.begin(), names.end(), it->first) == names.end()
+                 ? snap_.values.erase(it)
+                 : std::next(it);
+      }
+    }
+    if (ecu_.is_open()) {
+      restart_daq();
     }
   });
 }

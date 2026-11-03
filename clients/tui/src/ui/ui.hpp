@@ -43,6 +43,15 @@ std::string Format(const char *fmt, ...);
 // A value as the lists and the plot show it: up to 6 significant digits; "nan", "inf" or "-inf"
 // when it is not finite, never blank.
 std::string Number(double v);
+// s cut to width characters, ending in "~" when it was longer: the same cut everywhere a name
+// has to fit a column.
+std::string Fit(const std::string &s, int width);
+
+// Shared ways of building the screens
+ftxui::InputOption OneLine(); // a text box that stays on one line
+// For the key handler of a screen with dialogs: while one is open the dialog gets the keys, and
+// Esc closes it. Returns true when the key was Esc.
+bool EscapeCloses(const ftxui::Event &e, const std::function<void()> &close);
 
 // Shared pieces (plot.cpp)
 std::vector<Sample> Thin(const std::deque<Sample> &h); // at most ~4000 points, to draw
@@ -53,5 +62,12 @@ ftxui::Element PlotPane(const std::vector<std::string> &names,
 ftxui::Element EventsPane(const std::deque<std::string> &events);
 constexpr int kEventsRows = 8;    // the height of the events pane, the same on every page
 constexpr int kAddressWidth = 24; // the address box of a Load tab, the same for every target
+constexpr int kFilesWidth = 36;   // the file list of the runner's Load tab
+constexpr int kLabelWidth = 32;   // the widest label column of the Load form
+constexpr int kFormFieldWidth = 24; // a widget of the Load form
+constexpr int kCalFieldWidth = 14;  // a value box of the calibration grid
+constexpr int kNumberBoxWidth = 14; // at least, for a number typed in a dialog
+constexpr int kDialogWidth = 50;    // at least, for a dialog
+constexpr int kWideDialogWidth = 56; // at least, for a dialog with a path to type
 
 } // namespace krumpir::ui

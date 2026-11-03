@@ -245,6 +245,28 @@ TEST_CASE("ui number: six digits, and a word for what is not finite")
   CHECK(Number(-INFINITY) == "-inf");
 }
 
+TEST_CASE("ui fit: a name is cut to the column and ends in ~ when it was longer")
+{
+  using krumpir::ui::Fit;
+  CHECK(Fit("speed", 10) == "speed");
+  CHECK(Fit("speed", 5) == "speed"); // exactly fits
+  CHECK(Fit("speed_rpm", 5) == "spee~");
+  CHECK(Fit("speed_rpm", 1) == "~");
+  CHECK(Fit("speed_rpm", 0) == "");
+}
+
+TEST_CASE("ui dialogs: Esc closes, any other key goes to the dialog")
+{
+  using krumpir::ui::EscapeCloses;
+  int closed = 0;
+  const auto close = [&] { closed++; };
+  CHECK_FALSE(EscapeCloses(Event::Character('a'), close));
+  CHECK_FALSE(EscapeCloses(Event::Return, close));
+  CHECK(closed == 0);
+  CHECK(EscapeCloses(Event::Escape, close));
+  CHECK(closed == 1);
+}
+
 TEST_CASE("ui filter: a substring of the name, any case, empty shows all")
 {
   using krumpir::ui::MatchesFilter;

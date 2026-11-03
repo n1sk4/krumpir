@@ -80,8 +80,7 @@ Component ControllerSetup(EcuModel &ecu)
     }
   };
 
-  InputOption addr_opt;
-  addr_opt.multiline = false;
+  InputOption addr_opt = OneLine();
   addr_opt.on_enter = connect;
   auto addr = Input(&s->address, "host:port", addr_opt);
   auto connect_btn = Button("Connect", connect, ButtonOption::Ascii());
@@ -106,8 +105,7 @@ Component ControllerSetup(EcuModel &ecu)
       if (s->params[i].cal.empty()) {
         continue;
       }
-      InputOption opt;
-      opt.multiline = false;
+      InputOption opt = OneLine();
       opt.on_enter = write;
       opt.cursor_position = &s->cursor[i];
       grid->Add(Input(&s->edit[i], "", opt));
@@ -153,7 +151,7 @@ Component ControllerSetup(EcuModel &ecu)
                  : s->edit[i] != s->base[i] ? color(Color::Yellow)
                                             : nothing);
       }
-      rows.push_back({text(p.name + " ") | bold, field | size(WIDTH, EQUAL, 14),
+      rows.push_back({text(p.name + " ") | bold, field | size(WIDTH, EQUAL, kCalFieldWidth),
                       text(" " + (p.unit.empty() ? "-" : p.unit) + " "),
                       text(Format("%g..%g ", p.min, p.max)) | dim,
                       text(Format("%-10s", Number(p.value).c_str())), text(" " + p.help) | dim});
@@ -231,7 +229,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
         }
         const bool on = std::find(v.watched.begin(), v.watched.end(), name) != v.watched.end();
         const auto val = v.values.find(name);
-        s->rows.push_back(Format("%s %-*.*s %11s", on ? "[x]" : "[ ]", nw, nw, name.c_str(),
+        s->rows.push_back(Format("%s %-*s %11s", on ? "[x]" : "[ ]", nw, Fit(name, nw).c_str(),
                                  val != v.values.end() ? Number(val->second).c_str() : ""));
         s->names.push_back(name);
       }

@@ -47,6 +47,31 @@ std::string Number(double v)
   return std::isinf(v) ? (v < 0 ? "-inf" : "inf") : Format("%.6g", v);
 }
 
+std::string Fit(const std::string &s, int width)
+{
+  if (width <= 0) {
+    return "";
+  }
+  return static_cast<int>(s.size()) > width ? s.substr(0, static_cast<std::size_t>(width) - 1) + "~"
+                                            : s;
+}
+
+InputOption OneLine()
+{
+  InputOption o;
+  o.multiline = false;
+  return o;
+}
+
+bool EscapeCloses(const Event &e, const std::function<void()> &close)
+{
+  if (e != Event::Escape) {
+    return false;
+  }
+  close();
+  return true;
+}
+
 namespace {
 
 Element StatusBar(const Snapshot &v)
@@ -85,10 +110,7 @@ Component Cards(Model &m, const Controllers &ecus, int *selected)
                         ? m.view([](const Snapshot &v) { return v.connected; })
                         : ecus[static_cast<std::size_t>(e.index - 1)].second->view(
                               [](const EcuSnapshot &v) { return v.connected; });
-    const std::string label = static_cast<int>(e.label.size()) > kWidth
-                                  ? e.label.substr(0, kWidth - 1) + "~"
-                                  : e.label;
-    return text(label) | color(up ? Color::Green : Color::GrayDark) |
+    return text(Fit(e.label, kWidth)) | color(up ? Color::Green : Color::GrayDark) |
            (e.active ? bold : nothing) | (e.focused ? inverted : nothing) |
            size(WIDTH, EQUAL, kWidth) | (e.active ? borderHeavy : borderLight);
   };

@@ -5,6 +5,8 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "ui.hpp"
+
 namespace krumpir::ui {
 
 using namespace ftxui;
@@ -60,9 +62,7 @@ bool PaneSplit::on_key(const Event &e)
 
 Component FilterInput(std::string *text)
 {
-  InputOption one_line;
-  one_line.multiline = false;
-  return Input(text, "filter", one_line);
+  return Input(text, "filter", OneLine());
 }
 
 Element FilterRow(const Component &input)

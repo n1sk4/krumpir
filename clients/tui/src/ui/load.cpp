@@ -141,8 +141,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
     s->form.check();
   };
 
-  InputOption one_line;
-  one_line.multiline = false;
+  const InputOption one_line = OneLine();
   auto addr_opt = one_line;
   addr_opt.on_enter = [&m, s] { m.connect(s->address); };
   auto addr = Input(&s->address, "host:port", addr_opt);
@@ -219,8 +218,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
       Component w;
       if (f.kind == Field::Number || f.kind == Field::Integer || f.kind == Field::Text) {
         s->cursors.push_back(static_cast<int>(f.value.size()));
-        InputOption o;
-        o.multiline = false;
+        InputOption o = OneLine();
         o.cursor_position = &s->cursors.back();
         w = Make<RowInput>(Input(&f.value, "", o));
       } else if (f.kind == Field::Choice) {
@@ -325,7 +323,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
         Element label = text(" " + f.label + " ") | (changed ? bold : nothing) |
                         (f.from_fmu && !changed ? dim : nothing) |
                         (named || !f.error.empty() ? color(Color::Red) : nothing) |
-                        size(WIDTH, EQUAL, std::min(label_width, 32));
+                        size(WIDTH, EQUAL, std::min(label_width, kLabelWidth));
         Element widget = text(f.value) | dim;
         if (s->widget_of[i] >= 0) {
           const Component w = grid->ChildAt(static_cast<std::size_t>(s->widget_of[i]));
@@ -342,7 +340,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
             focused_row = static_cast<int>(rows.size());
           }
         }
-        widget = widget | size(WIDTH, EQUAL, 24);
+        widget = widget | size(WIDTH, EQUAL, kFormFieldWidth);
         rows.push_back({label, widget,
                         text(f.unit.empty() ? "" : " " + f.unit + " ") | dim |
                             size(WIDTH, EQUAL, unit_width),
@@ -424,7 +422,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
     }
     auto files_pane = window(text(" Files on the runner "),
                              files->Render() | vscroll_indicator | frame) |
-                      size(WIDTH, EQUAL, 36);
+                      size(WIDTH, EQUAL, kFilesWidth);
     auto form_pane = window(text(title) | (text_view->Focused() ? inverted : nothing),
                             vbox({notes, body | flex})) |
                      flex;
@@ -454,7 +452,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
                   vbox({text("The edits to " + s->path + " are not saved."),
                         text("Discard them and open the other file?"),
                         discard_buttons->Render() | align_right})) |
-           size(WIDTH, GREATER_THAN, 50);
+           size(WIDTH, GREATER_THAN, kDialogWidth);
   });
 
   auto save_buttons = Container::Horizontal(
@@ -471,7 +469,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
                         text("The file is written from the form: its comments and layout are "
                              "not kept.") | dim,
                         save_buttons->Render() | align_right})) |
-           size(WIDTH, GREATER_THAN, 50);
+           size(WIDTH, GREATER_THAN, kDialogWidth);
   });
 
   auto do_save_as = [&m, s, toml] {
@@ -491,7 +489,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
                       vbox({hbox({text("path "), as_path->Render() | underlined | flex}),
                             as_replace->Render(), text("on the runner, in scenarios/") | dim,
                             as_buttons->Render() | align_right})) |
-               size(WIDTH, GREATER_THAN, 56);
+               size(WIDTH, GREATER_THAN, kWideDialogWidth);
       });
 
   auto with_dialogs = Modal(Modal(Modal(view, discard_dialog, &s->ask_discard), save_dialog,
@@ -499,11 +497,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
                             save_as_dialog, &s->ask_save_as);
   return CatchEvent(with_dialogs, [s, files, text_view, close](const Event &e) {
     if (s->ask_discard || s->ask_save || s->ask_save_as) {
-      if (e == Event::Escape) {
-        close();
-        return true;
-      }
-      return false;
+      return EscapeCloses(e, close);
     }
     if (e.is_character()) {
       s->hint.clear();

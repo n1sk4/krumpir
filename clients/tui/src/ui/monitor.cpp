@@ -163,8 +163,9 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
           continue;
         }
         s->shown.push_back(i);
-        s->rows.push_back(Format("%s %-*.*s %-6s %12s", s->checked.count(x.name) ? "[x]" : "[ ]",
-                                 nw, nw, x.name.c_str(), x.kind.c_str(), Number(x.value).c_str()));
+        s->rows.push_back(Format("%s %-*s %-6s %12s", s->checked.count(x.name) ? "[x]" : "[ ]", nw,
+                                 Fit(x.name, nw).c_str(), x.kind.c_str(),
+                                 Number(x.value).c_str()));
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
       s->sel = s->shown.empty() ? Variable{} : v.vars[s->shown[static_cast<std::size_t>(s->selected)]];
@@ -191,8 +192,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
   });
 
   // Write dialog: one value for an input or a tunable parameter
-  InputOption one_line;
-  one_line.multiline = false;
+  const InputOption one_line = OneLine();
   auto value_opt = one_line;
   value_opt.on_enter = apply_write;
   value_opt.cursor_position = &s->value_cursor;
@@ -202,13 +202,14 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
   auto write_dialog = Renderer(Container::Vertical({value, write_buttons}, &s->write_row), [=] {
     return window(text(" Write " + s->target.name + " (" + s->target.kind + ") "),
                   vbox({hbox({text(s->target.name + " = "),
-                              value->Render() | underlined | size(WIDTH, GREATER_THAN, 14)}),
+                              value->Render() | underlined |
+                                  size(WIDTH, GREATER_THAN, kNumberBoxWidth)}),
                         text(s->error) | color(Color::Red),
                         text(s->target.kind == "input" ? "replaces its signal from the next step"
                                                        : "from the next step") |
                             dim,
                         write_buttons->Render() | align_right})) |
-           size(WIDTH, GREATER_THAN, 44);
+           size(WIDTH, GREATER_THAN, kDialogWidth);
   });
 
   // Signal dialog: a preset kind and its numbers
@@ -234,13 +235,14 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     Elements rows{kind->Render(), text("")};
     for (std::size_t i = 0; i < p.fields.size(); i++) {
       rows.push_back(hbox({text(Format("%-11s", p.fields[i])),
-                           fields[i + 1]->Render() | underlined | size(WIDTH, GREATER_THAN, 14)}));
+                           fields[i + 1]->Render() | underlined |
+                               size(WIDTH, GREATER_THAN, kNumberBoxWidth)}));
     }
     rows.push_back(text(s->error) | color(Color::Red));
     rows.push_back(text("starts at the next step, replaces its signal") | dim);
     rows.push_back(signal_buttons->Render() | align_right);
     return window(text(" Signal for " + s->target.name + " "), vbox(std::move(rows))) |
-           size(WIDTH, GREATER_THAN, 50);
+           size(WIDTH, GREATER_THAN, kDialogWidth);
   });
 
   auto with_dialogs =
@@ -248,11 +250,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
   return CatchEvent(with_dialogs, [&m, s, split, filter, open_write, open_signal,
                                    close](const Event &e) {
     if (s->show_write || s->show_signal) { // the dialog gets the keys
-      if (e == Event::Escape) {
-        close();
-        return true;
-      }
-      return false;
+      return EscapeCloses(e, close);
     }
     if (filter->Focused()) {
       return false; // typing

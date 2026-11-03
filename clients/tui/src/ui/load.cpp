@@ -45,6 +45,9 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
     int selected = 0, row = 1;
     int scroll = 0; // first text line shown
     Box text_box;
+    int form_scroll = 0, form_rows = 0; // first form row shown, rows in all
+    int focus_row = -1;                 // the focused field's row when last drawn
+    Box form_box;
 
     Form form;                  // of `path`, from the runner's description
     std::string built_from;     // the description the form was built from
@@ -67,7 +70,8 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
 
   auto describe = [&m, s](const std::string &path) {
     s->path = path;
-    s->scroll = 0;
+    s->scroll = s->form_scroll = 0;
+    s->focus_row = -1;
     s->hint.clear();
     m.describe(path);
   };
@@ -293,11 +297,14 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
     Element body;
     if (s->view == 0) {
       // label | widget | unit | error or hint, a header row per section
+      // Rows scroll by leaving out the first ones, so the column widths are fixed from all
+      // fields (else they would change while scrolling).
       std::vector<Elements> rows;
       std::string section;
-      int label_width = 0;
+      int label_width = 0, unit_width = 0, focused_row = -1;
       for (const auto &f : form.fields) {
         label_width = std::max(label_width, static_cast<int>(f.label.size()) + 2);
+        unit_width = std::max(unit_width, f.unit.empty() ? 0 : static_cast<int>(f.unit.size()) + 2);
       }
       for (std::size_t i = 0; i < form.fields.size(); i++) {
         const Field &f = form.fields[i];
@@ -321,8 +328,7 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
           const Component w = grid->ChildAt(static_cast<std::size_t>(s->widget_of[i]));
           widget = w->Render();
           if (f.kind == Field::Number || f.kind == Field::Integer || f.kind == Field::Text) {
-            widget = widget | underlined |
-                     size(WIDTH, GREATER_THAN, f.kind == Field::Text ? 30 : 14);
+            widget = widget | underlined;
           }
           if (!f.error.empty()) {
             widget = widget | color(Color::Red);
@@ -330,24 +336,63 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
             widget = widget | dim;
           }
           if (w->Focused()) {
-            label = label | focus;
+            focused_row = static_cast<int>(rows.size());
           }
         }
-        rows.push_back({label, widget, text(f.unit.empty() ? "" : " " + f.unit + " ") | dim,
+        widget = widget | size(WIDTH, EQUAL, 24);
+        rows.push_back({label, widget,
+                        text(f.unit.empty() ? "" : " " + f.unit + " ") | dim |
+                            size(WIDTH, EQUAL, unit_width),
                         // the hints give way first when the pane is narrow
                         (f.error.empty() ? text(" " + f.hint) | dim
                                          : text(" " + f.error) | color(Color::Red)) |
                             xflex_shrink});
       }
-      body = vbox({gridbox(std::move(rows)) | yframe | vscroll_indicator | flex, separatorLight(),
-                   buttons->Render()});
+      // Keep the focused field in view when the focus moves; the wheel scrolls freely.
+      const int n = static_cast<int>(rows.size());
+      const int visible = std::max(1, s->form_box.y_max - s->form_box.y_min + 1);
+      if (focused_row >= 0 && focused_row != s->focus_row) {
+        s->focus_row = focused_row;
+        if (focused_row < s->form_scroll + 1) {
+          s->form_scroll = focused_row - 1; // with its section header when that is just above
+        } else if (focused_row >= s->form_scroll + visible) {
+          s->form_scroll = focused_row - visible + 1;
+        }
+      }
+      s->form_scroll = std::clamp(s->form_scroll, 0, std::max(0, n - visible));
+      s->form_rows = n;
+      const std::string where =
+          n > visible ? Format(" rows %d-%d of %d ", s->form_scroll + 1,
+                               std::min(n, s->form_scroll + visible), n)
+                      : std::string();
+      // Only the rows that fit: a focused input would make the frame scroll on its own.
+      rows = std::vector<Elements>(rows.begin() + s->form_scroll,
+                                   rows.begin() + std::min(n, s->form_scroll + visible));
+      // A scroll bar while it does not all fit: the thumb is the part on screen.
+      Element bar = text("");
+      if (n > visible) {
+        const int len = std::max(1, visible * visible / n);
+        const int top = std::min(visible - len, s->form_scroll * visible / n);
+        Elements cells;
+        for (int y = 0; y < visible; y++) {
+          const bool thumb = y >= top && y < top + len;
+          cells.push_back(thumb ? text("┃") | color(Color::Cyan) : text("│") | dim);
+        }
+        bar = vbox(std::move(cells));
+      }
+      body = vbox({hbox({gridbox(std::move(rows)) | yframe | flex | reflect(s->form_box), bar}) |
+                       flex,
+                   separatorLight(), hbox({buttons->Render(), filler(), text(where) | dim})});
     } else {
       // The text: as edited when there are edits, else as the runner described it
       Elements lines;
       if (!form.problem.empty()) {
         lines.push_back(paragraph(form.problem) | color(Color::Red));
       }
-      std::istringstream in(form.dirty() ? form.to_toml() : form.text);
+      const std::string shown = form.dirty() ? form.to_toml() : form.text;
+      s->scroll = std::min(s->scroll, std::max(0, static_cast<int>(std::count(
+                                                      shown.begin(), shown.end(), '\n')) - 1));
+      std::istringstream in(shown);
       std::string line;
       for (int n = 0; std::getline(in, line); n++) {
         if (n >= s->scroll) {
@@ -457,6 +502,19 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
     }
     if (e.is_character()) {
       s->hint.clear();
+    }
+    // The form scrolls with the wheel over it, and a page at a time with PageUp / PageDown.
+    const int page = std::max(1, s->form_box.y_max - s->form_box.y_min);
+    int d = 0;
+    Event ev = e; // mouse() is not const
+    if (s->view == 0 && ev.is_mouse() && s->form_box.Contain(ev.mouse().x, ev.mouse().y)) {
+      d = ev.mouse().button == Mouse::WheelDown ? 3 : ev.mouse().button == Mouse::WheelUp ? -3 : 0;
+    } else if (s->view == 0 && (e == Event::PageDown || e == Event::PageUp)) {
+      d = e == Event::PageDown ? page : -page;
+    }
+    if (d != 0) {
+      s->form_scroll = std::clamp(s->form_scroll + d, 0, std::max(0, s->form_rows - 1));
+      return true;
     }
     if (e == Event::Character('v') && (files->Focused() || text_view->Focused())) {
       s->raw = !s->raw;

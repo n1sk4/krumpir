@@ -14,9 +14,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "cJSON.h"
+#include "loader.h"
 #include "scaffold.h"
 #include "session.h"
 
@@ -237,19 +239,19 @@ static void op_files(cJSON *r)
   add_listing(r, "fmus", "fmus", ".fmu");
 }
 
-/* The text of a scenario file on the server (*.toml only), for a client to show before loading. */
-static int op_text(const cJSON *req, cJSON *r, char *err, size_t errlen)
+/* The text of a .toml file on the server, in a buffer valid until the next call; NULL with a
+ * message in err. */
+static const char *read_toml(const char *op, const char *path, char *err, size_t errlen)
 {
-  const char *path = get_str(req, "path");
   size_t len = path != NULL ? strlen(path) : 0;
   if (len < 5 || strcmp(path + len - 5, ".toml") != 0) {
-    snprintf(err, errlen, "text takes \"path\" of a .toml file");
-    return -1;
+    snprintf(err, errlen, "%s takes \"path\" of a .toml file", op);
+    return NULL;
   }
   FILE *f = fopen(path, "rb");
   if (f == NULL) {
     snprintf(err, errlen, "cannot open %s: %s", path, strerror(errno));
-    return -1;
+    return NULL;
   }
   static char buf[1u << 16]; /* ponytail: one request at a time; scenarios are a few kB */
   size_t n = fread(buf, 1, sizeof buf - 1, f);
@@ -257,10 +259,258 @@ static int op_text(const cJSON *req, cJSON *r, char *err, size_t errlen)
   fclose(f);
   if (more) {
     snprintf(err, errlen, "%s is larger than %u bytes", path, (unsigned)sizeof buf - 1);
-    return -1;
+    return NULL;
   }
   buf[n] = '\0';
-  cJSON_AddStringToObject(r, "text", buf);
+  return buf;
+}
+
+/* The text of a scenario file on the server (*.toml only), for a client to show before loading. */
+static int op_text(const cJSON *req, cJSON *r, char *err, size_t errlen)
+{
+  const char *text = read_toml("text", get_str(req, "path"), err, errlen);
+  if (text == NULL) {
+    return -1;
+  }
+  cJSON_AddStringToObject(r, "text", text);
+  return 0;
+}
+
+/* The starter scenario of an FMU (krumpir init) as malloc'd text; NULL with a message in err. */
+static char *starter(const char *fmu, char *err, size_t errlen)
+{
+  char *text = NULL;
+  size_t len = 0;
+  FILE *mem = open_memstream(&text, &len);
+  if (mem == NULL) {
+    snprintf(err, errlen, "out of memory");
+    return NULL;
+  }
+  int rc = scaffold_scenario(mem, fmu, err, errlen);
+  fclose(mem);
+  if (rc < 0) {
+    free(text);
+    return NULL;
+  }
+  return text;
+}
+
+static void add_variables(cJSON *r, const modeldesc_t *md)
+{
+  cJSON *arr = cJSON_AddArrayToObject(r, "variables");
+  for (size_t i = 0; i < md->n_vars; i++) {
+    const mvar_t *v = &md->vars[i];
+    cJSON *o = cJSON_CreateObject();
+    cJSON_AddStringToObject(o, "name", v->name);
+    cJSON_AddNumberToObject(o, "vr", v->vr);
+    cJSON_AddStringToObject(o, "type", v->type);
+    cJSON_AddStringToObject(o, "causality", v->causality_str);
+    cJSON_AddBoolToObject(o, "tunable", v->tunable);
+    cJSON_AddStringToObject(o, "unit", v->unit);
+    cJSON_AddStringToObject(o, "start", v->start);
+    cJSON_AddStringToObject(o, "description", v->description);
+    cJSON_AddItemToArray(arr, o);
+  }
+}
+
+static cJSON *number_or_null(double v)
+{
+  return isfinite(v) ? cJSON_CreateNumber(v) : cJSON_CreateNull();
+}
+
+/* One io.stimulus entry with the keys the scenario file and the signal op use. */
+static cJSON *stimulus_json(const stimulus_t *st)
+{
+  static const char *const seg_kinds[] = {"const", "ramp", "sine", "pulse", "idle", "data"};
+  cJSON *o = cJSON_CreateObject();
+  cJSON_AddStringToObject(o, "input", st->input);
+  switch (st->kind) {
+  case STIM_CONSTANT:
+    cJSON_AddStringToObject(o, "kind", "constant");
+    cJSON_AddNumberToObject(o, "value", st->value);
+    break;
+  case STIM_STEP:
+    cJSON_AddStringToObject(o, "kind", "step");
+    cJSON_AddNumberToObject(o, "t", st->t);
+    cJSON_AddNumberToObject(o, "from", st->from);
+    cJSON_AddNumberToObject(o, "to", st->to);
+    break;
+  case STIM_SINE:
+    cJSON_AddStringToObject(o, "kind", "sine");
+    cJSON_AddNumberToObject(o, "offset", st->offset);
+    cJSON_AddNumberToObject(o, "amplitude", st->amplitude);
+    cJSON_AddNumberToObject(o, "freq_hz", st->freq_hz);
+    break;
+  case STIM_SEGMENTS: {
+    cJSON *arr = cJSON_AddArrayToObject(o, "segments");
+    for (size_t i = 0; i < st->n_segs; i++) {
+      const segment_t *g = &st->segs[i];
+      cJSON *e = cJSON_CreateObject();
+      cJSON_AddStringToObject(e, "kind", seg_kinds[g->kind]);
+      if (isfinite(g->duration)) { /* absent: to the end, or the data file's length */
+        cJSON_AddNumberToObject(e, "duration", g->duration);
+      }
+      if (g->kind == SEG_CONST) {
+        cJSON_AddNumberToObject(e, "value", g->value);
+      } else if (g->kind == SEG_RAMP) {
+        if (g->has_from) {
+          cJSON_AddNumberToObject(e, "from", g->from);
+        }
+        cJSON_AddNumberToObject(e, "to", g->to);
+      } else if (g->kind == SEG_SINE) {
+        cJSON_AddNumberToObject(e, "offset", g->offset);
+        cJSON_AddNumberToObject(e, "amplitude", g->amplitude);
+        cJSON_AddNumberToObject(e, "freq_hz", g->freq_hz);
+        cJSON_AddNumberToObject(e, "phase", g->phase);
+      } else if (g->kind == SEG_PULSE) {
+        cJSON_AddNumberToObject(e, "low", g->low);
+        cJSON_AddNumberToObject(e, "high", g->high);
+        cJSON_AddNumberToObject(e, "period", g->period);
+        cJSON_AddNumberToObject(e, "duty", g->duty);
+      } else if (g->kind == SEG_DATA) {
+        cJSON_AddStringToObject(e, "file", g->file);
+        cJSON_AddStringToObject(e, "interpolation", g->step_interp ? "step" : "linear");
+      }
+      cJSON_AddItemToArray(arr, e);
+    }
+    cJSON_AddNumberToObject(o, "loops", st->loops);
+    break;
+  }
+  }
+  return o;
+}
+
+static void add_names(cJSON *o, const char *key, const char (*names)[CFG_MAX_NAME], size_t n)
+{
+  cJSON *arr = cJSON_AddArrayToObject(o, key);
+  for (size_t i = 0; i < n; i++) {
+    cJSON_AddItemToArray(arr, cJSON_CreateString(names[i]));
+  }
+}
+
+/* The scenario as JSON, every key present (defaults filled in; null for "not set"). */
+static cJSON *scenario_json(const scenario_t *sc)
+{
+  static const char *const waits[] = {"none", "sleep", "busy"};
+  cJSON *j = cJSON_CreateObject();
+  cJSON *m = cJSON_AddObjectToObject(j, "model");
+  cJSON_AddStringToObject(m, "fmu", sc->fmu);
+  cJSON_AddNumberToObject(m, "step", sc->step);
+  cJSON_AddItemToObject(m, "duration", number_or_null(sc->duration));
+  cJSON *p = cJSON_AddObjectToObject(m, "params");
+  for (size_t i = 0; i < sc->n_params; i++) {
+    cJSON_AddNumberToObject(p, sc->params[i].name, sc->params[i].value);
+  }
+  cJSON *rt = cJSON_AddObjectToObject(j, "rt");
+  cJSON_AddStringToObject(rt, "wait", waits[sc->wait]);
+  cJSON_AddNumberToObject(rt, "max_overruns", sc->max_overruns);
+  cJSON_AddItemToObject(rt, "cpu", sc->cpu >= 0 ? cJSON_CreateNumber(sc->cpu) : cJSON_CreateNull());
+  cJSON_AddItemToObject(rt, "priority",
+                        sc->priority >= 0 ? cJSON_CreateNumber(sc->priority) : cJSON_CreateNull());
+  cJSON *io = cJSON_AddObjectToObject(j, "io");
+  cJSON_AddStringToObject(io, "backend", sc->backend);
+  add_names(io, "inputs", sc->inputs, sc->n_inputs);
+  add_names(io, "outputs", sc->outputs, sc->n_outputs);
+  cJSON *stim = cJSON_AddArrayToObject(io, "stimulus");
+  for (size_t i = 0; i < sc->n_stimuli; i++) {
+    cJSON_AddItemToArray(stim, stimulus_json(&sc->stimuli[i]));
+  }
+  cJSON_AddStringToObject(cJSON_AddObjectToObject(j, "log"), "file", sc->log_file);
+  return j;
+}
+
+/* A scenario file, scenario text or an FMU's starter scenario as the text, the scenario as JSON
+ * and its FMU's variables, for a client to edit before loading. What cannot be read goes into
+ * "problem" (the reply is still ok, with what could be read). */
+static int op_describe(const cJSON *req, cJSON *r, char *err, size_t errlen)
+{
+  static scenario_t sc; /* ponytail: one request at a time */
+  const char *path = get_str(req, "scenario"), *text = get_str(req, "toml"),
+             *fmu = get_str(req, "fmu");
+  if ((path != NULL) + (text != NULL) + (fmu != NULL) != 1) {
+    snprintf(err, errlen,
+             "describe takes \"scenario\" (a path on the server), \"toml\" (the text) or \"fmu\" "
+             "(a path on the server: its starter scenario)");
+    return -1;
+  }
+  char *owned = NULL;
+  if (path != NULL && (text = read_toml("describe", path, err, errlen)) == NULL) {
+    return -1;
+  }
+  if (fmu != NULL && (text = owned = starter(fmu, err, errlen)) == NULL) {
+    return -1;
+  }
+  cJSON_AddStringToObject(r, "text", text);
+  char problem[400];
+  int rc = config_parse(text, &sc, problem, sizeof problem);
+  free(owned);
+  if (rc < 0) {
+    cJSON_AddStringToObject(r, "problem", problem);
+    return 0;
+  }
+  cJSON_AddItemToObject(r, "scenario", scenario_json(&sc));
+  fmu_pkg_t pkg = {0};
+  if (fmu_open(sc.fmu, &pkg, problem, sizeof problem) < 0) {
+    cJSON_AddStringToObject(r, "problem", problem);
+  } else {
+    add_variables(r, &pkg.md);
+  }
+  fmu_close(&pkg);
+  return 0;
+}
+
+/* Parses the text and checks it against its FMU as loading would, without loading. */
+static int check_text(const char *text, char *err, size_t errlen)
+{
+  static scenario_t sc; /* ponytail: one request at a time */
+  char perr[400];
+  if (config_parse(text, &sc, perr, sizeof perr) < 0) {
+    snprintf(err, errlen, "scenario: %s", perr);
+    return -1;
+  }
+  return scenario_check(&sc, err, errlen);
+}
+
+static int op_check(const cJSON *req, char *err, size_t errlen)
+{
+  const char *text = get_str(req, "toml");
+  if (text == NULL) {
+    snprintf(err, errlen, "check takes \"toml\" (the scenario text)");
+    return -1;
+  }
+  return check_text(text, err, errlen);
+}
+
+/* Writes a checked scenario to scenarios/<name>.toml: through a temp file and a rename, so a
+ * reader never sees half a file. */
+static int op_save(const cJSON *req, char *err, size_t errlen)
+{
+  const char *path = get_str(req, "path"), *text = get_str(req, "toml");
+  const char *name = path != NULL && strncmp(path, "scenarios/", 10) == 0 ? path + 10 : "";
+  size_t n = strlen(name);
+  if (text == NULL || n < 6 || n > 100 || strcmp(name + n - 5, ".toml") != 0 || name[0] == '.' ||
+      strpbrk(name, "/\\") != NULL) {
+    snprintf(err, errlen, "save takes \"path\": scenarios/<name>.toml and \"toml\": the text");
+    return -1;
+  }
+  if (check_text(text, err, errlen) < 0) {
+    return -1;
+  }
+  if (!cJSON_IsTrue(item(req, "overwrite")) && access(path, F_OK) == 0) {
+    snprintf(err, errlen, "%s exists (\"overwrite\": true replaces it)", path);
+    return -1;
+  }
+  mkdir("scenarios", 0777); /* fails harmlessly when it exists */
+  char tmp[128];
+  snprintf(tmp, sizeof tmp, "%s.tmp", path);
+  FILE *f = fopen(tmp, "wb");
+  bool ok = f != NULL && fputs(text, f) >= 0;
+  ok = f != NULL && fclose(f) == 0 && ok;
+  if (!ok || rename(tmp, path) < 0) {
+    snprintf(err, errlen, "cannot write %s: %s", path, strerror(errno));
+    remove(tmp);
+    return -1;
+  }
   return 0;
 }
 
@@ -293,20 +543,13 @@ static int op_init(const cJSON *req, cJSON *r, char *err, size_t errlen)
     snprintf(err, errlen, "init takes \"fmu\" (a path on the server)");
     return -1;
   }
-  char *text = NULL;
-  size_t len = 0;
-  FILE *mem = open_memstream(&text, &len);
-  if (mem == NULL) {
-    snprintf(err, errlen, "out of memory");
+  char *text = starter(fmu, err, errlen);
+  if (text == NULL) {
     return -1;
   }
-  int rc = scaffold_scenario(mem, fmu, err, errlen);
-  fclose(mem);
-  if (rc == 0) {
-    cJSON_AddStringToObject(r, "toml", text);
-  }
+  cJSON_AddStringToObject(r, "toml", text);
   free(text);
-  return rc;
+  return 0;
 }
 
 static int op_variables(session_t *s, cJSON *r, char *err, size_t errlen)
@@ -316,17 +559,7 @@ static int op_variables(session_t *s, cJSON *r, char *err, size_t errlen)
     snprintf(err, errlen, "no scenario loaded");
     return -1;
   }
-  cJSON *arr = cJSON_AddArrayToObject(r, "variables");
-  for (size_t i = 0; i < md->n_vars; i++) {
-    const mvar_t *v = &md->vars[i];
-    cJSON *o = cJSON_CreateObject();
-    cJSON_AddStringToObject(o, "name", v->name);
-    cJSON_AddNumberToObject(o, "vr", v->vr);
-    cJSON_AddStringToObject(o, "type", v->type);
-    cJSON_AddStringToObject(o, "causality", v->causality_str);
-    cJSON_AddBoolToObject(o, "tunable", v->tunable);
-    cJSON_AddItemToArray(arr, o);
-  }
+  add_variables(r, md);
   return 0;
 }
 
@@ -546,6 +779,15 @@ static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, sb
   }
   if (strcmp(op, "init") == 0) {
     return op_init(req, r, err, errlen);
+  }
+  if (strcmp(op, "describe") == 0) {
+    return op_describe(req, r, err, errlen);
+  }
+  if (strcmp(op, "check") == 0) {
+    return op_check(req, err, errlen);
+  }
+  if (strcmp(op, "save") == 0) {
+    return op_save(req, err, errlen);
   }
   if (strcmp(op, "start") == 0) {
     if (session_start(s, err, errlen) < 0) {

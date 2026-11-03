@@ -23,7 +23,7 @@ using Controllers = std::vector<std::pair<std::string, EcuModel *>>;
 // card picked is the same in both.
 ftxui::Component Root(Model &m, Controllers ecus, std::string address, std::function<void()> quit);
 
-// F1: connect, pick a scenario or FMU on the runner, preview it, load it.
+// F1: connect, pick a scenario or FMU on the runner, edit it as a form, check, save, load it.
 ftxui::Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded);
 
 // F2: run state and controls, live variables, plot of the selected one, events.

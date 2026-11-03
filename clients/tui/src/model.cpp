@@ -322,43 +322,96 @@ void Model::refresh_files()
   });
 }
 
-void Model::preview(std::string path)
+void Model::describe(std::string path)
 {
   post([this, path] {
-    std::string text;
+    json reply;
     try {
-      text = ends_with(path, ".fmu") ? str(svc_.call("init", {{"fmu", path}}), "toml")
-                                     : str(svc_.call("text", {{"path", path}}), "text");
+      reply = svc_.call("describe", {{ends_with(path, ".fmu") ? "fmu" : "scenario", path}});
     } catch (const ServiceError &e) {
-      text = std::string("# ") + e.what();
+      reply = {{"text", ""}, {"problem", e.what()}};
     }
     std::lock_guard<std::mutex> lock(mu_);
-    snap_.preview_path = path;
-    snap_.preview = text;
+    snap_.described_path = path;
+    snap_.described = std::move(reply);
+    snap_.note.clear();
   });
+}
+
+void Model::note(const std::string &text, bool ok)
+{
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    snap_.note = text;
+    snap_.note_ok = ok;
+  }
+  event(text);
+}
+
+// args: what `load` takes. A refusal is the form's note as well as an event.
+void Model::do_load(const std::string &label, const json &args)
+{
+  if (str(svc_.call("state"), "state") != "IDLE") {
+    svc_.call("unload");
+    event("unloaded the previous run");
+  }
+  try {
+    svc_.call("load", args);
+  } catch (const ServiceError &e) {
+    note(std::string("not loaded: ") + e.what(), false);
+    return;
+  }
+  cap_id_ = -1;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    snap_.loaded = label;
+    snap_.vars.clear();
+    snap_.history.clear();
+  }
+  note("loaded " + label, true);
 }
 
 void Model::load(std::string path)
 {
   post([this, path] {
-    if (str(svc_.call("state"), "state") != "IDLE") {
-      svc_.call("unload");
-      event("unloaded the previous run");
-    }
     if (ends_with(path, ".fmu")) {
-      const std::string toml = str(svc_.call("init", {{"fmu", path}}), "toml");
-      svc_.call("load", {{"toml", toml}});
+      do_load(path, {{"toml", str(svc_.call("init", {{"fmu", path}}), "toml")}});
     } else {
-      svc_.call("load", {{"scenario", path}});
+      do_load(path, {{"scenario", path}});
     }
-    cap_id_ = -1;
-    {
-      std::lock_guard<std::mutex> lock(mu_);
-      snap_.loaded = path;
-      snap_.vars.clear();
-      snap_.history.clear();
+  });
+}
+
+void Model::load_text(std::string label, std::string toml)
+{
+  post([this, label, toml] { do_load(label + " (edited)", {{"toml", toml}}); });
+}
+
+void Model::check(std::string toml)
+{
+  post([this, toml] {
+    try {
+      svc_.call("check", {{"toml", toml}});
+      note("check: ok, the runner takes it", true);
+    } catch (const ServiceError &e) {
+      note(std::string("check: ") + e.what(), false);
     }
-    event("loaded " + path);
+  });
+}
+
+void Model::save(std::string path, std::string toml, bool overwrite)
+{
+  post([this, path, toml, overwrite] {
+    try {
+      svc_.call("save", {{"path", path}, {"toml", toml}, {"overwrite", overwrite}});
+    } catch (const ServiceError &e) {
+      note(std::string("not saved: ") + e.what(), false);
+      return;
+    }
+    note("saved " + path, true);
+    const json files = svc_.call("files");
+    std::lock_guard<std::mutex> lock(mu_);
+    snap_.scenarios = files.at("scenarios").get<std::vector<std::string>>();
   });
 }
 

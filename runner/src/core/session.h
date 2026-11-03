@@ -61,6 +61,11 @@ void session_unload(session_t *s, session_summary_t *out);
  * the session is IDLE). */
 int session_reset(session_t *s, session_summary_t *out, char *err, size_t errlen);
 
+/* What session_load checks before it starts anything, without a session: opens the FMU, maps the
+ * scenario's names onto it and builds each stimulus's signal (reading its data files), then frees
+ * it all. No I/O backend, no log file, no instance. Returns 0, or -1 with a message in err. */
+int scenario_check(const scenario_t *sc, char *err, size_t errlen);
+
 lifecycle_t session_state(session_t *s);
 /* The run's counters so far (steps, overruns, max_wake_ns, max_step_ns, state), also while it
  * runs; the other fields stay 0. */

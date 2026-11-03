@@ -33,7 +33,10 @@ has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
 | `info` | | `protocol` (1), `state`, `fault` | |
 | `load` | `scenario`: path on the server, or `toml`: the scenario text | `state` | `LoadConfiguration`, `Configure` |
 | `init` | `fmu`: path on the server | `toml`: a starter scenario for it, as `krumpir init` prints it | |
-| `variables` | | `variables`: `[{name, vr, type, causality, tunable}]` | `GetVariableNames`, `GetVariableInfo` |
+| `variables` | | `variables`: `[{name, vr, type, causality, tunable, unit, start, description}]` (the last three `""` when the FMU leaves them out) | `GetVariableNames`, `GetVariableInfo` |
+| `describe` | `scenario`: path on the server, `toml`: the text, or `fmu`: path on the server (its starter scenario) | `text`, `scenario` (as JSON), `variables` of its FMU, `problem` | |
+| `check` | `toml`: the scenario text | | |
+| `save` | `path`: `scenarios/<name>.toml`, `toml`: the text, `overwrite` (default false) | | |
 | `start` | | `state` | `StartSimulation` |
 | `stop` | | `state` | `StopSimulation` |
 | `state` | | `state`, `fault`; once loaded also `fmu`, `step`, `duration` (when set), `t`, `steps`, `overruns`, `max_step_ns`, `max_wake_ns` of the run so far | `State` |
@@ -63,6 +66,22 @@ it. Refused in any other state. If the reload fails, the session is `IDLE`.
 **load**: the scenario format is [scenario-reference.md](scenario-reference.md). Leave out
 `model.duration` to run until `stop`. Paths in the scenario are on the server, relative to the
 directory the service was started in.
+
+**describe** lets a client show a scenario as a form without a TOML parser and without loading.
+`scenario` has every key, defaults filled in: `model` (`fmu`, `step`, `duration`: null when the
+run goes until stopped, `params`: `{name: number}`), `rt` (`wait`, `max_overruns`, `cpu` and
+`priority`: null when not set), `io` (`backend`, `inputs`, `outputs`, `stimulus`: entries as the
+`signal` op takes them) and `log` (`file`). `variables` are those of the FMU it names, as
+`variables` gives them. When the text is not a valid scenario the reply has `text` and `problem`
+(why) only; when the FMU cannot be opened it has `scenario` and `problem`. Allowed in any state.
+
+**check** parses the text and checks it against its FMU as `load` would (variable names, types and
+causalities, the stimuli's data files) without loading anything: no instance, no log file.
+Allowed in any state, also while a run goes on.
+
+**save** writes the text to `scenarios/<name>.toml` (no other folder, no `..`, no leading dot),
+after the same check as `check`. An existing file is refused unless `overwrite` is true. The file
+is written to `<path>.tmp` and renamed, so a reader never sees half of it.
 
 **read** and **write** follow the session's rules: any Float64 variable can be read; only the
 scenario's inputs and tunable parameters can be written. While running, each takes effect at the

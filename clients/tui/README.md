@@ -47,7 +47,9 @@ krumpir-tui --repo ~/krumpir                          # where controllers/ is (d
 | F1 / F2 | Load / Monitor tab (or click the tab) |
 | up / down | on the cards: the runner or a controller (the same on both tabs) |
 | Tab, arrows | move between the cards, fields and lists |
-| Enter | on a file or the path: load it |
+| Enter | on a file: load it (as edited); in the path: open that file |
+| up / down | (Load, the form) the next or previous field; space ticks a box, Enter opens a list |
+| v | (Load) the form or the scenario text, on the file list or the text |
 | s / x / u | (Monitor) start / stop / unload; `s` on a stopped run resets it and starts again |
 | r | (Monitor) reset a stopped or faulted run: the same scenario again from t = 0 |
 | up / down | (Monitor) the variable to plot |
@@ -64,9 +66,27 @@ Both tabs have a card per target on the left: the runner, then each controller o
 card's name is green while its link is up. Each controller has its own link, so several can be
 connected at once.
 
-**Load** (runner) lists `scenarios/*.toml` and `fmus/*.fmu` on the runner and shows the selected file:
-a scenario as written, an FMU as the starter scenario `krumpir init` makes for it. Loading an
-FMU loads that starter. A run that is still loaded is unloaded first.
+**Load** (runner) lists `scenarios/*.toml` and `fmus/*.fmu` on the runner and shows the selected
+file as a form to edit before loading: a scenario as written, an FMU as the starter scenario
+`krumpir init` makes for it. One row per value, in the scenario's sections: name, field, unit, and
+the FMU's description or what is wrong with the value.
+
+- Numbers and text are typed, choices (FMU, `wait`, a stimulus kind) are lists, switches are
+  boxes: run until stopped, pin to a cpu, SCHED_FIFO, and each FMU input and output to use. A
+  value that depends on a switch shows while the switch is on (duration, cpu, priority, an
+  input's stimulus and its numbers).
+- Every Float64 parameter of the FMU is listed; one the scenario does not set shows the FMU's
+  start value, dimmed, and is written only once changed. Other types are shown, not editable.
+- Each field is checked as you type (a number, its range, a whole number of steps, at most 16
+  parameters, inputs and outputs); a changed value is bold, a wrong one red. Segment stimuli
+  are kept as written; pick another kind to replace one.
+- **Check** asks the runner to check the form against the FMU as loading would, without loading;
+  what it says shows above the form (a field it names turns red). **Load** loads the form (the
+  file as it is when unchanged); a run that is still loaded is unloaded first. **Save** writes
+  the form over the scenario file, **Save as** to another `scenarios/<name>.toml` on the runner;
+  the file is written from the form, so its comments and layout are not kept. **Revert** puts
+  the values back, **Text** shows the scenario as text (as edited).
+- Opening another file with unsaved edits asks first.
 
 **Monitor** (runner) shows the run's state, time, overruns and worst step and wake-up times, the Float64
 inputs, outputs and tunable parameters with their values, a plot of the selected one, and the

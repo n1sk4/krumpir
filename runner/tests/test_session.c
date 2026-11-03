@@ -315,6 +315,27 @@ static void test_failed_load(void)
   fprintf(stderr, "failed load: ok\n");
 }
 
+/* scenario_check: each failure kind, and no log file is made (leaks show under ASan). */
+static void test_check(void)
+{
+  scenario_t sc;
+  char err[256];
+  remove(logp);
+  scenario(&sc, "none", "0.1");
+  assert(scenario_check(&sc, err, sizeof err) == 0);
+  assert(access(logp, F_OK) != 0);
+  snprintf(sc.outputs[0], sizeof sc.outputs[0], "nope");
+  assert(scenario_check(&sc, err, sizeof err) == -1 && strstr(err, "'nope'") != NULL);
+  scenario(&sc, "none", "0.1");
+  sc.stimuli[0].kind = STIM_SEGMENTS;
+  sc.stimuli[0].n_segs = 1;
+  sc.stimuli[0].segs[0] = (segment_t){.kind = SEG_DATA, .duration = NAN, .file = "/nope.csv"};
+  assert(scenario_check(&sc, err, sizeof err) == -1 && strstr(err, "data file") != NULL);
+  snprintf(sc.fmu, sizeof sc.fmu, "%s/missing.fmu", KRUMPIR_FMU_DIR);
+  assert(scenario_check(&sc, err, sizeof err) == -1);
+  fprintf(stderr, "check: ok\n");
+}
+
 int main(void)
 {
   char fmu[300];
@@ -328,6 +349,7 @@ int main(void)
   test_signals();
   test_captures();
   test_failed_load();
+  test_check();
   remove(logp);
   return 0;
 }

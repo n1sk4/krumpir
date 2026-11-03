@@ -31,7 +31,12 @@ struct Snapshot {
   bool connected = false;
   bool busy = false; // a command is on its way
   std::vector<std::string> scenarios, fmus;
-  std::string preview_path, preview;
+  // The runner's `describe` reply for described_path (a scenario, or an FMU's starter)
+  std::string described_path;
+  json described;
+  // The last check, save or load of the form: what the runner said ("" none yet)
+  std::string note;
+  bool note_ok = false;
 
   // The service's session ("" until the first reply)
   std::string state, fault, fmu;
@@ -68,8 +73,11 @@ public:
 
   void connect(std::string address);
   void refresh_files();
-  void preview(std::string path);
+  void describe(std::string path); // a .toml, or an .fmu as its `init` starter scenario
   void load(std::string path); // a .toml as it is, an .fmu as its `init` starter scenario
+  void load_text(std::string label, std::string toml); // an edited scenario; label: its file
+  void check(std::string toml);                        // against the FMU, without loading
+  void save(std::string path, std::string toml, bool overwrite); // scenarios/<name>.toml
   void start(); // on a STOPPED or FAULT run: resets first, so it runs again from t = 0
   void stop();
   void reset(); // STOPPED or FAULT -> INITIALIZED: the same scenario again
@@ -87,6 +95,8 @@ private:
   void add_sample(const std::string &name, double t, double v); // caller holds mu_
   void do_reset(); // worker thread
   void event(const std::string &text); // takes the lock
+  void note(const std::string &text, bool ok); // the form's note and an event (takes the lock)
+  void do_load(const std::string &label, const json &args); // worker thread
 
   Service svc_;
   int cap_id_ = -1;           // the capture armed at start, -1: none (worker thread only)

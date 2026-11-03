@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 IN, OUT = "Float64_continuous_input", "Float64_continuous_output"
@@ -90,9 +91,59 @@ file = "{log}"
         assert c.call("load", toml=starter)["state"] == "INITIALIZED"
         c.call("unload")
 
+        # describe: text, the scenario as JSON with defaults, the FMU's variables
+        d = c.call("describe", scenario="scenarios/feedthrough.toml")
+        assert "[model]" in d["text"] and "problem" not in d, d
+        sc = d["scenario"]
+        assert sc["rt"]["cpu"] is None and sc["rt"]["priority"] is None, sc
+        assert sc["io"]["backend"] == "null" and isinstance(sc["model"]["params"], dict), sc
+        v = {x["name"]: x for x in d["variables"]}
+        assert {"unit", "start", "description"} <= v[IN].keys(), v[IN]
+        d = c.call("describe", fmu=str(fmu))
+        assert d["scenario"]["model"]["fmu"] == str(fmu) and d["variables"], d
+        d = c.call("describe", toml="[model]\n")
+        assert "missing" in d["problem"] and "scenario" not in d and d["text"] == "[model]\n", d
+        d = c.call("describe", toml=scenario.replace(str(fmu), "/nonexistent.fmu"))
+        assert "cannot open" in d["problem"] and "scenario" in d and "variables" not in d, d
+        seg = scenario.replace('kind = "constant", value = 1.0',
+                               'loops = 2, segments = [{ kind = "ramp", to = 2, duration = 0.5 }, '
+                               '{ kind = "const", value = 1, duration = 1 }]')
+        st = c.call("describe", toml=seg)["scenario"]["io"]["stimulus"][0]
+        assert st == {"input": IN, "loops": 2, "segments": [
+            {"kind": "ramp", "duration": 0.5, "to": 2}, {"kind": "const", "duration": 1, "value": 1}]}, st
+        c.fails("describe", "describe takes", toml="x", fmu="y")
+        c.fails("describe", "cannot open", scenario="nope.toml")
+        assert c.call("state")["state"] == "IDLE"  # nothing was loaded
+
+        # check: as load would, without loading
+        c.call("check", toml=scenario)
+        c.fails("check", "scenario: missing", toml="[model]\n")
+        c.fails("check", "cannot open", toml=scenario.replace(str(fmu), "/nonexistent.fmu"))
+        c.fails("check", "'nope' is not a variable", toml=scenario.replace(f'outputs = ["{OUT}"]',
+                                                                           'outputs = ["nope"]'))
+        c.fails("check", "cannot open data file", toml=scenario.replace(
+            'kind = "constant", value = 1.0', 'segments = [{ kind = "data", file = "/nope.csv" }]'))
+
+        # save: scenarios/<name>.toml only, checked first, no silent overwrite
+        name = f"scenarios/test_save_{os.getpid()}.toml"
+        try:
+            c.call("save", path=name, toml=scenario)
+            assert Path(name).read_text() == scenario and not Path(name + ".tmp").exists()
+            c.fails("save", "exists", path=name, toml=scenario)
+            c.call("save", path=name, toml=seg, overwrite=True)
+            assert Path(name).read_text() == seg
+            for bad in ["x.toml", "../x.toml", "scenarios/../x.toml", "scenarios/a/b.toml",
+                        "scenarios/x.txt", "/tmp/x.toml", "scenarios/.toml", "scenarios/.x.toml"]:
+                c.fails("save", "save takes", path=bad, toml=scenario)
+            c.fails("save", "scenario:", path=name, toml="[model]\n", overwrite=True)
+            assert Path(name).read_text() == seg  # a refused save leaves the file alone
+        finally:
+            Path(name).unlink(missing_ok=True)
+
         assert c.call("load", toml=scenario)["state"] == "INITIALIZED"
         names = {v["name"]: v for v in c.call("variables")["variables"]}
         assert names[IN]["causality"] == "input" and names["Float64_tunable_parameter"]["tunable"]
+        assert "unit" in names[IN] and "start" in names[IN] and "description" in names[IN]
 
         c.call("signal", stimulus={"input": IN, "segments": [{"kind": "const", "value": 4}]})
         c.fails("signal", "unknown key 'bogus'", stimulus={"input": IN, "kind": "constant",
@@ -104,7 +155,11 @@ file = "{log}"
         c.close()  # the run goes on without a client
 
         c = Client(port)
-        st = c.call("state")
+        for _ in range(200):  # a sanitizer build takes a while to its first step
+            st = c.call("state")
+            if st["steps"] > 0:
+                break
+            time.sleep(0.01)
         assert st["state"] == "RUNNING" and st["step"] == 0.001 and "duration" not in st
         assert st["steps"] > 0 and abs(st["t"] - st["steps"] * 0.001) < 1e-9 and st["fmu"] == str(fmu)
         assert st["max_step_ns"] > 0 and "overruns" in st and "max_wake_ns" in st

@@ -354,6 +354,24 @@ fail:
   return -1;
 }
 
+int scenario_check(const scenario_t *sc, char *err, size_t errlen)
+{
+  static varmap_t vm; /* ponytail: large; one control thread */
+  fmu_pkg_t pkg = {0};
+  err[0] = '\0';
+  int rc = fmu_open(sc->fmu, &pkg, err, errlen);
+  if (rc == 0) {
+    rc = varmap_build(&pkg.md, sc, &vm, err, errlen);
+  }
+  for (size_t j = 0; rc == 0 && j < sc->n_stimuli; j++) {
+    signal_t *g = signal_create(&sc->stimuli[j], err, errlen);
+    rc = g != NULL ? 0 : -1;
+    signal_free(g);
+  }
+  fmu_close(&pkg);
+  return rc;
+}
+
 static void *loop_thread(void *arg)
 {
   session_t *s = arg;

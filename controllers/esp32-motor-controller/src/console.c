@@ -13,6 +13,10 @@
 
 int cmd_load(int argc, char **argv)
 {
+#ifdef KRUMPIR_IO_HIL
+  printf("not available with the HIL plant\n");
+  return 1;
+#endif
   float v;
   if (!console_arg_float(argc, argv, -SIM_LOAD_MAX_NM, SIM_LOAD_MAX_NM, &v))
     return 1;
@@ -22,6 +26,10 @@ int cmd_load(int argc, char **argv)
 
 int cmd_inertia(int argc, char **argv)
 {
+#ifdef KRUMPIR_IO_HIL
+  printf("not available with the HIL plant\n");
+  return 1;
+#endif
   float v;
   if (!console_arg_float(argc, argv, SIM_INERTIA_MIN, SIM_INERTIA_MAX, &v))
     return 1;

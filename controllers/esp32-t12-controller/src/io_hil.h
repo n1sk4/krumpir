@@ -18,8 +18,6 @@ typedef struct {
   uint32_t hb_age, hb_timeout; /* ticks since the last heartbeat toggle, and the Q3 drop-out */
 } t12_io_hil_t;
 
-#define HIL_MAX_AGE 10 /* ticks a reading is held before it counts as lost */
-
 void t12_io_hil_init(t12_io_hil_t *h, t12_io_t *io_out, double dt);
 void t12_io_hil_step(t12_io_hil_t *h); /* once per tick, after the controller: Q3 */
 

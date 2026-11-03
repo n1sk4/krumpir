@@ -26,7 +26,7 @@ static const timing_t TIMING[T12_SCN_COUNT] = {
     [T12_SCN_RUNAWAY] = {80.0, 10.0},
 };
 
-const char *t12_scenario_name(t12_scenario_t id) { return NAMES[id]; }
+const char *t12_scenario_name(t12_scenario_t id) { return (unsigned)id < T12_SCN_COUNT ? NAMES[id] : ""; }
 
 static void apply_event(t12_scenario_t id, t12_io_sim_t *sim, double *load)
 {

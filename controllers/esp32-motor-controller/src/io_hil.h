@@ -11,8 +11,6 @@ typedef struct {
   hil_slots_t slots;
 } motor_io_hil_t;
 
-#define HIL_MAX_AGE 10 /* ticks a speed is held before it counts as lost */
-
 void motor_io_hil_init(motor_io_hil_t *h, motor_io_t *io_out);
 
 #endif

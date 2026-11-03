@@ -14,6 +14,10 @@
 
 int cmd_load(int argc, char **argv)
 {
+#ifdef KRUMPIR_IO_HIL
+  printf("not available with the HIL plant\n");
+  return 1;
+#endif
   float v;
   if (!console_arg_float(argc, argv, 0.0f, LOAD_MAX_W_PER_K, &v))
     return 1;
@@ -23,6 +27,10 @@ int cmd_load(int argc, char **argv)
 
 int cmd_ambient(int argc, char **argv)
 {
+#ifdef KRUMPIR_IO_HIL
+  printf("not available with the HIL plant\n");
+  return 1;
+#endif
   float v;
   if (!console_arg_float(argc, argv, AMBIENT_MIN_C, AMBIENT_MAX_C, &v))
     return 1;
@@ -43,6 +51,10 @@ static const char *fault_label(t12_fault_t f)
 
 int cmd_fault(int argc, char **argv)
 {
+#ifdef KRUMPIR_IO_HIL
+  printf("not available with the HIL plant\n");
+  return 1;
+#endif
   for (t12_fault_t f = T12_FAULT_NONE; f <= T12_FAULT_STUCK_ON; f++) {
     if (argc == 2 && !strcmp(argv[1], fault_label(f))) {
       control_task_set_fault(f);

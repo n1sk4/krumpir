@@ -107,6 +107,10 @@ Status setFloat64(ModelInstance *comp, ValueReference vr, const double values[],
       logError(comp, "Input %u must be finite.", vr);
       return Error;
     }
+    if (vr == vr_fault && v != 0.0 && v != 1.0) {
+      logError(comp, "fault = %g must be 0 (none) or 1 (encoder lost).", v);
+      return Error;
+    }
     if (vr == vr_duty)
       M(duty) = v;
     else if (vr == vr_load_torque)

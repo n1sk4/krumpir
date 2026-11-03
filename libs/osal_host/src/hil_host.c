@@ -42,8 +42,8 @@ void tick_task_start(const tick_cfg_t *cfg, tick_init_t init, tick_body_t body, 
 // Limitation: no period/exec statistics on the PC yet; the runner measures the loop.
 void tick_task_get_stats(loop_stats_t *period, loop_stats_t *exec, uint32_t *overruns)
 {
-  memset(period, 0, sizeof *period);
-  memset(exec, 0, sizeof *exec);
+  loop_stats_reset(period);
+  loop_stats_reset(exec);
   *overruns = 0;
 }
 

@@ -32,13 +32,13 @@ void step_metrics_add(step_metrics_t *m, float value)
 float step_metrics_overshoot_pct(const step_metrics_t *m)
 {
   float over = m->max - m->target;
-  return over > 0.0f ? 100.0f * over / fabsf(m->target) : 0.0f;
+  return over > 0.0f && m->target != 0.0f ? 100.0f * over / fabsf(m->target) : 0.0f;
 }
 
 float step_metrics_undershoot_pct(const step_metrics_t *m)
 {
   float under = m->target - m->min;
-  return under > 0.0f ? 100.0f * under / fabsf(m->target) : 0.0f;
+  return under > 0.0f && m->target != 0.0f ? 100.0f * under / fabsf(m->target) : 0.0f;
 }
 
 float step_metrics_settling_s(const step_metrics_t *m)

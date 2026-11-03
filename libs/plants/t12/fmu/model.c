@@ -36,7 +36,19 @@ static double *param(ModelInstance *comp, ValueReference vr)
  * meaning and divides by zero); the others must be >= 0, except the amplifier offset. */
 static bool must_be_positive(ValueReference vr)
 {
-  return vr <= vr_r_ca || vr == vr_r_coil || vr == vr_r_short || vr == vr_tau_sense;
+  switch (vr) {
+  case vr_c_h:
+  case vr_c_t:
+  case vr_c_c:
+  case vr_r_ht:
+  case vr_r_ta:
+  case vr_r_tc:
+  case vr_r_ca:
+  case vr_r_coil:
+  case vr_r_short:
+  case vr_tau_sense: return true;
+  default: return false;
+  }
 }
 
 static bool before_start(const ModelInstance *comp)

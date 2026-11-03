@@ -35,6 +35,8 @@ bool rte_set(rte_t *r, int id, float value)
 
 float rte_get(rte_t *r, int id)
 {
+  if (id < 0 || id >= r->n)
+    return 0.0f;
   osal_crit_enter(&r->lock);
   float v = r->req[id];
   osal_crit_exit(&r->lock);

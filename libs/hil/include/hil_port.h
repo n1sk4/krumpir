@@ -26,6 +26,9 @@ typedef struct {
  * on no plant at all, which would trip its sensor checks before the run starts) */
 #define HIL_AGE_NONE (UINT32_MAX / 2)
 
+/* Ticks a plant value is held before the controller counts it as lost. */
+#define HIL_MAX_AGE 10
+
 /* The names give the HELLO hash the runner checks (hil_names_hash). */
 void hil_port_bind(hil_slots_t *s, const char *const *plant, size_t n_plant,
                    const char *const *cmd, size_t n_cmd);

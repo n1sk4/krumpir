@@ -13,6 +13,7 @@ typedef struct {
 } telem_sample_t;
 
 #define RING_BUF_CAP 128 /* power of two */
+_Static_assert((RING_BUF_CAP & (RING_BUF_CAP - 1)) == 0, "RING_BUF_CAP must be a power of two");
 
 /* Lock-free single-producer / single-consumer ring. Push never blocks: a full ring drops the
  * sample and counts it. */

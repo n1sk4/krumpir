@@ -4,5 +4,5 @@
   "description": "Host (PC) port of the OSAL contract in libs/osal, for native tests",
   "platforms": "native",
   "dependencies": [{ "name": "osal" }],
-  "build": { "srcDir": "src", "includeDir": "include" }
+  "build": { "srcDir": "src", "includeDir": "include", "srcFilter": ["+<console_host.c>"] }
 }

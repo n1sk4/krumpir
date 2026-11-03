@@ -134,8 +134,10 @@ static int uart_read(io_t *io, double t, double *in, size_t n)
   } else if (u->sent) {
     atomic_fetch_add_explicit(&io->late, 1, memory_order_relaxed);
     if (++u->run_late >= u->max_late && u->late_fault) {
-      return set_error(u, "no answer from the controller on %s for %d steps in a row", u->device,
-                       u->run_late);
+      return set_error(u, "no answer from the controller on %s for %d steps in a row "
+                       "(line: %u CRC errors, %u resyncs)",
+                       u->device, u->run_late, (unsigned)u->parser.crc_errors,
+                       (unsigned)u->parser.resyncs);
     }
   }
   memset(in, 0, n * sizeof *in);

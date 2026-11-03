@@ -4,11 +4,9 @@
 #   cmake -S libs/plants -B ~/build/plants -G Ninja && cmake --build ~/build/plants
 #
 # The FMUs land in <build>/fmus/fmi3/<name>.fmu and <build>/fmus/fmi2/<name>.fmu.
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 project(krumpir_plant_fmus C)
-
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
+include(../../cmake/krumpir.cmake)
 
 set(REFERENCE_FMUS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../vendor/Reference-FMUs"
     CACHE PATH "Reference FMUs source tree (submodule)")
@@ -57,10 +55,11 @@ function(add_plant_fmu name)
   if(ARG_TEST)
     add_executable(${name}_test "${ARG_TEST}" "${ARG_MODEL_DIR}/model.c" "${fw}/src/fmi3Functions.c"
                    "${fw}/src/common.c" "${fw}/src/cosimulation.c" ${ARG_SOURCES})
-    target_compile_definitions(${name}_test PRIVATE FMI_VERSION=3 DISABLE_PREFIX)
+    # _POSIX_C_SOURCE: the framework's common.c uses strdup, which strict C11 hides
+    target_compile_definitions(${name}_test PRIVATE FMI_VERSION=3 DISABLE_PREFIX
+                                                    _POSIX_C_SOURCE=200809L)
     target_include_directories(${name}_test PRIVATE "${fw}/include" "${ARG_MODEL_DIR}" ${ARG_INCLUDES})
-    target_compile_options(${name}_test PRIVATE -Wall -Wextra -Werror)
-    target_link_libraries(${name}_test PRIVATE m)
+    target_link_libraries(${name}_test PRIVATE m krumpir::warnings)
     add_test(NAME ${name}_test COMMAND ${name}_test)
   endif()
 
@@ -76,14 +75,14 @@ function(add_plant_fmu name)
       "${fw}/src/common.c"
       "${fw}/src/cosimulation.c"
       ${ARG_SOURCES})
-    target_compile_definitions(${target} PRIVATE FMI_VERSION=${v} DISABLE_PREFIX)
+    target_compile_definitions(${target} PRIVATE FMI_VERSION=${v} DISABLE_PREFIX
+                                                 _POSIX_C_SOURCE=200809L)
     target_include_directories(${target} PRIVATE "${fw}/include" "${ARG_MODEL_DIR}" ${ARG_INCLUDES})
     # -fno-sanitize=all: the FMU is loaded by other programs (FMPy in Python), which cannot load a
     # sanitizer-instrumented library; the runner's sanitizer build still checks the TEST program.
-    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror -fvisibility=hidden
-                                             -fno-sanitize=all)
+    target_compile_options(${target} PRIVATE -fvisibility=hidden -fno-sanitize=all)
     target_link_options(${target} PRIVATE -static-libgcc -fno-sanitize=all)
-    target_link_libraries(${target} PRIVATE m)
+    target_link_libraries(${target} PRIVATE m krumpir::warnings)
     set_target_properties(${target} PROPERTIES
       PREFIX "" OUTPUT_NAME ${name}
       LIBRARY_OUTPUT_DIRECTORY "${stage}/binaries/${platform}")

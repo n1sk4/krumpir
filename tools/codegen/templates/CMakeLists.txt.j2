@@ -1,4 +1,6 @@
 {{ banner }}
+# {{ m.dir }}: the firmware, an ESP-IDF project; PlatformIO builds it (pio run -e esp32dev, see
+# platformio.ini). The minimum version is ESP-IDF's own.
 cmake_minimum_required(VERSION 3.16.0)
 set(PROJECT_VER "0.1.0")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

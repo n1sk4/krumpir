@@ -3,6 +3,21 @@
   "version": "0.1.0",
   "description": "Host (PC) port of the OSAL contract in libs/osal, for native tests",
   "platforms": "native",
-  "dependencies": [{ "name": "osal" }],
-  "build": { "srcDir": "src", "includeDir": "include", "srcFilter": ["+<console_host.c>"] }
+  "dependencies": [
+    {
+      "name": "osal"
+    }
+  ],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "srcFilter": [
+      "+<console_host.c>"
+    ],
+    "flags": [
+      "-Wall",
+      "-Wextra",
+      "-Werror"
+    ]
+  }
 }

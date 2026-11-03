@@ -1,27 +1,30 @@
 {{ banner }}
-# The controller on a PC (Linux, WSL): the same control task, console and tables as the board, with
-# the plant behind the HIL link (src/io_hil.c, libs/hil) instead of the on-chip simulation:
+# {{ m.name }}_host: the controller on a PC (Linux, WSL): the same control task, console and tables
+# as the board, with the plant behind the HIL link (src/io_hil.c, libs/hil) instead of the on-chip
+# simulation; and {{ m.name }}_scenarios, its closed-loop scenarios on the on-chip plant:
 #   cmake -S host -B <build> && cmake --build <build>
 #   <build>/{{ m.name }}_host --device /dev/pts/N [--lockstep | --hz 1000] [--log] [-c "sp ..."]
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 project({{ m.name }}_host C)
-set(CMAKE_C_STANDARD 11)
-add_compile_options(-Wall -Wextra -Wno-unused-parameter) # the board's hooks ignore their ctx
+include(../../../cmake/krumpir.cmake)
 
-include(../../../libs/cmake/krumpir.cmake)
 krumpir_add_libs()
 add_subdirectory(../lib/{{ m.lib }} {{ m.lib }})
 
-add_executable({{ m.name }}_host ../src/control_task.c ../src/console.c ../src/gen/ctrl_gen.c
-                               ../src/io_hil.c)
+set(srcs
+  ../src/console.c
+  ../src/control_task.c
+  ../src/gen/ctrl_gen.c
+  ../src/io_hil.c)
+add_executable({{ m.name }}_host ${srcs})
 target_include_directories({{ m.name }}_host PRIVATE ../src)
 target_compile_definitions({{ m.name }}_host PRIVATE KRUMPIR_IO_HIL)
-target_link_libraries({{ m.name }}_host PRIVATE {{ m.lib }} rte hil_host)
+# relaxed: the board's hook signatures keep parameters they do not use
+target_link_libraries({{ m.name }}_host PRIVATE {{ m.lib }} rte hil_host krumpir::warnings_relaxed)
 
-# The controller's closed-loop scenarios on its on-chip plant (tools/scenarios.c), the SIL side
-# of tools/hil/compare.py
+# The SIL side of tools/hil/compare.py
 add_executable({{ m.name }}_scenarios ../tools/scenarios.c)
-target_link_libraries({{ m.name }}_scenarios PRIVATE {{ m.lib }})
+target_link_libraries({{ m.name }}_scenarios PRIVATE {{ m.lib }} krumpir::warnings)
 
 # XCP on UDP (XCPlite, Linux) for the TUI and xcpclient: -DKRUMPIR_XCP=ON, then run with
 # --xcp <port> and make the A2L from this ELF (controllers/README.md). Every build has a new EPK.
@@ -29,7 +32,7 @@ option(KRUMPIR_XCP "XCP on UDP (XCPlite)" OFF)
 if(KRUMPIR_XCP)
   set(XCPLITE_CFG_OVERRIDE ${KRUMPIR_LIBS_DIR}/osal_host/xcplib_host_cfg.h)
   add_subdirectory(${KRUMPIR_LIBS_DIR}/vendor/XCPlite xcplite EXCLUDE_FROM_ALL)
-  target_compile_options(xcplite PRIVATE -w) # vendored
+  krumpir_vendor(xcplite)
   add_custom_target({{ m.name }}_epk BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/xcp_epk.h
     COMMAND ${CMAKE_COMMAND} -DOUT=${CMAKE_CURRENT_BINARY_DIR}/xcp_epk.h
             -P ${KRUMPIR_LIBS_DIR}/osal_host/xcp_epk.cmake)

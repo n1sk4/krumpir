@@ -1,6 +1,8 @@
-# dcmotor plant: plain C, no framework. Built by any CMake project (add_subdirectory), as an
-# ESP-IDF component, or by PlatformIO through library.json. The FMU is built by ../CMakeLists.txt.
-set(srcs src/plant_sim.c)
+# dcmotor: the DC motor plant model, plain C. An ESP-IDF component on the board (the on-chip
+# simulation); on the PC the static library dcmotor (krumpir::dcmotor). The FMU is built by
+# ../CMakeLists.txt.
+set(srcs
+  src/plant_sim.c)
 
 if(ESP_PLATFORM)
   idf_component_register(SRCS ${srcs} INCLUDE_DIRS include)
@@ -8,7 +10,6 @@ if(ESP_PLATFORM)
 endif()
 
 add_library(dcmotor STATIC ${srcs})
+add_library(krumpir::dcmotor ALIAS dcmotor)
 target_include_directories(dcmotor PUBLIC include)
-if(NOT MSVC)
-  target_link_libraries(dcmotor PUBLIC m)
-endif()
+target_link_libraries(dcmotor PUBLIC $<$<NOT:$<C_COMPILER_ID:MSVC>>:m> PRIVATE krumpir::warnings)

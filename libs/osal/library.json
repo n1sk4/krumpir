@@ -2,6 +2,18 @@
   "name": "osal",
   "version": "0.1.0",
   "description": "OS abstraction contract and its platform-independent parts; implemented by a platform port such as espglue or osal_host",
-  "dependencies": [{ "name": "ctrlcore" }],
-  "build": { "srcDir": "src", "includeDir": "include" }
+  "dependencies": [
+    {
+      "name": "ctrlcore"
+    }
+  ],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "flags": [
+      "-Wall",
+      "-Wextra",
+      "-Werror"
+    ]
+  }
 }

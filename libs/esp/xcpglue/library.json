@@ -4,9 +4,19 @@
   "description": "Wi-Fi and XCP on Ethernet start-up for the ESP-IDF controllers (on top of xcplite)",
   "frameworks": "espidf",
   "platforms": "espressif32",
-  "dependencies": [{ "name": "xcplite" }],
+  "dependencies": [
+    {
+      "name": "xcplite"
+    }
+  ],
   "build": {
     "includeDir": "include",
-    "srcDir": "src"
+    "srcDir": "src",
+    "flags": [
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-unused-parameter"
+    ]
   }
 }

@@ -2,6 +2,25 @@
   "name": "espglue",
   "version": "0.1.0",
   "description": "ESP-IDF + FreeRTOS port of the OSAL contract in libs/osal",
-  "dependencies": [{ "name": "osal" }, { "name": "ctrlcore" }, { "name": "hil" }],
-  "build": { "srcDir": "src", "includeDir": "include" }
+  "dependencies": [
+    {
+      "name": "osal"
+    },
+    {
+      "name": "ctrlcore"
+    },
+    {
+      "name": "hil"
+    }
+  ],
+  "build": {
+    "srcDir": "src",
+    "includeDir": "include",
+    "flags": [
+      "-Wall",
+      "-Wextra",
+      "-Werror",
+      "-Wno-unused-parameter"
+    ]
+  }
 }

@@ -1,0 +1,9 @@
+# Every Python package the repository's tools use, in one venv (python tools/kb.py setup:
+# ~/.venvs/krumpir on Linux, .venv\ on Windows). Minimum versions known to work; exact pins would
+# miss wheels for newer Pythons.
+fmpy>=0.3.32      # runner/tools/compare_fmpy.py, libs/plants/tools/check_fmu.py
+numpy>=2.0
+matplotlib>=3.10  # the plots
+pyserial>=3.5     # tools/serial
+jinja2>=3.1.6     # tools/codegen
+pytest>=8         # tools/krumpir tests

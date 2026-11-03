@@ -15,6 +15,7 @@
 #   krumpir_add_test(NAME <n> SOURCES <c...> | COMMAND <cmd...>
 #                    [LIBS <targets>] [DEFINES <defs>] [ENV <k=v...>] [WORKDIR <dir>] [SKIP_77])
 #   krumpir_vendor(<target>)   third-party code: no warnings of ours
+#   krumpir_download(), krumpir_reference_fmus(), KRUMPIR_CACHE, the pins: cmake/versions.cmake
 #
 # Each library's CMakeLists.txt also works as an ESP-IDF component; PlatformIO builds them from
 # library.json.
@@ -22,6 +23,7 @@ include_guard(GLOBAL)
 
 get_filename_component(KRUMPIR_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(KRUMPIR_LIBS_DIR "${KRUMPIR_ROOT}/libs")
+include("${CMAKE_CURRENT_LIST_DIR}/versions.cmake")
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)

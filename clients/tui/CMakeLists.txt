@@ -1,24 +1,24 @@
 # krumpir_tui: the terminal UI (krumpir-tui) for the runner and the controllers, C++17, Windows
 # (MinGW, MSVC), Linux and the Pi:
 #   cmake -S clients/tui -B <build> -DCMAKE_BUILD_TYPE=Release && cmake --build <build>
-# FTXUI, Asio, nlohmann/json and doctest are fetched at pinned versions.
+# FTXUI, Asio, nlohmann/json and doctest are fetched at pinned versions (cmake/versions.cmake).
 cmake_minimum_required(VERSION 3.25) # FetchContent SYSTEM
 project(krumpir_tui CXX)
 include(../../cmake/krumpir.cmake)
 
-# Dependencies, pinned by version and hash. Their warnings stay theirs (SYSTEM).
+# Dependencies, pinned in cmake/versions.cmake and downloaded once into KRUMPIR_CACHE. Their
+# warnings stay theirs (SYSTEM).
 include(FetchContent)
 set(FTXUI_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(FTXUI_QUIET ON CACHE BOOL "" FORCE)
-FetchContent_Declare(ftxui SYSTEM
-  URL https://github.com/ArthurSonzogni/FTXUI/archive/refs/tags/v7.0.3.tar.gz
-  URL_HASH SHA256=e7c62ffe19009759821b4f0f8df7f2a6fb83784c3a9f1477d81f56d3ee723c88)
-FetchContent_Declare(asio SYSTEM
-  URL https://github.com/chriskohlhoff/asio/archive/refs/tags/asio-1-30-2.tar.gz
-  URL_HASH SHA256=755bd7f85a4b269c67ae0ea254907c078d408cce8e1a352ad2ed664d233780e8)
-FetchContent_Declare(json SYSTEM
-  URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-  URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d)
+macro(krumpir_tui_dep name var)
+  krumpir_download(${KRUMPIR_${var}_URL} ${KRUMPIR_${var}_SHA256} _archive)
+  FetchContent_Declare(${name} SYSTEM URL "${_archive}" URL_HASH SHA256=${KRUMPIR_${var}_SHA256}
+                       ${ARGN})
+endmacro()
+krumpir_tui_dep(ftxui FTXUI)
+krumpir_tui_dep(asio ASIO)
+krumpir_tui_dep(json JSON)
 FetchContent_MakeAvailable(ftxui asio json)
 
 # Standalone Asio is header-only and has no CMake project of its own.
@@ -71,10 +71,7 @@ include(CTest)
 if(BUILD_TESTING)
   # doctest is header-only: its sources only (SOURCE_SUBDIR points at no CMakeLists.txt), because
   # its own CMakeLists asks for a CMake older than 3.5, which CMake 4 refuses.
-  FetchContent_Declare(doctest SYSTEM
-    URL https://github.com/doctest/doctest/archive/refs/tags/v2.4.11.tar.gz
-    URL_HASH SHA256=632ed2c05a7f53fa961381497bf8069093f0d6628c5f26286161fbd32a560186
-    SOURCE_SUBDIR no-cmake)
+  krumpir_tui_dep(doctest DOCTEST SOURCE_SUBDIR no-cmake)
   FetchContent_MakeAvailable(doctest)
   add_library(doctest INTERFACE)
   target_include_directories(doctest SYSTEM INTERFACE ${doctest_SOURCE_DIR})

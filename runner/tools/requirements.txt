@@ -1,4 +1,1 @@
-fmpy
-numpy
-matplotlib
-pytest
+-r ../../tools/requirements.txt

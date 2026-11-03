@@ -60,6 +60,13 @@ target_link_libraries(krumpir_core PUBLIC Threads::Threads tomlc99 miniz EXPAT::
 add_executable(krumpir src/app/main.c src/app/serve.c)
 target_link_libraries(krumpir PRIVATE krumpir_core cjson krumpir::warnings)
 
+# The Reference FMUs for the tests (cmake/versions.cmake), into fmus/ when they are missing; no
+# network: a warning, and the tests that need them skip
+option(KRUMPIR_FETCH_FMUS "Download the Reference FMUs into fmus/ when they are missing" ON)
+if(KRUMPIR_FETCH_FMUS)
+  krumpir_reference_fmus("${PROJECT_SOURCE_DIR}/fmus" OPTIONAL)
+endif()
+
 # The plant FMUs, copied to fmus/ for the scenarios and tests
 if(EXISTS "${KRUMPIR_LIBS_DIR}/vendor/Reference-FMUs/src/fmi3Functions.c")
   set(KRUMPIR_FMU_COPY_DIR "${PROJECT_SOURCE_DIR}/fmus" CACHE PATH "" FORCE)

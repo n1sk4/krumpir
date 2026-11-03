@@ -20,14 +20,10 @@ The zip contains `3.0/*.fmu` (FMI 3.0) and `2.0/*.fmu` (FMI 2.0). Each FMU carri
 
 ## Install
 
-Run `runner/tools/fetch_fmus.sh`, or by hand from the repository root on Linux/WSL:
-
-```sh
-curl -L -o /tmp/Reference-FMUs.zip \
-  https://github.com/modelica/Reference-FMUs/releases/download/v0.0.42/Reference-FMUs.zip
-echo "b6b4a195b9c0f6bdd3459cd949cbb35fc21ee2049d6dab4cb7a3ba7da63b1e97  /tmp/Reference-FMUs.zip" | sha256sum -c
-unzip -j /tmp/Reference-FMUs.zip 3.0/Feedthrough.fmu 3.0/Dahlquist.fmu 3.0/VanDerPol.fmu -d runner/fmus
-```
+The runner's CMake configure step downloads them when they are missing (`KRUMPIR_FETCH_FMUS`,
+default ON; the zip is checked against its SHA-256 and cached in `KRUMPIR_CACHE`, default
+`~/.cache/krumpir`). By hand: `cmake -P cmake/fetch_reference_fmus.cmake` (or
+`runner/tools/fetch_fmus.sh`, which runs it). The version and hash are in `cmake/versions.cmake`.
 
 ## Files used
 

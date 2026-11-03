@@ -180,18 +180,17 @@ def cmd_setup(a):
     venv = venv_python()
     if not venv.exists():
         step(run([sys.executable, "-m", "venv", venv.parent.parent]) == 0, "creating the venv")
-    reqs = [ROOT / "runner/tools/requirements.txt", ROOT / "tools/codegen/requirements.txt",
-            *sorted((ROOT / "controllers").glob("*/requirements.txt"))]
-    step(run([venv, "-m", "pip", "install", "-q", *[x for r in reqs for x in ("-r", r)]]) == 0,
+    step(run([venv, "-m", "pip", "install", "-q", "-r", ROOT / "tools/requirements.txt"]) == 0,
          "pip install")
     for sub in ("libs/vendor/Reference-FMUs", "libs/vendor/XCPlite"):
         if not (ROOT / sub / "src").exists():
             print(f"kb: the submodule {sub} is empty: git submodule update --init {sub}")
     if not (ROOT / "runner/fmus/Dahlquist.fmu").exists():
-        if have["runner"] and which("curl"):
-            step(run(["bash", ROOT / "runner/tools/fetch_fmus.sh"]) == 0, "the Reference FMUs")
+        if have["runner"] and have["cmake"]:
+            step(run(["cmake", "-P", ROOT / "cmake/fetch_reference_fmus.cmake"]) == 0,
+                 "the Reference FMUs")
         else:
-            skip("the Reference FMUs", "they are for the runner (Linux, with curl)")
+            skip("the Reference FMUs", "they are for the runner (Linux, with CMake)")
     return 0
 
 

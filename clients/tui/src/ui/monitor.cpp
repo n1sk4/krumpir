@@ -137,7 +137,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
   auto vars = Menu(menu);
   auto filter = FilterInput(&s->filter);
   auto vars_pane = Renderer(Container::Vertical({filter, vars}, &s->row), [s, filter, vars] {
-    return window(text(" Variables "),
+    return window(text(" Variables (space: plot) "),
                   vbox({FilterRow(filter), text(s->head) | dim,
                         vars->Render() | vscroll_indicator | frame | flex}));
   });
@@ -186,7 +186,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
               reset->Render(), text(" "), unload->Render(), text(" ")}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
         split->render(PlotPane(plotted, samples, s->single)),
-        events | size(HEIGHT, EQUAL, 8),
+        events | size(HEIGHT, EQUAL, kEventsRows),
     });
   });
 

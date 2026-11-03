@@ -165,7 +165,7 @@ Component ControllerSetup(EcuModel &ecu)
                vbox({gridbox(std::move(rows)), a2l_error,
                      hbox({filler(), write_btn->Render(), text(" "), revert_btn->Render()})})),
         filler(),
-        events | size(HEIGHT, EQUAL, 8),
+        events | size(HEIGHT, EQUAL, kEventsRows),
     });
   });
 }
@@ -240,9 +240,9 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
         plotted.push_back(name);
         samples.push_back(it != v.history.end() ? Thin(it->second) : std::vector<Sample>{});
       }
+      const std::string run = v.running ? "RUNNING" : "STOPPED";
       const Element state = !v.connected ? text(" not connected: connect on F1 ") | dim
-                            : v.running  ? text(" RUNNING ") | bold | color(Color::Green)
-                                         : text(" STOPPED ") | bold | color(Color::Yellow);
+                                         : text(" " + run + " ") | bold | color(StateColor(run));
       const Element trip = v.trip != 0 ? text("  trip: " + v.trip_name + " (c clears) ") | bold |
                                              color(Color::Red)
                                        : text(v.connected ? "  no trip" : "") | dim;
@@ -264,7 +264,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
               clear->Render(), text(" ")}),
         split->render(PlotPane(plotted, samples, s->single)),
-        events | size(HEIGHT, EQUAL, 6),
+        events | size(HEIGHT, EQUAL, kEventsRows),
     });
   });
 

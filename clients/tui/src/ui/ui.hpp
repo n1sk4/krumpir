@@ -48,5 +48,6 @@ bool ParseNumber(const std::string &s, double *out);   // the whole text as a fi
 ftxui::Element PlotPane(const std::vector<std::string> &names,
                         const std::vector<std::vector<Sample>> &samples, bool single);
 ftxui::Element EventsPane(const std::deque<std::string> &events);
+constexpr int kEventsRows = 8; // the height of the events pane, the same on every page
 
 } // namespace krumpir::ui

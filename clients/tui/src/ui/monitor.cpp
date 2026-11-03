@@ -6,6 +6,7 @@
 
 #include <ftxui/component/event.hpp>
 
+#include "split.hpp"
 #include "ui.hpp"
 
 namespace krumpir::ui {
@@ -47,12 +48,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     Variable sel;     // the selected row, as last rendered
     std::string hint; // one-line feedback under the header
 
-    Box area;         // the variables and plot area, as last drawn
-    int total = 0;    // its width, 0 before the first frame
-    int most = 1000;  // widest variables pane that leaves the plot its room
-    int row = 0;      // focus: the variables pane (hidden: the buttons)
     std::string head; // the column titles of the variables pane
-    Element plot;     // drawn by the plot half of the split
 
     bool show_write = false, show_signal = false;
     Variable target; // what the open dialog writes to
@@ -140,23 +136,13 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     return window(text(" Variables "),
                   vbox({text(s->head) | dim, vars->Render() | vscroll_indicator | frame | flex}));
   });
-  auto plot = Renderer([s] { return s->plot ? s->plot : text(""); });
-  ResizableSplitOption split_opt;
-  split_opt.main = vars_pane;
-  split_opt.back = plot;
-  split_opt.main_size = &lay->vars_width;
-  split_opt.min = kMinVarsWidth;
-  split_opt.max = &s->most;
-  auto split = ResizableSplit(std::move(split_opt));
+  auto split = std::make_shared<PaneSplit>(lay, vars_pane);
   auto layout = Container::Vertical(
-      {Maybe(split, &lay->vars_shown), Container::Horizontal({start, stop, reset, unload})},
-      &s->row);
+      {split->component(), Container::Horizontal({start, stop, reset, unload})}, split->focus());
 
   auto view = Renderer(layout, [=, &m] {
-    s->total = s->area.x_max > s->area.x_min ? s->area.x_max - s->area.x_min + 1 : 0;
-    lay->vars_width = ClampSplit(lay->vars_width, s->total, kMinVarsWidth, kMinPlotWidth);
-    s->most = s->total > 0 ? std::max(kMinVarsWidth, s->total - 1 - kMinPlotWidth) : 1000;
-    const int nw = NameWidth(lay->vars_width, 24); // the other columns of a row
+    split->frame();
+    const int nw = split->name_width(24); // the other columns of a row
     Element header, events;
     std::vector<std::string> plotted;
     std::vector<std::vector<Sample>> samples;
@@ -184,13 +170,11 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     });
 
     s->head = Format("      %-*s %-6s %12s", nw, "name", "kind", "value");
-    s->plot = PlotPane(plotted, samples, s->single);
-    const Element body = lay->vars_shown ? split->Render() : plot->Render();
     return vbox({
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
               reset->Render(), text(" "), unload->Render(), text(" ")}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
-        body | reflect(s->area) | flex,
+        split->render(PlotPane(plotted, samples, s->single)),
         events | size(HEIGHT, EQUAL, 8),
     });
   });
@@ -250,7 +234,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
 
   auto with_dialogs =
       Modal(Modal(view, write_dialog, &s->show_write), signal_dialog, &s->show_signal);
-  return CatchEvent(with_dialogs, [&m, s, lay, open_write, open_signal, close](const Event &e) {
+  return CatchEvent(with_dialogs, [&m, s, split, open_write, open_signal, close](const Event &e) {
     if (s->show_write || s->show_signal) { // the dialog gets the keys
       if (e == Event::Escape) {
         close();
@@ -261,23 +245,15 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     if (e.is_character()) {
       s->hint.clear();
     }
-    if (!lay->vars_shown && (e == Event::Character('w') || e == Event::Character('g') ||
-                             e == Event::Character(' '))) {
+    if (!split->shown() && (e == Event::Character('w') || e == Event::Character('g') ||
+                            e == Event::Character(' '))) {
       s->hint = "the variables are hidden: v shows them";
       return true;
     }
-    if (e == Event::Character('v')) {
-      lay->vars_shown = !lay->vars_shown;
-      s->row = lay->vars_shown ? 0 : 1; // not on a hidden pane
-    } else if (e == Event::Character('[') || e == Event::Character(']')) {
-      if (!lay->vars_shown) {
-        lay->vars_shown = true;
-        s->row = 0;
-      }
-      const int step = e == Event::Character(']') ? kResizeStep : -kResizeStep;
-      lay->vars_width =
-          ClampSplit(lay->vars_width + step, s->total, kMinVarsWidth, kMinPlotWidth);
-    } else if (e == Event::Character('s')) {
+    if (split->on_key(e)) {
+      return true;
+    }
+    if (e == Event::Character('s')) {
       m.start();
     } else if (e == Event::Character('x')) {
       m.stop();

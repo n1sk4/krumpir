@@ -49,10 +49,16 @@ target_link_libraries(krumpir_tui_core PUBLIC nlohmann_json::nlohmann_json Threa
                                        PRIVATE asio)
 target_compile_options(krumpir_tui_core PRIVATE ${KT_WARNINGS})
 
-add_executable(krumpir-tui src/main.cpp src/ui/root.cpp src/ui/load.cpp src/ui/monitor.cpp
-                           src/ui/controller.cpp src/ui/plot.cpp)
-target_link_libraries(krumpir-tui PRIVATE krumpir_tui_core ftxui::component ftxui::dom
-                                          ftxui::screen)
+# The screens: a library of their own, so the tests can draw them without a terminal.
+add_library(krumpir_tui_ui STATIC src/ui/root.cpp src/ui/load.cpp src/ui/monitor.cpp
+                                  src/ui/controller.cpp src/ui/plot.cpp src/ui/split.cpp)
+target_include_directories(krumpir_tui_ui PUBLIC src/ui)
+target_link_libraries(krumpir_tui_ui PUBLIC krumpir_tui_core ftxui::component ftxui::dom
+                                            ftxui::screen)
+target_compile_options(krumpir_tui_ui PRIVATE ${KT_WARNINGS})
+
+add_executable(krumpir-tui src/main.cpp)
+target_link_libraries(krumpir-tui PRIVATE krumpir_tui_ui)
 target_compile_options(krumpir-tui PRIVATE ${KT_WARNINGS})
 
 include(CTest)
@@ -63,9 +69,9 @@ if(BUILD_TESTING)
   set(DOCTEST_NO_INSTALL ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(doctest)
   add_executable(test_core tests/test_core.cpp tests/test_ecu.cpp tests/test_form.cpp
-                           tests/test_layout.cpp)
+                           tests/test_layout.cpp tests/test_ui.cpp)
   target_compile_definitions(test_core PRIVATE KT_REPO_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../..")
-  target_link_libraries(test_core PRIVATE krumpir_tui_core asio doctest::doctest)
+  target_link_libraries(test_core PRIVATE krumpir_tui_ui asio doctest::doctest)
   target_compile_options(test_core PRIVATE ${KT_WARNINGS})
   add_test(NAME core COMMAND test_core)
 endif()

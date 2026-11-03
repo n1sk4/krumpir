@@ -1,0 +1,244 @@
+// The screens drawn without a terminal: a FTXUI Screen of a fixed size, events sent to the
+// component. Covers the variables pane of the Monitor pages (hide, resize, drag, limits).
+#include <chrono>
+#include <memory>
+#include <string>
+
+#include <doctest/doctest.h>
+
+#include <ftxui/component/component.hpp>
+#include <ftxui/component/event.hpp>
+#include <ftxui/dom/elements.hpp>
+#include <ftxui/screen/screen.hpp>
+
+#include "ecu_model.hpp"
+#include "model.hpp"
+#include "split.hpp"
+#include "ui.hpp"
+
+using namespace ftxui;
+using namespace std::chrono_literals;
+
+namespace {
+
+// Draws twice: the second frame sees the sizes the first one measured.
+Screen draw(const Component &c, int w, int h)
+{
+  Screen s = Screen::Create(Dimension::Fixed(w), Dimension::Fixed(h));
+  for (int i = 0; i < 2; i++) {
+    s = Screen::Create(Dimension::Fixed(w), Dimension::Fixed(h));
+    Render(s, c->Render());
+  }
+  return s;
+}
+
+// The column where the ASCII text t starts on some row, or -1.
+int col_of(const Screen &s, const std::string &t)
+{
+  for (int y = 0; y < s.dimy(); y++) {
+    for (int x = 0; x + static_cast<int>(t.size()) <= s.dimx(); x++) {
+      bool same = true;
+      for (std::size_t i = 0; i < t.size() && same; i++) {
+        same = s.PixelAt(x + static_cast<int>(i), y).character == std::string(1, t[i]);
+      }
+      if (same) {
+        return x;
+      }
+    }
+  }
+  return -1;
+}
+
+bool has(const Screen &s, const std::string &t) { return col_of(s, t) >= 0; }
+
+// A window of width w ends with this corner on its top row.
+bool pane_ends_at(const Screen &s, int w) { return s.PixelAt(w - 1, 0).character == "╮"; }
+
+Event mouse(int x, int y, Mouse::Motion motion)
+{
+  Mouse m;
+  m.button = Mouse::Left;
+  m.motion = motion;
+  m.x = x;
+  m.y = y;
+  return Event::Mouse("", m);
+}
+
+// The pane and plot of a Monitor page on their own: a pane of fixed text, a plot, a spare row.
+struct Page {
+  std::shared_ptr<krumpir::MonitorLayout> lay = std::make_shared<krumpir::MonitorLayout>();
+  std::shared_ptr<krumpir::ui::PaneSplit> split;
+  Component page;
+
+  Page()
+  {
+    split = std::make_shared<krumpir::ui::PaneSplit>(
+        lay, Renderer([] { return window(text(" Pane "), text("rows") | flex); }));
+    auto rest = Renderer([] { return text("buttons"); });
+    auto body = Renderer(Container::Vertical({split->component(), rest}, split->focus()),
+                         [s = split] {
+                           s->frame();
+                           return vbox({s->render(window(text(" Plot "), text("curve") | flex)),
+                                        text("buttons")});
+                         });
+    page = CatchEvent(body, [s = split](const Event &e) { return s->on_key(e); });
+  }
+};
+
+} // namespace
+
+TEST_CASE("ui split: the pane starts at its default width and the plot gets the rest")
+{
+  Page p;
+  const Screen s = draw(p.page, 120, 10);
+  CHECK(pane_ends_at(s, 54));
+  CHECK(has(s, " Pane "));
+  CHECK(has(s, " Plot "));
+  CHECK(col_of(s, " Plot ") > 54);
+}
+
+TEST_CASE("ui split: ] and [ resize by one step")
+{
+  Page p;
+  draw(p.page, 120, 10);
+  p.page->OnEvent(Event::Character(']'));
+  CHECK(p.lay->vars_width == 54 + krumpir::kResizeStep);
+  CHECK(pane_ends_at(draw(p.page, 120, 10), 54 + krumpir::kResizeStep));
+  p.page->OnEvent(Event::Character('['));
+  p.page->OnEvent(Event::Character('['));
+  CHECK(p.lay->vars_width == 54 - krumpir::kResizeStep);
+}
+
+TEST_CASE("ui split: the pane stops at its minimum and leaves the plot its room")
+{
+  Page p;
+  draw(p.page, 120, 10);
+  for (int i = 0; i < 40; i++) {
+    p.page->OnEvent(Event::Character('['));
+  }
+  CHECK(p.lay->vars_width == krumpir::kMinVarsWidth);
+  for (int i = 0; i < 60; i++) {
+    p.page->OnEvent(Event::Character(']'));
+  }
+  CHECK(p.lay->vars_width == 120 - 1 - krumpir::kMinPlotWidth);
+  const Screen s = draw(p.page, 120, 10);
+  CHECK(has(s, " Plot "));
+}
+
+TEST_CASE("ui split: a narrower terminal squeezes the pane, never the plot below its room")
+{
+  Page p;
+  draw(p.page, 120, 10);
+  p.page->OnEvent(Event::Character(']'));
+  p.page->OnEvent(Event::Character(']'));
+  const Screen s = draw(p.page, 70, 10);
+  CHECK(p.lay->vars_width == 70 - 1 - krumpir::kMinPlotWidth);
+  CHECK(pane_ends_at(s, p.lay->vars_width));
+}
+
+TEST_CASE("ui split: v hides the pane, the plot takes its room, and v brings it back")
+{
+  Page p;
+  CHECK(has(draw(p.page, 120, 10), " Pane "));
+  p.page->OnEvent(Event::Character('v'));
+  const Screen hidden = draw(p.page, 120, 10);
+  CHECK_FALSE(has(hidden, " Pane "));
+  CHECK(col_of(hidden, " Plot ") < 5);
+  p.page->OnEvent(Event::Character('v'));
+  CHECK(has(draw(p.page, 120, 10), " Pane "));
+}
+
+TEST_CASE("ui split: resizing a hidden pane shows it again")
+{
+  Page p;
+  draw(p.page, 120, 10);
+  p.page->OnEvent(Event::Character('v'));
+  p.page->OnEvent(Event::Character(']'));
+  CHECK(has(draw(p.page, 120, 10), " Pane "));
+  CHECK(p.lay->vars_width == 54 + krumpir::kResizeStep);
+}
+
+TEST_CASE("ui split: dragging the divider moves it, within the limits")
+{
+  Page p;
+  draw(p.page, 120, 10);
+  // The divider is the column after the pane (54 wide: columns 0 to 53).
+  p.page->OnEvent(mouse(54, 3, Mouse::Pressed));
+  p.page->OnEvent(mouse(64, 3, Mouse::Moved));
+  p.page->OnEvent(mouse(64, 3, Mouse::Released));
+  CHECK(p.lay->vars_width == 64);
+  CHECK(pane_ends_at(draw(p.page, 120, 10), 64)); // also redraws, so the divider is at 64
+
+  p.page->OnEvent(mouse(64, 3, Mouse::Pressed));
+  p.page->OnEvent(mouse(2, 3, Mouse::Moved));
+  p.page->OnEvent(mouse(2, 3, Mouse::Released));
+  CHECK(p.lay->vars_width == krumpir::kMinVarsWidth);
+  draw(p.page, 120, 10); // the divider moved: the next drag starts where it is now
+
+  const int edge = krumpir::kMinVarsWidth;
+  p.page->OnEvent(mouse(edge, 3, Mouse::Pressed));
+  p.page->OnEvent(mouse(119, 3, Mouse::Moved));
+  p.page->OnEvent(mouse(119, 3, Mouse::Released));
+  CHECK(p.lay->vars_width == 120 - 1 - krumpir::kMinPlotWidth);
+}
+
+namespace {
+
+// The whole frame with a runner and one controller, none of them connected.
+struct Rig {
+  krumpir::Model m{[] {}, 10ms};
+  krumpir::EcuModel ecu{[] {}, 10ms, 300ms};
+  Component root;
+
+  Rig() { root = krumpir::ui::Root(m, {{"Motor", &ecu}}, "127.0.0.1:1", [] {}); }
+};
+
+} // namespace
+
+TEST_CASE("ui root: the Monitor tab has the cards, the variables and the plot")
+{
+  Rig r;
+  r.root->OnEvent(Event::F2);
+  const Screen s = draw(r.root, 130, 36);
+  CHECK(has(s, " Targets "));
+  CHECK(has(s, " Variables "));
+  CHECK(has(s, "v hide"));
+}
+
+TEST_CASE("ui root: hiding the variables leaves the cards where they are")
+{
+  Rig r;
+  r.root->OnEvent(Event::F2);
+  const int cards = col_of(draw(r.root, 130, 36), " Targets ");
+  r.root->OnEvent(Event::Character('v'));
+  const Screen s = draw(r.root, 130, 36);
+  CHECK_FALSE(has(s, " Variables "));
+  CHECK(col_of(s, " Targets ") == cards);
+  r.root->OnEvent(Event::Character('v'));
+  CHECK(has(draw(r.root, 130, 36), " Variables "));
+}
+
+TEST_CASE("ui root: the pane setting is shared by every Monitor page")
+{
+  Rig r;
+  r.root->OnEvent(Event::F2);
+  draw(r.root, 130, 36);
+  r.root->OnEvent(Event::Character('v')); // on the runner page
+  r.root->OnEvent(Event::ArrowDown);      // the controller's card
+  Screen s = draw(r.root, 130, 36);
+  CHECK(has(s, "Motor"));
+  CHECK_FALSE(has(s, " Signals"));
+  r.root->OnEvent(Event::Character('v'));
+  CHECK(has(draw(r.root, 130, 36), " Signals"));
+}
+
+TEST_CASE("ui root: the Load tab is not affected by the pane keys")
+{
+  Rig r;
+  r.root->OnEvent(Event::F2);
+  r.root->OnEvent(Event::Character('v'));
+  r.root->OnEvent(Event::F1);
+  const Screen s = draw(r.root, 130, 36);
+  CHECK(has(s, " Targets "));
+  CHECK_FALSE(has(s, " Variables "));
+}

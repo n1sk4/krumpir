@@ -13,8 +13,8 @@
 #
 # Logs: runner/runs/<scenario>.csv (the runner) and runner/runs/<scenario>_ctrl.csv (the
 # controller's telemetry). KRUMPIR and CONTROLLER override the programs (default: ~/build/krumpir/
-# krumpir and ~/build/host-<x>/<x>_host, built with cmake -S controllers/<dir>/host). Exits 77
-# when socat is missing.
+# krumpir and ~/build/host-<x>/<x>_host, built with cmake -S controllers/<dir>/host); XCP_PORT
+# serves XCP on that port (a build with -DKRUMPIR_XCP=ON). Exits 77 when socat is missing.
 set -euo pipefail
 
 usage() { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
@@ -60,7 +60,7 @@ for _ in $(seq 50); do
 done
 
 # shellcheck disable=SC2086 # $mode is two words for --live
-"$CONTROLLER" --device "$dir/controller" $mode --log -c "sp $sp" -c start </dev/null \
+"$CONTROLLER" --device "$dir/controller" $mode ${XCP_PORT:+--xcp $XCP_PORT} --log -c "sp $sp" -c start </dev/null \
   >"$runner/runs/${scn}_ctrl.csv" 2>"$dir/controller.err" &
 cpid=$!
 cd "$runner"

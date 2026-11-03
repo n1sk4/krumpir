@@ -3,6 +3,7 @@
 
 #include <asio.hpp>
 #include <atomic>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -559,4 +560,42 @@ TEST_CASE("controllers of the repo")
     CHECK(a.symbols.count(c.desc.at("status").at("running").get<std::string>()) == 1);
     CHECK_FALSE(a.at(c.desc.at("status").at("trip").get<std::string>()).names.empty());
   }
+}
+
+// With KT_ECU=<a2l> (a controller running with XCP at the A2L's address, e.g. a PC build with
+// --xcp, controllers/README.md) also against it: the EPK at connect, a calibration write read back,
+// and DAQ on the 1 kHz tick.
+TEST_CASE("xcp: a live controller (KT_ECU)")
+{
+  const char *path = std::getenv("KT_ECU");
+  if (path == nullptr) {
+    return;
+  }
+  const A2l a = load_a2l(path);
+  Ecu ecu;
+  ecu.connect(a.host + ":" + std::to_string(a.port), a); // throws on another build's EPK
+
+  const Symbol *sp = nullptr;
+  for (const auto &[name, s] : a.symbols) {
+    if (name.size() > 18 && name.compare(name.size() - 18, 18, "_cal_page.setpoint") == 0) {
+      sp = &s;
+    }
+  }
+  REQUIRE(sp != nullptr);
+  const double old = ecu.read(*sp)[0];
+  ecu.write(*sp, {old + 1});
+  CHECK(ecu.read(*sp)[0] == doctest::Approx(old + 1));
+  ecu.write(*sp, {old});
+
+  const Symbol &duty = a.at("s_loop.duty");
+  REQUIRE(duty.event >= 0);
+  ecu.daq_start({duty});
+  std::size_t n = 0;
+  const auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+  while (std::chrono::steady_clock::now() < end) {
+    n += ecu.daq_take(std::chrono::milliseconds(50)).size();
+  }
+  ecu.daq_stop();
+  CHECK(n > 300); // about 500 at 1 kHz
+  CHECK(ecu.daq_lost() == 0);
 }

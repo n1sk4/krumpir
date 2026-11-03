@@ -89,6 +89,31 @@ tools/hil/pc_loop.sh t12 --check      # or motor, t12-open; --live: own clocks i
 - `<name>_host --device DEV [--lockstep | --hz N] [--log] [-c "sp 300"]...`: console on stdin, CSV
   telemetry on stdout (`--log` or `log on`).
 
+### XCP on the PC build
+
+With `-DKRUMPIR_XCP=ON` the PC build serves XCP on UDP (XCPlite's Linux configuration, the same
+calibration page and events as the board), and the TUI has a card for it ("t12 pc", "motor pc").
+Every build has a new EPK, so make the A2L after each build:
+
+```sh
+cmake -S controllers/esp32-t12-controller/host -B ~/build/host-t12-xcp -DKRUMPIR_XCP=ON
+cmake --build ~/build/host-t12-xcp
+xcpclient --offline --udp --dest-addr 127.0.0.1 --port 5556 --elf <the t12_host program> \
+  --a2l controllers/esp32-t12-controller/docs/t12_host.a2l --elf-unit-filter control_task \
+  --default-event tick --embed-aml
+python3 tools/hil/fix_host_a2l.py controllers/esp32-t12-controller/docs/t12_host.a2l
+CONTROLLER=~/build/host-t12-xcp/t12_host XCP_PORT=5556 tools/hil/pc_loop.sh t12 --live
+```
+
+- Give each controller its own port (`--xcp`, and the same in the A2L): motor 5555, t12 5556.
+- `fix_host_a2l.py`: on Linux XCPlite keeps the EPK in calibration segment 0, which an offline A2L
+  does not know. `xcpclient --create-a2l` connected to the running program gets it right too.
+- On Windows, xcpclient and the TUI reach a controller in WSL only with WSL's mirrored networking
+  (`networkingMode=mirrored` in `%UserProfile%\.wslconfig`); WSL's default NAT drops the UDP.
+  Otherwise run the TUI in WSL.
+- `KT_ECU=<a2l> test_core` (clients/tui) checks a running controller: EPK, a calibration write and
+  DAQ at 1 kHz.
+
 ## XCP measurement and calibration
 
 The env `esp32dev-xcp` builds the same firmware with XCP on Ethernet over Wi-Fi: every variable of

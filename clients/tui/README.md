@@ -131,6 +131,9 @@ against the firmware: an A2L from another build is refused.
   rate per signal, and DAQ packets lost (counter gaps; yellow when any). If the controller
   refuses DAQ, everything is polled and the events say why.
 
+A controller with a HIL link also gets a card for its PC build ("t12 pc"), with the A2L
+`docs/<name>_host.a2l` of that build (controllers/README.md, "XCP on the PC build").
+
 The controller takes one XCP master at a time: while the TUI is connected, `xcpclient` and the
 Python `EcuPort` can't connect, and the other way round.
 

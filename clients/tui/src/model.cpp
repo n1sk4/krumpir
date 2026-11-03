@@ -277,7 +277,14 @@ void Model::fetch_vars()
       const std::string causality = str(v, "causality");
       const bool param = causality == "parameter" && v.value("tunable", false);
       if (str(v, "type") == "Float64" && (causality == kind || (param && kind[0] == 'p'))) {
-        vars.push_back({str(v, "name"), kind});
+        const auto limit = [&v](const char *key) {
+          const auto it = v.find(key);
+          return it != v.end() && it->is_number() ? it->get<double>() : double(NAN);
+        };
+        Variable var{str(v, "name"), kind};
+        var.min = limit("min"); // the service does not send these yet
+        var.max = limit("max");
+        vars.push_back(var);
       }
     }
   }

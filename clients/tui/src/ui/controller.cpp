@@ -60,9 +60,9 @@ Component ControllerSetup(EcuModel &ecu)
         continue;
       }
       double v;
-      if (!ParseNumber(s->edit[i], &v) || v < p.min || v > p.max) {
-        s->hint = Format("%s: '%s' is not a number in %g..%g, not written", p.name.c_str(),
-                         s->edit[i].c_str(), p.min, p.max);
+      const std::string why = CheckValue(s->edit[i], p.min, p.max, &v);
+      if (!why.empty()) {
+        s->hint = p.name + ": " + why + ", not written";
         continue;
       }
       ecu.write(p.name, v);
@@ -144,8 +144,8 @@ Component ControllerSetup(EcuModel &ecu)
       Element field = text("console only") | dim;
       if (s->input_of[i] >= 0) {
         double v;
-        const bool ok = s->edit[i] == s->base[i] ||
-                        (ParseNumber(s->edit[i], &v) && v >= p.min && v <= p.max);
+        const bool ok =
+            s->edit[i] == s->base[i] || CheckValue(s->edit[i], p.min, p.max, &v).empty();
         field = grid->ChildAt(static_cast<std::size_t>(s->input_of[i]))->Render() | underlined |
                 (!ok                       ? color(Color::Red)
                  : s->edit[i] != s->base[i] ? color(Color::Yellow)
@@ -173,12 +173,61 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
 {
   struct State {
     std::string filter;
-    std::vector<std::string> rows, names, watched;
+    std::vector<std::string> rows, names, watched; // watched: the ones checked
+    std::string fallback; // watched only because none is checked: the selected one is plotted
+    std::string sent;     // the fallback last asked for, so a frame does not ask twice
     int selected = 0;
     int row = 1; // focus in the signals pane: starts on the list, so the keys work
     bool single = false;
+    std::string hint; // one-line feedback under the header
+    bool connected = false;
+
+    // The write dialog: pick a calibration parameter, type a value, the limits are checked
+    bool show_write = false;
+    std::vector<CalParam> writable;       // the parameters that have a calibration value
+    std::vector<std::string> param_rows;  // their rows in the dialog
+    int param = 0;                        // the row picked
+    std::string value, error;
+    int value_cursor = 0, write_row = 0;
   };
   auto s = std::make_shared<State>();
+
+  auto fill = [s] { // the picked parameter's current value as the starting text
+    if (s->param >= 0 && s->param < static_cast<int>(s->writable.size())) {
+      s->value = EditText(s->writable[static_cast<std::size_t>(s->param)].value);
+      s->value_cursor = static_cast<int>(s->value.size());
+    }
+    s->error.clear();
+  };
+  auto open_write = [s, fill] {
+    if (!s->connected) {
+      s->hint = "not connected: nothing to write";
+      return;
+    }
+    if (s->writable.empty()) {
+      s->hint = "this controller has no calibration parameters";
+      return;
+    }
+    s->param = std::clamp(s->param, 0, static_cast<int>(s->writable.size()) - 1);
+    fill();
+    s->write_row = 0;
+    s->show_write = true;
+  };
+  auto apply_write = [&ecu, s] {
+    if (s->param < 0 || s->param >= static_cast<int>(s->writable.size())) {
+      return;
+    }
+    const CalParam &p = s->writable[static_cast<std::size_t>(s->param)];
+    double v;
+    const std::string why = CheckValue(s->value, p.min, p.max, &v);
+    if (!why.empty()) {
+      s->error = why;
+      return;
+    }
+    ecu.write(p.name, v);
+    s->show_write = false;
+  };
+  auto close = [s] { s->show_write = false; };
 
   auto toggle = [&ecu, s] {
     if (s->selected < 0 || s->selected >= static_cast<int>(s->names.size())) {
@@ -192,6 +241,8 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
     } else {
       w.push_back(name);
     }
+    s->fallback.clear(); // what is left is the user's choice
+    s->sent.clear();
     ecu.watch(w);
   };
 
@@ -219,15 +270,29 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
     Element header, events;
     std::vector<std::string> plotted;
     std::vector<std::vector<Sample>> samples;
+    bool want_fallback = false;
     ecu.view([&](const EcuSnapshot &v) {
-      s->watched = v.watched;
+      const bool only_fallback =
+          !s->fallback.empty() && v.watched.size() == 1 && v.watched[0] == s->fallback;
+      s->watched = only_fallback ? std::vector<std::string>{} : v.watched;
+      s->connected = v.connected;
+      want_fallback = v.connected && s->watched.empty();
+      s->writable.clear();
+      s->param_rows.clear();
+      for (const auto &p : v.params) {
+        if (!p.cal.empty()) {
+          s->writable.push_back(p);
+          s->param_rows.push_back(Format("%-16s %10s %s", Fit(p.name, 16).c_str(),
+                                         Number(p.value).c_str(), p.unit.c_str()));
+        }
+      }
       s->rows.clear();
       s->names.clear();
       for (const auto &name : v.measurements) {
         if (!MatchesFilter(name, s->filter)) {
           continue;
         }
-        const bool on = std::find(v.watched.begin(), v.watched.end(), name) != v.watched.end();
+        const bool on = std::find(s->watched.begin(), s->watched.end(), name) != s->watched.end();
         const auto val = v.values.find(name);
         s->rows.push_back(Format("%s %-*s %11s", on ? "[x]" : "[ ]", nw, Fit(name, nw).c_str(),
                                  val != v.values.end() ? Number(val->second).c_str() : ""));
@@ -258,23 +323,76 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
       events = EventsPane(v.events);
       return 0;
     });
+    // None checked: plot the selected one, as the runner does (outside the view: watch locks).
+    if (!want_fallback) {
+      s->fallback.clear();
+      s->sent.clear();
+    } else if (!s->names.empty() && s->sent != s->names[static_cast<std::size_t>(s->selected)]) {
+      s->fallback = s->sent = s->names[static_cast<std::size_t>(s->selected)];
+      ecu.watch({s->fallback});
+    }
 
     return vbox({
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
               clear->Render(), text(" ")}),
+        s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
         split->render(PlotPane(plotted, samples, s->single)),
         events | size(HEIGHT, EQUAL, kEventsRows),
     });
   });
 
-  return CatchEvent(view, [&ecu, s, split, filter, toggle](const Event &e) {
+  // Write dialog: the parameter, then its value
+  MenuOption pick;
+  pick.entries = &s->param_rows;
+  pick.selected = &s->param;
+  pick.on_change = fill;
+  pick.on_enter = [s] { s->write_row = 1; }; // on to the value
+  auto params = Menu(pick);
+  InputOption value_opt = OneLine();
+  value_opt.on_enter = apply_write;
+  value_opt.cursor_position = &s->value_cursor;
+  auto value = Input(&s->value, "number", value_opt);
+  auto write_buttons = Container::Horizontal({Button("Write", apply_write, ButtonOption::Ascii()),
+                                              Button("Cancel", close, ButtonOption::Ascii())});
+  auto write_dialog = Renderer(Container::Vertical({params, value, write_buttons}, &s->write_row),
+                               [=] {
+    const bool picked = s->param >= 0 && s->param < static_cast<int>(s->writable.size());
+    const CalParam none;
+    const CalParam &p = picked ? s->writable[static_cast<std::size_t>(s->param)] : none;
+    return window(text(" Write a parameter "),
+                  vbox({params->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 8),
+                        hbox({text("value "), value->Render() | underlined |
+                                                  size(WIDTH, GREATER_THAN, kNumberBoxWidth)}),
+                        text(picked ? Format("%s  limits %g..%g", p.unit.empty() ? "-" : p.unit.c_str(),
+                                             p.min, p.max)
+                                    : std::string()) |
+                            dim,
+                        text(s->error) | color(Color::Red),
+                        write_buttons->Render() | align_right})) |
+           size(WIDTH, GREATER_THAN, kDialogWidth);
+  });
+
+  return CatchEvent(Modal(view, write_dialog, &s->show_write),
+                    [&ecu, s, split, filter, toggle, open_write, close](const Event &e) {
+    if (s->show_write) { // the dialog gets the keys
+      return EscapeCloses(e, close);
+    }
     if (filter->Focused()) {
       return false; // typing
+    }
+    if (e.is_character()) {
+      s->hint.clear();
+    }
+    if (!split->shown() && e == Event::Character(' ')) {
+      s->hint = "the signals are hidden: v shows them";
+      return true;
     }
     if (split->on_key(e)) {
       return true;
     }
-    if (e == Event::Character('s')) {
+    if (e == Event::Character('w')) {
+      open_write();
+    } else if (e == Event::Character('s')) {
       ecu.request("start");
     } else if (e == Event::Character('x')) {
       ecu.request("stop");

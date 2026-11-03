@@ -267,6 +267,40 @@ TEST_CASE("ui dialogs: Esc closes, any other key goes to the dialog")
   CHECK(closed == 1);
 }
 
+TEST_CASE("ui value check: a number, and inside the limits when there are some")
+{
+  using krumpir::ui::CheckValue;
+  double v = -1;
+  CHECK(CheckValue("2.5", 0, 10, &v).empty());
+  CHECK(v == 2.5);
+  CHECK(CheckValue("0", 0, 10, &v).empty()); // the limits themselves are inside
+  CHECK(CheckValue("10", 0, 10, &v).empty());
+  CHECK(CheckValue("10.5", 0, 10, &v).find("outside 0..10") != std::string::npos);
+  CHECK(CheckValue("-0.1", 0, 10, &v).find("outside") != std::string::npos);
+  CHECK(CheckValue("abc", 0, 10, &v).find("not a number") != std::string::npos);
+  CHECK(CheckValue("", 0, 10, &v).find("not a number") != std::string::npos);
+  CHECK(CheckValue("nan", 0, 10, &v).find("not a number") != std::string::npos);
+  v = -1;
+  CHECK(CheckValue("abc", 0, 10, &v) != ""); // a refusal leaves the value alone
+  CHECK(v == -1);
+  // No limits (NaN): any finite number, as the runner's variables are today
+  CHECK(CheckValue("12345", NAN, NAN, &v).empty());
+  CHECK(v == 12345);
+  CHECK(CheckValue("abc", NAN, NAN, &v) == "not a number");
+  CHECK(CheckValue("1", 0, NAN, &v).empty()); // one limit missing: none
+}
+
+TEST_CASE("ui root: w on a controller that is not connected says so")
+{
+  Rig r;
+  r.root->OnEvent(Event::F2);
+  r.root->OnEvent(Event::ArrowDown); // the controller's card
+  r.root->OnEvent(Event::Character('w'));
+  const Screen s = draw(r.root, 130, 40);
+  CHECK(has(s, "nothing to write"));
+  CHECK_FALSE(has(s, " Write a parameter "));
+}
+
 TEST_CASE("ui filter: a substring of the name, any case, empty shows all")
 {
   using krumpir::ui::MatchesFilter;

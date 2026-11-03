@@ -55,6 +55,7 @@ krumpir-tui --repo ~/krumpir                          # where controllers/ is (d
 | up / down | (Monitor) the variable to plot |
 | w, Enter | (Monitor) write a value to the selected input or tunable parameter |
 | g | (Monitor) play a signal on the selected input |
+| w | (Monitor, a controller) write a calibration parameter: pick it in the dialog; the value must be a number inside the parameter's limits |
 | Enter | (Load, a controller) in the address: connect; in the grid: write the changed values |
 | s / x / c | (Monitor, a controller) start / stop / clear a latched trip |
 | space, Enter | (Monitor, a controller) on a signal: plot it or not |

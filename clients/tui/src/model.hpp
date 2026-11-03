@@ -19,6 +19,7 @@ struct Variable {
   std::string name;
   std::string kind; // "input", "output" or "param" (tunable parameter)
   double value = NAN;
+  double min = NAN, max = NAN; // limits for a written value; NaN: the service gave none
 };
 
 struct Sample {

@@ -56,6 +56,10 @@ bool EscapeCloses(const ftxui::Event &e, const std::function<void()> &close);
 // Shared pieces (plot.cpp)
 std::vector<Sample> Thin(const std::deque<Sample> &h); // at most ~4000 points, to draw
 bool ParseNumber(const std::string &s, double *out);   // the whole text as a finite number
+// The text typed in a value box: a number and, when min and max are both finite, inside them.
+// Returns "" with the number in *out, or why it is refused. Every place that writes a value to a
+// target uses this, so the checks are the same.
+std::string CheckValue(const std::string &text, double min, double max, double *out);
 // One graph per name stacked, or all in one each scaled to its range (single).
 ftxui::Element PlotPane(const std::vector<std::string> &names,
                         const std::vector<std::vector<Sample>> &samples, bool single);

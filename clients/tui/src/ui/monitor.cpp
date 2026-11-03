@@ -104,8 +104,9 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
   };
   auto apply_write = [&m, s] {
     double v;
-    if (!ParseNumber(s->value, &v)) {
-      s->error = "not a number";
+    const std::string why = CheckValue(s->value, s->target.min, s->target.max, &v);
+    if (!why.empty()) {
+      s->error = why;
       return;
     }
     m.write(s->target.name, v);
@@ -204,6 +205,9 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
                   vbox({hbox({text(s->target.name + " = "),
                               value->Render() | underlined |
                                   size(WIDTH, GREATER_THAN, kNumberBoxWidth)}),
+                        std::isfinite(s->target.min) && std::isfinite(s->target.max)
+                            ? text(Format("limits %g..%g", s->target.min, s->target.max)) | dim
+                            : text(""),
                         text(s->error) | color(Color::Red),
                         text(s->target.kind == "input" ? "replaces its signal from the next step"
                                                        : "from the next step") |

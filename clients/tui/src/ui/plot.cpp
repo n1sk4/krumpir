@@ -122,6 +122,21 @@ bool ParseNumber(const std::string &s, double *out)
   return end != p && end != nullptr && *end == '\0' && std::isfinite(*out);
 }
 
+std::string CheckValue(const std::string &text, double min, double max, double *out)
+{
+  const bool limited = std::isfinite(min) && std::isfinite(max);
+  double v;
+  if (!ParseNumber(text, &v)) {
+    return limited ? Format("'%s' is not a number in %g..%g", text.c_str(), min, max)
+                   : std::string("not a number");
+  }
+  if (limited && !(v >= min && v <= max)) {
+    return Format("%g is outside %g..%g", v, min, max);
+  }
+  *out = v;
+  return "";
+}
+
 Element PlotPane(const std::vector<std::string> &names,
                  const std::vector<std::vector<Sample>> &samples, bool single)
 {

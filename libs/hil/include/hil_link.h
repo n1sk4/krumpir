@@ -35,10 +35,12 @@ typedef struct {
   _Atomic uint32_t latest[HIL_MAX_VALUES]; /* float bit patterns */
   _Atomic uint32_t latest_seq;             /* its frame seq */
   _Atomic uint32_t frames;                 /* PLANT frames so far */
-  atomic_bool bye;
+  atomic_bool bye;      /* for hil_link_take_bye */
+  atomic_bool bye_seen; /* since the last plant frame */
 
   /* tick side */
   uint32_t taken;   /* `frames` at the last take */
+  uint32_t ended;   /* ticks without a plant frame since a BYE (0: none) */
   uint16_t cmd_seq; /* seq of the plant values in use: the CMD answers it */
 } hil_link_t;
 
@@ -51,7 +53,8 @@ void hil_link_init(hil_link_t *l, hil_slots_t *slots, const char *const *plant, 
 int hil_link_feed(hil_link_t *l, uint8_t b);
 
 /* Tick, before the controller: the newest plant values into the slots (age 0), or the last ones
- * one tick older when none came. */
+ * one tick older when none came. After a BYE, one tick runs on (so the stop takes effect), then
+ * age is HIL_AGE_NONE again: the controller waits for the next run, as at boot. */
 void hil_link_tick_begin(hil_link_t *l);
 
 /* Tick, after the controller: its commands as CMD, seq = that of the plant values it used. */

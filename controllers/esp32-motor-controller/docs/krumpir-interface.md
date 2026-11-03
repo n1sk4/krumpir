@@ -152,6 +152,7 @@ Bring-up:
    Type `sp 3000` and `start`.
 3. `krumpir run scenarios/dcmotor_hil_board.toml` (or Load it in the TUI): the console prints
    `hil: runner connected`; the summary's `late` should stay near 0 (a few at most).
-4. Compare the run with the PC loop's (`runner/runs/*_hil_pc.csv`, `tools/hil/compare.py`).
+4. `tools/hil/compare.py motor --board /dev/ttyUSB0 --console /dev/ttyUSB1` (the console port: the
+   board's USB) runs every case against the board and writes `docs/sil_vs_board.md`.
 5. Pull the adapter's TX during a run: the controller trips `sensor timeout`, the runner holds the
    last commands and counts late steps.

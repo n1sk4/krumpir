@@ -53,6 +53,7 @@ int hil_link_feed(hil_link_t *l, uint8_t b)
     atomic_fetch_add_explicit(&l->frames, 1, memory_order_release);
   } else if (f.type == HIL_BYE) {
     atomic_store(&l->bye, true);
+    atomic_store(&l->bye_seen, true);
   } else {
     return 0;
   }
@@ -63,11 +64,15 @@ void hil_link_tick_begin(hil_link_t *l)
 {
   const uint32_t frames = atomic_load_explicit(&l->frames, memory_order_acquire);
   if (frames == l->taken) {
-    if (l->slots->age < AGE_LOST) {
+    if (atomic_load(&l->bye_seen) && l->ended++ > 0) {
+      l->slots->age = AGE_LOST; /* the run is over: wait for the next one */
+    } else if (l->slots->age < AGE_LOST) {
       l->slots->age++;
     }
     return;
   }
+  atomic_store(&l->bye_seen, false);
+  l->ended = 0;
   uint32_t s1, s2, seq;
   float v[HIL_MAX_VALUES];
   do {

@@ -22,6 +22,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -79,16 +80,22 @@ for _c in CASES["t12"].values():
     _c.update({"sp": 350, "target": 350, "hold": T12_HOLD})
 
 
-def toml_scenario(ctrl, name, case):
+def toml_scenario(ctrl, name, case, board=None):
+    """The case as a runner scenario: lockstep on the PC loop's pty, or (board: the device) paced
+    and free-running, as the board ticks on its own clock."""
     p = PLANTS[ctrl]
     params = {**p["params"], **case.get("params", {})}
     stim = case.get("stim", {})
+    timing = (['wait = "none"'] if board is None else
+              ['wait = "sleep"', "max_overruns = 1000000"])
+    link = (['device = "/tmp/krumpir-hil/runner"', "timeout_ms = 500"] if board is None else
+            [f'device = "{board}"', "baud = 921600", "timeout_ms = 0", 'late = "hold"'])
+    log = f"runs/compare/{ctrl}_{name}{'' if board is None else '_board'}.csv"
     lines = [f"# compare.py {ctrl} {name}: generated, see tools/hil/compare.py",
              "[model]", f'fmu = "{p["fmu"]}"', f"step = {p['dt']}",
              f"duration = {case['duration']}",
              "params = { " + ", ".join(f"{k} = {v}" for k, v in params.items()) + " }",
-             "", "[rt]", 'wait = "none"', "", "[io]", 'backend = "uart"',
-             'device = "/tmp/krumpir-hil/runner"', "timeout_ms = 500",
+             "", "[rt]", *timing, "", "[io]", 'backend = "uart"', *link,
              "inputs = [" + ", ".join(f'"{i}"' for i in p["inputs"]) + "]",
              "outputs = [" + ", ".join(f'"{o}"' for o in p["outputs"]) + "]",
              "stimulus = ["]
@@ -99,7 +106,7 @@ def toml_scenario(ctrl, name, case):
         if inp not in p["cmd"] and inp not in stim:
             value = case.get("hold", {}).get(inp, 0)
             lines.append(f'  {{ input = "{inp}", kind = "constant", value = {value} }},')
-    lines += ["]", "", "[log]", f'file = "runs/compare/{ctrl}_{name}.csv"', ""]
+    lines += ["]", "", "[log]", f'file = "{log}"', ""]
     return "\n".join(lines)
 
 
@@ -143,6 +150,119 @@ def run_pc(build, ctrl, name, case):
             read_csv(ROOT / "runner" / "runs" / f"{ctrl}_{name}_ctrl.csv"), trip)
 
 
+class Console:
+    """The board's console (UART0): a tty, set to 115200 raw, or any writable path (a fifo into a
+    PC controller standing in for the board). Kept open: a fifo's reader would see an EOF."""
+
+    def __init__(self, path):
+        self.f = open(path, "w", buffering=1)
+        if self.f.isatty():
+            import termios
+            a = termios.tcgetattr(self.f)
+            a[0] = a[1] = a[3] = 0  # raw: no input, output or local processing
+            a[2] = termios.CS8 | termios.CREAD | termios.CLOCAL
+            a[4] = a[5] = termios.B115200
+            termios.tcsetattr(self.f, termios.TCSANOW, a)
+
+    def send(self, *lines):
+        for line in lines:
+            self.f.write(line + "\n")
+            time.sleep(0.05)  # one command at a time for the board's line editor
+
+
+def run_board(build, ctrl, name, case, device, console):
+    """The case against the controller on the board: its console gets the setpoint and a start
+    (after a stop and a clear, so every case starts the same), the runner drives the plant."""
+    scn = ROOT / "runner" / "runs" / "compare" / f"{ctrl}_{name}_board.toml"
+    scn.parent.mkdir(parents=True, exist_ok=True)
+    scn.write_text(toml_scenario(ctrl, name, case, board=device))
+    console.send("stop", "clear", f"sp {case['sp']}", "start")
+    time.sleep(0.3)
+    r = subprocess.run([str(Path(build) / "krumpir"), "run", str(scn)], capture_output=True,
+                       text=True, cwd=ROOT / "runner")
+    if r.returncode != 0:
+        sys.exit(f"compare: the board run failed for {ctrl} {name}:\n{r.stdout}{r.stderr}")
+    late = next((int(x.split()[1]) for x in r.stdout.splitlines() if x.startswith("late:")), -1)
+    return read_csv(ROOT / "runner" / "runs" / "compare" / f"{ctrl}_{name}_board.csv"), late
+
+
+MAX_LATENCY_STEPS = 3
+# On the board the commands (free-running: a change lands up to a step either way of the on-chip
+# run) are held to 5 %; the plant outputs keep RMS_LIMIT_PCT.
+BOARD_LIMITS = {"duty": 5.0}
+
+
+def aligned_motor(sil, run, case):
+    """The motor against the board: free-running, its tick falls anywhere in the runner's step, so
+    the response trails by up to a step or two (the loop latency). Compared at the delay that fits
+    best (0..MAX_LATENCY_STEPS), which is reported as the latency."""
+    dt = PLANTS["motor"]["dt"]
+    best = None
+    for shift in range(MAX_LATENCY_STEPS + 1):
+        moved = [{**r, "t": r["t"] - shift * dt} for r in run if r["t"] - shift * dt > dt / 2]
+        res = compare_motor(sil, (moved, None, None), case)
+        if best is None or res["rms"]["speed_rpm"] < best["rms"]["speed_rpm"]:
+            best, best["latency"] = res, shift
+    best["figures"]["latency steps"] = (0, best["latency"], 2)  # MVP: at most 2 steps
+    best["limits"] = BOARD_LIMITS
+    return best
+
+
+def compare_t12_board(sil, run, case):
+    """The T12 against the board, at the delay that fits the duty best (as aligned_motor)."""
+    dt = PLANTS["t12"]["dt"]
+    best = None
+    for shift in range(MAX_LATENCY_STEPS + 1):
+        res = t12_from_log(sil, run, case, shift)
+        if best is None or res["rms"]["duty"] < best["rms"]["duty"]:
+            best, best["latency"] = res, shift
+    best["figures"]["latency steps"] = (0, best["latency"], 2)  # MVP: at most 2 steps
+    return best
+
+
+def t12_from_log(sil, run, case, shift):
+    """The board from the runner's log only (its telemetry has its own clock), `shift` steps
+    earlier: the tip temperature at the on-chip samples, the duty as the heater's mean over the
+    cycle after each, and a trip as series_on dropping after it was on (Q3 opens
+    T12_HEARTBEAT_TIMEOUT_S = 0.1 s after the trip)."""
+    dt = PLANTS["t12"]["dt"]
+    tip, heater = {0: 25.0}, {}
+    for r in run:
+        k = round(r["t"] / dt) - shift  # row n = k - 1: the heater during step n, the plant after
+        tip[k] = r["t_tip_c"]
+        heater[k - 1] = r["heater"]
+    cycle = round(T12_CYCLE_S / dt)
+    t, tips, duty = [], ([], []), ([], [])
+    for s in sil:
+        k = round(s["t_s"] / dt)
+        window = [heater[j] for j in range(k, k + cycle) if j in heater]
+        if k not in tip or len(window) < cycle:
+            continue
+        t.append(s["t_s"])
+        tips[0].append(s["tip_c"])
+        tips[1].append(tip[k])
+        duty[0].append(s["duty"])
+        duty[1].append(sum(window) / cycle)
+    sil_trip = next((s["t_s"] for s in sil if s["trip"]), None)
+    on, drop = False, None
+    for r in run:
+        on = on or r["series_on"] >= 0.5
+        if on and r["t"] >= case["event"] and r["series_on"] < 0.5:
+            drop = r["t"] - shift * dt
+            break
+    board_trip = drop - 0.1 if drop is not None else None
+    res = {"t": t, "signals": {"tip_c": tips, "duty": duty},
+           "rms": {"tip_c": rms_pct(*tips, case["target"]), "duty": rms_pct(*duty, 1.0)},
+           "figures": {}, "limits": BOARD_LIMITS,
+           "trip": ("trip" if sil_trip is not None else "none",
+                    "trip" if board_trip is not None else "none")}
+    if sil_trip is not None or board_trip is not None:
+        a = sil_trip - case["event"] if sil_trip is not None else math.nan
+        b = board_trip - case["event"] if board_trip is not None else math.nan
+        res["figures"]["trip after s"] = (a, b, 2 * T12_CYCLE_S)
+    return res
+
+
 def step_figures(t, x, sp, t0, t1, band):
     """Overshoot % (rising steps), settling s from t0 (last time outside sp +- band), final
     error (mean over the last 10 % of the window), and the minimum (a load dip)."""
@@ -172,7 +292,8 @@ def compare_motor(sil, pc, case):
         duty_pc[k - 1] = r["duty"]
     t = [r["t_s"] for r in sil]
     ks = [round(x / dt) for x in t]
-    s_sil, s_pc = [r["speed_rpm"] for r in sil], [speed_pc[k] for k in ks]
+    end = speed_pc[max(speed_pc)]  # held at the end (aligned_motor shifts the last rows out)
+    s_sil, s_pc = [r["speed_rpm"] for r in sil], [speed_pc.get(k, end) for k in ks]
     d_sil, d_pc = [r["duty"] for r in sil], [duty_pc.get(k, 0.0) for k in ks]
     fs = max(abs(x) for x in s_sil) or 1
     t0, t1 = case["window"]
@@ -241,7 +362,9 @@ def compare_t12(sil, pc, case):
 
 
 def verdict(res):
-    bad = [f"{s} RMS {v:.2f} %" for s, v in res["rms"].items() if v >= RMS_LIMIT_PCT]
+    limits = res.get("limits", {})
+    bad = [f"{s} RMS {v:.2f} %" for s, v in res["rms"].items()
+           if v >= limits.get(s, RMS_LIMIT_PCT)]
     for k, (a, b, floor) in res["figures"].items():
         if not abs(a - b) <= max(FIG_REL * abs(a), floor):  # NaN (one side never got there) fails
             bad.append(f"{k} {a:.3g} vs {b:.3g}")
@@ -250,7 +373,7 @@ def verdict(res):
     return bad
 
 
-def plot(path, name, res):
+def plot(path, name, res, other="PC loop (FMU over the link)"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -258,10 +381,10 @@ def plot(path, name, res):
     fig, axes = plt.subplots(len(sigs), 1, figsize=(9, 2.6 * len(sigs)), sharex=True)
     for ax, (sig, (a, b)) in zip(axes, sigs.items()):
         ax.plot(res["t"], a, label="SIL (on-chip plant)", lw=1.6)
-        ax.plot(res["t"], b, label="PC loop (FMU over the link)", lw=1.0, ls="--")
+        ax.plot(res["t"], b, label=other, lw=1.0, ls="--")
         ax.set_ylabel(sig)
         ax.grid(alpha=0.3)
-    axes[0].set_title(f"{name}: SIL vs PC loop")
+    axes[0].set_title(f"{name}: SIL vs {other.split(' (')[0]}")
     axes[0].legend(loc="best", fontsize=8)
     axes[-1].set_xlabel("t [s]")
     fig.tight_layout()
@@ -279,10 +402,19 @@ def main():
     ap.add_argument("--check", action="store_true", help="exit 1 when a case fails")
     ap.add_argument("--no-plots", action="store_true")
     ap.add_argument("--case", action="append", help="only these cases (no report)")
+    ap.add_argument("--board", metavar="DEVICE",
+                    help="the controller on the board instead of the PC loop: its HIL UART "
+                         "(e.g. /dev/ttyUSB0); paced, free-running")
+    ap.add_argument("--console", metavar="PATH",
+                    help="with --board: the board's console (UART0, e.g. /dev/ttyUSB1)")
     args = ap.parse_args()
+    if args.board and not args.console:
+        ap.error("--board needs --console (the setpoint and start go there)")
+    console = Console(args.console) if args.board else None
 
     ctrl = args.ctrl
     docs = ROOT / "controllers" / PLANTS[ctrl]["dir"] / "docs"
+    kind, other = ("board", "board (FMU over the UART)") if args.board else ("pc", "PC loop")
     plots = not args.no_plots
     if plots:
         try:
@@ -290,36 +422,54 @@ def main():
         except ImportError:
             plots = False
             print("compare: no matplotlib, numbers only")
-    rows, failed = [], 0
+    rows, failed, names = [], 0, []
     for name, case in CASES[ctrl].items():
         if args.case and name not in args.case:
             continue
-        res = COMPARE[ctrl](run_sil(args.build, ctrl, name), run_pc(args.build, ctrl, name, case),
-                            case)
+        if args.board and case.get("at"):
+            print(f"{name}: skipped on the board (a timed setpoint needs the PC controller's --at)")
+            continue
+        names.append(name)
+        sil, late = run_sil(args.build, ctrl, name), None
+        if args.board:
+            run, late = run_board(args.build, ctrl, name, case, args.board, console)
+            res = (aligned_motor(sil, run, case) if ctrl == "motor" else
+                   compare_t12_board(sil, run, case))
+        else:
+            res = COMPARE[ctrl](sil, run_pc(args.build, ctrl, name, case), case)
         bad = verdict(res)
         failed += bool(bad)
         rms = ", ".join(f"{s} {v:.2f} %" for s, v in res["rms"].items())
         figs = ", ".join(f"{k} {a:.3g} / {b:.3g}" for k, (a, b, _) in res["figures"].items())
         trip = f"{res['trip'][0]} / {res['trip'][1]}"
         result = "PASS" if not bad else "FAIL: " + "; ".join(bad)
-        rows.append(f"| {name} | {result} | {rms} | {figs} | {trip} |")
-        print(f"{name}: {result} ({rms})")
+        rows.append(f"| {name} | {result} | {rms} | {figs} | {trip} |" +
+                    (f" {late} |" if args.board else ""))
+        print(f"{name}: {result} ({rms}{f', late {late}' if args.board else ''})")
         if plots:
-            plot(docs / f"sil_vs_pc_{name}.png", name, res)
+            plot(docs / f"sil_vs_{kind}_{name}.png", name, res, other)
     if not args.case and not args.check:  # --check (CTest) leaves the committed report alone
-        report = [f"# {ctrl}: SIL vs PC loop", "",
-                  f"Generated by `tools/hil/compare.py {ctrl}`: each closed-loop scenario on the "
-                  "controller's on-chip plant (SIL) and as the PC loop (the same controller code "
-                  "against the plant FMU in the runner over the HIL link). RMS error in % of full "
-                  "scale (the largest SIL value of the signal); figures and trips SIL / PC. Pass: "
-                  f"RMS under {RMS_LIMIT_PCT:g} %, figures within {FIG_REL:.0%} (or a small "
-                  "floor), the same trip.", "",
-                  "| case | result | RMS error | figures (SIL / PC) | trip (SIL / PC) |",
-                  "|---|---|---|---|---|", *rows, ""]
+        what = ("the controller on the ESP32 against the plant FMU in the runner over its HIL "
+                "UART, paced and free-running (compared from the runner's log: the tip temperature "
+                "and the heater's duty per cycle; a trip is series_on dropping; cases with a timed "
+                "setpoint are left out)" if args.board else
+                "the PC loop (the same controller code against the plant FMU in the runner over "
+                "the HIL link)")
+        cmd = f"tools/hil/compare.py {ctrl}" + (" --board DEVICE --console PATH" if args.board
+                                                else "")
+        head = "| case | result | RMS error | figures (SIL / other) | trip (SIL / other) |"
+        report = [f"# {ctrl}: SIL vs {other.split(' (')[0]}", "",
+                  f"Generated by `{cmd}`: each closed-loop scenario on the controller's on-chip "
+                  f"plant (SIL) and as {what}. RMS error in % of full scale; figures and trips SIL "
+                  f"/ other. Pass: RMS under {RMS_LIMIT_PCT:g} %, figures within {FIG_REL:.0%} (or "
+                  "a small floor), the same trip.", "",
+                  head + (" late steps |" if args.board else ""),
+                  "|---|---|---|---|---|" + ("---|" if args.board else ""), *rows, ""]
         if plots:
-            report += [f"![{n}](sil_vs_pc_{n}.png)" for n in CASES[ctrl]] + [""]
-        (docs / "sil_vs_pc.md").write_text("\n".join(report), encoding="utf-8")
-        print(f"compare: wrote {docs / 'sil_vs_pc.md'}")
+            report += [f"![{n}](sil_vs_{kind}_{n}.png)" for n in names] + [""]
+        out = docs / f"sil_vs_{kind}.md"
+        out.write_text("\n".join(report), encoding="utf-8")
+        print(f"compare: wrote {out}")
     sys.exit(1 if args.check and failed else 0)
 
 

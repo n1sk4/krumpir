@@ -112,6 +112,16 @@ Both loops compute the command for plant step k from the plant before it: the ru
 model's initial outputs before step 0, so tick k of the PC controller is step k, as on the chip.
 The remaining differences are the float motor plant on the chip and the integer telemetry columns.
 
+`--board /dev/ttyUSB0 --console /dev/ttyUSB1` runs the same cases against the controller on the
+ESP32 (`esp32dev-hil`) and writes `docs/sil_vs_board.md`: the setpoint and a start go to its
+console, the runner is paced and free-running. It compares from the runner's log (the T12's duty
+as the heater's mean per cycle, a trip as Q3 opening) at the delay that fits best, 0 to 3 steps,
+reported as the loop latency (at most 2 steps to pass). The plant outputs keep the 2 % limit; the
+commands get 5 %, since a free-running change lands up to a step either way. Cases with a timed
+setpoint (the motor's step, saturation and inertia) need the PC controller's `--at` and are left
+out. A PC controller free-running (`--hz 1000`, its stdin from a fifo as `--console`) stands in
+for the board.
+
 ### XCP on the PC build
 
 With `-DKRUMPIR_XCP=ON` the PC build serves XCP on UDP (XCPlite's Linux configuration, the same

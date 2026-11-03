@@ -121,6 +121,27 @@ static void test_bye_once(void)
   TEST_ASSERT_FALSE(hil_link_take_bye(&link));
 }
 
+static void test_waits_again_after_bye(void)
+{
+  hil_frame_t f = plant_frame(1, 1.0f, 2.0f);
+  feed(&f);
+  hil_link_tick_begin(&link);
+  TEST_ASSERT_EQUAL_UINT32(0, slots.age);
+  const hil_frame_t bye = {HIL_BYE, 0, 0, {0}};
+  feed(&bye);
+  hil_link_tick_begin(&link); /* one more tick on the last values: the stop takes effect */
+  TEST_ASSERT_EQUAL_UINT32(1, slots.age);
+  hil_link_tick_begin(&link); /* then waiting, not a stale reading */
+  TEST_ASSERT_EQUAL_UINT32(HIL_AGE_NONE, slots.age);
+  f = plant_frame(0, 5.0f, 6.0f); /* the next run */
+  feed(&f);
+  hil_link_tick_begin(&link);
+  TEST_ASSERT_EQUAL_UINT32(0, slots.age);
+  hil_link_tick_begin(&link); /* and a quiet link in that run counts up again (no BYE) */
+  hil_link_tick_begin(&link);
+  TEST_ASSERT_EQUAL_UINT32(2, slots.age);
+}
+
 int main(void)
 {
   UNITY_BEGIN();
@@ -129,5 +150,6 @@ int main(void)
   RUN_TEST(test_cmd_answers_the_plant_seq);
   RUN_TEST(test_wrong_size_ignored);
   RUN_TEST(test_bye_once);
+  RUN_TEST(test_waits_again_after_bye);
   return UNITY_END();
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include <ftxui/component/component.hpp>
 #include <ftxui/dom/elements.hpp>
@@ -47,5 +48,11 @@ private:
   int most_ = 1000; // widest pane that leaves the plot its room
   int focus_ = 0;
 };
+
+// The filter box that heads the list in the pane, the same on every Monitor page: typing narrows
+// the list to the names that contain the text, ignoring case; empty shows all.
+ftxui::Component FilterInput(std::string *text);
+ftxui::Element FilterRow(const ftxui::Component &input);
+bool MatchesFilter(const std::string &name, const std::string &filter);
 
 } // namespace krumpir::ui

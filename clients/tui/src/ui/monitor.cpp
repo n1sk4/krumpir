@@ -48,7 +48,10 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     Variable sel;     // the selected row, as last rendered
     std::string hint; // one-line feedback under the header
 
-    std::string head; // the column titles of the variables pane
+    std::string head;   // the column titles of the variables pane
+    std::string filter; // narrows the list to the names that contain it
+    int row = 1;        // focus in the pane: starts on the list, so the keys work
+    std::vector<std::size_t> shown; // the list rows, as indexes into the snapshot's variables
 
     bool show_write = false, show_signal = false;
     Variable target; // what the open dialog writes to
@@ -132,9 +135,11 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
   menu.selected = &s->selected;
   menu.on_enter = open_write;
   auto vars = Menu(menu);
-  auto vars_pane = Renderer(vars, [s, vars] {
+  auto filter = FilterInput(&s->filter);
+  auto vars_pane = Renderer(Container::Vertical({filter, vars}, &s->row), [s, filter, vars] {
     return window(text(" Variables "),
-                  vbox({text(s->head) | dim, vars->Render() | vscroll_indicator | frame | flex}));
+                  vbox({FilterRow(filter), text(s->head) | dim,
+                        vars->Render() | vscroll_indicator | frame | flex}));
   });
   auto split = std::make_shared<PaneSplit>(lay, vars_pane);
   auto layout = Container::Vertical(
@@ -148,15 +153,21 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     std::vector<std::vector<Sample>> samples;
     m.view([&](const Snapshot &v) {
       s->rows.clear();
-      for (const auto &x : v.vars) {
+      s->shown.clear();
+      for (std::size_t i = 0; i < v.vars.size(); i++) {
+        const auto &x = v.vars[i];
+        if (s->checked.count(x.name)) {
+          plotted.push_back(x.name); // plotted even when the filter hides it
+        }
+        if (!MatchesFilter(x.name, s->filter)) {
+          continue;
+        }
+        s->shown.push_back(i);
         s->rows.push_back(Format("%s %-*.*s %-6s %12.6g", s->checked.count(x.name) ? "[x]" : "[ ]",
                                  nw, nw, x.name.c_str(), x.kind.c_str(), x.value));
-        if (s->checked.count(x.name)) {
-          plotted.push_back(x.name);
-        }
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
-      s->sel = v.vars.empty() ? Variable{} : v.vars[static_cast<std::size_t>(s->selected)];
+      s->sel = s->shown.empty() ? Variable{} : v.vars[s->shown[static_cast<std::size_t>(s->selected)]];
       if (plotted.empty() && !s->sel.name.empty()) {
         plotted.push_back(s->sel.name);
       }
@@ -234,13 +245,17 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
 
   auto with_dialogs =
       Modal(Modal(view, write_dialog, &s->show_write), signal_dialog, &s->show_signal);
-  return CatchEvent(with_dialogs, [&m, s, split, open_write, open_signal, close](const Event &e) {
+  return CatchEvent(with_dialogs, [&m, s, split, filter, open_write, open_signal,
+                                   close](const Event &e) {
     if (s->show_write || s->show_signal) { // the dialog gets the keys
       if (e == Event::Escape) {
         close();
         return true;
       }
       return false;
+    }
+    if (filter->Focused()) {
+      return false; // typing
     }
     if (e.is_character()) {
       s->hint.clear();

@@ -232,6 +232,28 @@ TEST_CASE("ui root: the pane setting is shared by every Monitor page")
   CHECK(has(draw(r.root, 130, 36), " Signals"));
 }
 
+TEST_CASE("ui filter: a substring of the name, any case, empty shows all")
+{
+  using krumpir::ui::MatchesFilter;
+  CHECK(MatchesFilter("speed_rpm", ""));
+  CHECK(MatchesFilter("speed_rpm", "rpm"));
+  CHECK(MatchesFilter("speed_rpm", "SPEED"));
+  CHECK(MatchesFilter("Speed_RPM", "d_r"));
+  CHECK_FALSE(MatchesFilter("speed_rpm", "duty"));
+  CHECK_FALSE(MatchesFilter("", "x"));
+}
+
+TEST_CASE("ui root: the runner and the controller pages both have the filter box")
+{
+  Rig r;
+  r.root->OnEvent(Event::F2);
+  CHECK(has(draw(r.root, 130, 36), "filter "));
+  r.root->OnEvent(Event::ArrowDown); // the controller's card
+  const Screen s = draw(r.root, 130, 36);
+  CHECK(has(s, " Signals"));
+  CHECK(has(s, "filter "));
+}
+
 TEST_CASE("ui root: the Load tab is not affected by the pane keys")
 {
   Rig r;

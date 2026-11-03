@@ -199,9 +199,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
   auto start = Button("Start", [&ecu] { ecu.request("start"); }, ButtonOption::Ascii());
   auto stop = Button("Stop", [&ecu] { ecu.request("stop"); }, ButtonOption::Ascii());
   auto clear = Button("Clear", [&ecu] { ecu.request("clear"); }, ButtonOption::Ascii());
-  InputOption one_line;
-  one_line.multiline = false;
-  auto filter = Input(&s->filter, "filter", one_line);
+  auto filter = FilterInput(&s->filter);
   MenuOption opt = MenuOption::Vertical();
   opt.entries = &s->rows;
   opt.selected = &s->selected;
@@ -210,8 +208,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
   auto pane = Container::Vertical({filter, sigs}, &s->row);
   auto sig_pane = Renderer(pane, [filter, sigs] {
     return window(text(" Signals (space: plot) "),
-                  vbox({hbox({text("filter "), filter->Render() | underlined}),
-                        sigs->Render() | vscroll_indicator | frame | flex}));
+                  vbox({FilterRow(filter), sigs->Render() | vscroll_indicator | frame | flex}));
   });
   auto split = std::make_shared<PaneSplit>(lay, sig_pane);
   auto layout = Container::Vertical(
@@ -228,7 +225,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
       s->rows.clear();
       s->names.clear();
       for (const auto &name : v.measurements) {
-        if (!s->filter.empty() && name.find(s->filter) == std::string::npos) {
+        if (!MatchesFilter(name, s->filter)) {
           continue;
         }
         const bool on = std::find(v.watched.begin(), v.watched.end(), name) != v.watched.end();

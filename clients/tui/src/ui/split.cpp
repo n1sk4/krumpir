@@ -1,6 +1,7 @@
 #include "split.hpp"
 
 #include <algorithm>
+#include <cctype>
 
 #include <ftxui/component/event.hpp>
 
@@ -55,6 +56,28 @@ bool PaneSplit::on_key(const Event &e)
     return true;
   }
   return false;
+}
+
+Component FilterInput(std::string *text)
+{
+  InputOption one_line;
+  one_line.multiline = false;
+  return Input(text, "filter", one_line);
+}
+
+Element FilterRow(const Component &input)
+{
+  return hbox({ftxui::text("filter "), input->Render() | underlined});
+}
+
+bool MatchesFilter(const std::string &name, const std::string &filter)
+{
+  const auto lower = [](std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return s;
+  };
+  return filter.empty() || lower(name).find(lower(filter)) != std::string::npos;
 }
 
 } // namespace krumpir::ui

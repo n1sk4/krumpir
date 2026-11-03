@@ -95,10 +95,9 @@ inputs, outputs and tunable parameters with their values, a plot of the selected
 events. Start arms a capture of the scenario's inputs and outputs, so the plot holds every step,
 also for unpaced runs that end at once. Other variables are sampled at 10 Hz while it runs.
 
-On every Monitor page the variables (signals) pane and the plot share the room right of the cards:
-drag the divider with the mouse or press `[` and `]` to move it, `v` to hide the pane. The cards, the
-header and the events stay as they are, and the setting is the same for all targets. It is not saved
-between runs.
+The variables list (runner) and the signals list (controllers) have a filter box above them: type
+to narrow the list to the names that contain the text, ignoring case. Checked or watched ones stay
+on the plot while the filter hides them. Down from the box moves to the list.
 
 On every Monitor page the variables (signals) pane and the plot share the room right of the cards:
 drag the divider with the mouse or press `[` and `]` to move it, `v` to hide the pane. The cards, the

@@ -165,3 +165,32 @@ The firmware uses the simulated tip (`t12_io_sim`); the heater driver, sensor an
 not driven. The circuit is the schematic in [../hardware/README.md](../hardware/README.md), described in
 [../../../docs/T12 Controller Design.md](../../../docs/T12%20Controller%20Design.md); using it means
 writing another `t12_io_t` backend, with the controller and the tests unchanged.
+
+## HIL link (env esp32dev-hil)
+
+The same firmware with the plant behind the Krumpir runner instead of the on-chip simulation: the
+controller's readings come from the plant FMU and its commands drive it, over a second UART
+(`libs/esp/espglue/src/hil_uart.c`, frames as in `libs/hil`). The console stays on UART0.
+
+| Item | Value |
+|---|---|
+| Link | UART2, 921600 baud, 8N1, 3.3 V: GPIO17 TX, GPIO16 RX (`-DKRUMPIR_HIL_TX_GPIO=..` etc. to move) |
+| Plant values (runner -> board) | v_amp, i_heater, t_handle_c, t_tip_c (turned into ADC counts on the board) |
+| Commands (board -> runner) | heater (Q1), series_on (Q3, from the heartbeat) |
+| Timing | the board's own 1 kHz tick takes the newest plant frame; the runner is paced |
+| Runner scenario | `runner/scenarios/t12tip_hil_board.toml` (`device = "/dev/ttyUSB0"`) |
+
+Until the first plant frame the controller does not run (it waits for the runner, so its sensor
+checks do not trip at boot); a link that stops for 10 ticks reads as a lost sensor and trips it.
+The runner's BYE (unload, or a fault) stops the controller.
+
+Bring-up:
+1. Wire a 3.3 V USB-serial adapter: GPIO17 to its RX, GPIO16 to its TX, GND to GND. With an FTDI
+   adapter, set its latency timer to 1 ms (`/sys/bus/usb-serial/devices/ttyUSB0/latency_timer`).
+2. `pio run -e esp32dev-hil -t upload`, then on the console (UART0): `hil: waiting for the runner`.
+   Type `sp 350` and `start`.
+3. `krumpir run scenarios/t12tip_hil_board.toml` (or Load it in the TUI): the console prints
+   `hil: runner connected`; the summary's `late` should stay near 0 (a few at most).
+4. Compare the run with the PC loop's (`runner/runs/*_hil_pc.csv`, `tools/hil/compare.py`).
+5. Pull the adapter's TX during a run: the controller trips `sensor timeout`, the runner holds the
+   last commands and counts late steps.

@@ -1,6 +1,6 @@
 {{ banner }}
 # The controller on a PC (Linux, WSL): the same control task, console and tables as the board, with
-# the plant behind the HIL link (host/io_hil.c, libs/hil) instead of the on-chip simulation:
+# the plant behind the HIL link (src/io_hil.c, libs/hil) instead of the on-chip simulation:
 #   cmake -S host -B <build> && cmake --build <build>
 #   <build>/{{ m.name }}_host --device /dev/pts/N [--lockstep | --hz 1000] [--log] [-c "sp ..."]
 cmake_minimum_required(VERSION 3.20)
@@ -12,8 +12,9 @@ include(../../../libs/cmake/krumpir.cmake)
 krumpir_add_libs()
 add_subdirectory(../lib/{{ m.lib }} {{ m.lib }})
 
-add_executable({{ m.name }}_host ../src/control_task.c ../src/console.c ../src/gen/ctrl_gen.c io_hil.c)
-target_include_directories({{ m.name }}_host PRIVATE ../src .)
+add_executable({{ m.name }}_host ../src/control_task.c ../src/console.c ../src/gen/ctrl_gen.c
+                               ../src/io_hil.c)
+target_include_directories({{ m.name }}_host PRIVATE ../src)
 target_compile_definitions({{ m.name }}_host PRIVATE KRUMPIR_IO_HIL)
 target_link_libraries({{ m.name }}_host PRIVATE {{ m.lib }} rte hil_host)
 

@@ -1,4 +1,5 @@
-/* PC port of a controller on the HIL link: see hil_host.h. */
+/* PC port of a controller on the HIL link: see hil_host.h. The link logic is libs/hil
+ * (hil_port.c, hil_link.c); this is the tty, the tick task and the two ways of ticking. */
 #define _DEFAULT_SOURCE /* cfmakeraw */
 
 #include "hil_host.h"
@@ -21,33 +22,14 @@
 
 static int s_fd = -1;
 static pthread_mutex_t s_write_mu = PTHREAD_MUTEX_INITIALIZER;
-
-/* Bound by the control task */
-static hil_slots_t *s_slots;
-static size_t s_n_plant, s_n_cmd;
-static uint32_t s_hash;
+static atomic_bool s_muted;
 
 /* tick_task_start() */
 static tick_init_t s_init;
 static tick_body_t s_body;
 static void *s_ctx;
 static uint32_t s_tick;
-
-/* Free-running: the newest PLANT, handed from the link thread to the tick thread */
-static pthread_mutex_t s_plant_mu = PTHREAD_MUTEX_INITIALIZER;
-static float s_latest[HIL_MAX_VALUES];
-static bool s_fresh;
 static uint32_t s_hz;
-
-void hil_port_bind(hil_slots_t *s, const char *const *plant, size_t n_plant,
-                   const char *const *cmd, size_t n_cmd)
-{
-  s_slots = s;
-  s_n_plant = n_plant;
-  s_n_cmd = n_cmd;
-  s_hash = hil_names_hash(plant, n_plant, cmd, n_cmd);
-  s->age = UINT32_MAX / 2; /* no plant values yet */
-}
 
 void tick_task_start(const tick_cfg_t *cfg, tick_init_t init, tick_body_t body, void *ctx)
 {
@@ -116,13 +98,15 @@ int hil_host_open(const char *device, char *err, size_t errlen)
   return 0;
 }
 
-static void send_frame(const hil_frame_t *f)
+/* hil_port.h: the line, from the tick (commands) and the reader (HELLO answers) */
+void hil_port_write(const uint8_t *buf, size_t n)
 {
-  uint8_t buf[HIL_FRAME_MAX];
-  const size_t len = hil_encode(f, buf);
+  if (s_muted) {
+    return;
+  }
   pthread_mutex_lock(&s_write_mu);
-  for (size_t off = 0; off < len;) {
-    const ssize_t w = write(s_fd, buf + off, len - off);
+  for (size_t off = 0; off < n;) {
+    const ssize_t w = write(s_fd, buf + off, n - off);
     if (w > 0) {
       off += (size_t)w;
     } else if (errno != EINTR) {
@@ -155,8 +139,8 @@ bool hil_host_at(uint32_t tick, const char *line)
   return true;
 }
 
-/* One tick, then its commands as CMD(seq). */
-static void tick(uint16_t seq, bool answer)
+/* One tick. The body takes the plant values and sends its commands (hil_port_tick_begin/end). */
+static void tick(void)
 {
   for (size_t i = 0; i < s_n_at; i++) {
     if (s_at[i].line != NULL && s_at[i].tick <= s_tick) {
@@ -164,22 +148,15 @@ static void tick(uint16_t seq, bool answer)
       s_at[i].line = NULL;
     }
   }
+  if (s_tick == s_mute_at) {
+    fprintf(stderr, "hil: muted at tick %u\n", (unsigned)s_tick);
+    s_muted = true;
+  }
   s_body(s_ctx, s_tick);
   if (s_after != NULL) {
     s_after(s_tick);
   }
-  if (answer && s_tick >= s_mute_at) {
-    if (s_tick == s_mute_at) {
-      fprintf(stderr, "hil: muted at tick %u\n", (unsigned)s_tick);
-    }
-    answer = false;
-  }
   s_tick++;
-  if (answer) {
-    hil_frame_t f = {HIL_CMD, seq, (uint8_t)s_n_cmd, {0}};
-    memcpy(f.v, s_slots->cmd, s_n_cmd * sizeof f.v[0]);
-    send_frame(&f);
-  }
 }
 
 // ponytail: plain SCHED_OTHER; set SCHED_FIFO here once free-running runs on a real-time host.
@@ -197,62 +174,9 @@ static void *tick_thread(void *arg)
     }
     while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL) == EINTR) {
     }
-    pthread_mutex_lock(&s_plant_mu);
-    if (s_fresh) {
-      memcpy(s_slots->plant, s_latest, s_n_plant * sizeof s_latest[0]);
-      s_slots->age = 0;
-      s_fresh = false;
-    } else if (s_slots->age < UINT32_MAX / 2) {
-      s_slots->age++;
-    }
-    pthread_mutex_unlock(&s_plant_mu);
-    tick((uint16_t)s_tick, true);
+    tick();
   }
   return NULL;
-}
-
-static void on_frame(const hil_frame_t *f, bool lockstep)
-{
-  static bool started, warned;
-  if (f->type == HIL_HELLO) {
-    hil_frame_t h;
-    hil_hello(&h, s_n_plant, s_n_cmd, s_hash);
-    send_frame(&h);
-    if (!hil_hello_matches(f, s_n_plant, s_n_cmd, s_hash)) {
-      fprintf(stderr, "hil: the runner's HELLO is for other values (%g plant, %g cmd); it will "
-                      "refuse the link\n",
-              (double)f->v[1], (double)f->v[2]);
-    }
-  } else if (f->type == HIL_PLANT) {
-    if (f->n != s_n_plant) {
-      if (!warned) {
-        fprintf(stderr, "hil: PLANT with %u values, expected %zu: ignored\n", f->n, s_n_plant);
-      }
-      warned = true;
-      return;
-    }
-    if (lockstep) {
-      memcpy(s_slots->plant, f->v, s_n_plant * sizeof f->v[0]);
-      s_slots->age = 0;
-      tick(f->seq, true);
-      return;
-    }
-    pthread_mutex_lock(&s_plant_mu);
-    memcpy(s_latest, f->v, s_n_plant * sizeof f->v[0]);
-    s_fresh = true;
-    pthread_mutex_unlock(&s_plant_mu);
-    if (!started) {
-      pthread_t t;
-      started = pthread_create(&t, NULL, tick_thread, NULL) == 0;
-    }
-  } else if (f->type == HIL_BYE) {
-    fprintf(stderr, "hil: BYE from the runner: stop\n");
-    console_host_exec("stop");
-    if (lockstep) {
-      tick(0, false); /* applies the stop; the runner no longer reads */
-    }
-    fflush(stdout);
-  }
 }
 
 int hil_host_run(bool lockstep, uint32_t hz)
@@ -261,8 +185,7 @@ int hil_host_run(bool lockstep, uint32_t hz)
   if (s_init != NULL) {
     s_init(s_ctx);
   }
-  hil_parser_t p;
-  hil_parser_init(&p);
+  bool started = false;
   for (;;) {
     struct pollfd pf = {s_fd, POLLIN, 0};
     if (poll(&pf, 1, -1) < 0 && errno != EINTR) {
@@ -275,9 +198,20 @@ int hil_host_run(bool lockstep, uint32_t hz)
       return -1;
     }
     for (ssize_t i = 0; i < r; i++) {
-      hil_frame_t f;
-      if (hil_parse_byte(&p, buf[i], &f)) {
-        on_frame(&f, lockstep);
+      const int type = hil_port_feed(buf[i]);
+      if (type == -HIL_HELLO) {
+        fprintf(stderr, "hil: the runner's HELLO is for other values; it will refuse the link\n");
+      } else if (type == HIL_PLANT && lockstep) {
+        tick(); /* one tick per plant frame, answered with its seq */
+      } else if (type == HIL_PLANT && !started) {
+        pthread_t t; /* free-running: the clock starts with the first plant frame */
+        started = pthread_create(&t, NULL, tick_thread, NULL) == 0;
+      } else if (type == HIL_BYE) {
+        fprintf(stderr, "hil: BYE from the runner: stop\n");
+        if (lockstep) {
+          tick(); /* the control task sees the BYE and stops; the runner no longer reads */
+        }
+        fflush(stdout);
       }
     }
   }

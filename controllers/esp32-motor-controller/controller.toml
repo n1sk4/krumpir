@@ -82,7 +82,7 @@ value = "s_loop.duty"
 scale = 1000
 
 # The HIL link (libs/hil): the plant values the runner sends and the commands the controller
-# answers with, in frame order; host/io_hil.c reads and writes them by position. A runner scenario
+# answers with, in frame order; src/io_hil.c reads and writes them by position. A runner scenario
 # for this controller has outputs = plant and its inputs without a stimulus = cmd.
 [hil]
 plant = ["speed_rpm", "current"]

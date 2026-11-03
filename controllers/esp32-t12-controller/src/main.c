@@ -7,6 +7,9 @@
 #ifdef KRUMPIR_XCP
 #include "xcp_glue.h"
 #endif
+#ifdef KRUMPIR_IO_HIL
+#include "hil_uart.h"
+#endif
 
 /* One CSV row: an invalid tip reading prints as -1 so the row keeps its integer shape. */
 void app_main(void)
@@ -16,5 +19,8 @@ void app_main(void)
   xcp_glue_start("t12"); /* before the control task: its XCP events need XcpInit */
 #endif
   control_task_start();
+#ifdef KRUMPIR_IO_HIL
+  hil_uart_start(); /* the plant on UART2; after the control task bound its slots */
+#endif
   console_start();
 }

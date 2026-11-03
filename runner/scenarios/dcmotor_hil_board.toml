@@ -1,0 +1,29 @@
+# DC motor plant against the motor controller on the ESP32 (env esp32dev-hil), over its UART2 and a
+# USB-serial adapter (controllers/esp32-motor-controller/docs/krumpir-interface.md, "HIL link").
+# The board ticks on its own 1 kHz timer: the runner is paced and takes its newest answer without
+# waiting; a step without a new one holds the last duty and counts as late. Start the controller on
+# its console first (sp 3000, start); a load torque step at 0.5 s.
+[model]
+fmu = "fmus/dcmotor.fmu"
+step = 0.001
+duration = 1
+params = { Vbus = 6.0 }
+
+[rt]
+wait = "sleep"
+max_overruns = 1000
+
+[io]
+backend = "uart"
+device = "/dev/ttyUSB0"
+baud = 921600
+timeout_ms = 0
+late = "hold"
+inputs = ["duty", "load_torque"]
+outputs = ["speed_rpm", "current"]
+stimulus = [
+  { input = "load_torque", kind = "step", t = 0.5, from = 0, to = 0.0002 },
+]
+
+[log]
+file = "runs/dcmotor_hil_board.csv"

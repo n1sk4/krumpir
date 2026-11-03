@@ -1,6 +1,6 @@
 #include "control_task.h"
 
-#ifdef KRUMPIR_IO_HIL /* the plant is behind the HIL link (host/io_hil.c), not simulated here */
+#ifdef KRUMPIR_IO_HIL /* the plant is behind the HIL link (src/io_hil.c), not simulated here */
 #include "hil_port.h"
 #include "io_hil.h"
 #endif
@@ -105,6 +105,15 @@ static void control_tick(void *arg, uint32_t tick)
   s_sim_dev.plant.fault = sim_cfg.fault;
   s_sim_dev.ambient = sim_cfg.ambient;
 
+#ifdef KRUMPIR_IO_HIL
+  hil_port_tick_begin(); /* the newest plant values into s_hil_dev.slots */
+  if (s_hil_dev.slots.age == HIL_AGE_NONE) {
+    return; /* no plant yet: wait for the runner (a board ticks from boot) */
+  }
+  if (hil_port_bye()) {
+    rte_set_run(&s_rte, false); /* the runner is done: stop, as `stop` on the console */
+  }
+#endif
   rte_tick_begin(&s_rte); /* clear, changed parameters, start/stop */
   bool fresh = t12_loop_tick(&s_loop, &s_io);
 #ifdef KRUMPIR_IO_HIL
@@ -114,6 +123,9 @@ static void control_tick(void *arg, uint32_t tick)
 #endif
   s_trip = s_loop.safety.latched;
   rte_tick_end(&s_rte); /* a trip or a refused start drops the run request */
+#ifdef KRUMPIR_IO_HIL
+  hil_port_tick_end(); /* heater and series_on out */
+#endif
 
   if (fresh) {
     s_temp = s_loop.temp;

@@ -41,6 +41,7 @@ Run from the controller folder:
 pio test -e native                    # unit tests on the PC
 pio run -e esp32dev                   # build firmware
 pio run -e esp32dev -t upload         # flash the board
+pio run -e esp32dev-hil -t upload     # or with the plant behind the runner (docs/krumpir-interface.md)
 pio device monitor -p COM4            # serial console, 115200 baud
 ```
 The shared libraries have their own tests: `pio test -e native` in `../libs`.
@@ -78,7 +79,7 @@ tools/hil/pc_loop.sh t12-open --check # faults: t12-open|-short|-stuck|-runaway,
 - The values on the link are `[hil]` in `controller.toml` (in frame order): the plant values the
   runner sends and the commands the controller answers with. The runner's scenario names the same
   (its `outputs`, and its `inputs` without a stimulus); the two check each other at connect.
-- `host/io_hil.c` is the controller's I/O on the link. The T12's turns the FMU's physical values
+- `src/io_hil.c` is the controller's I/O on the link. The T12's turns the FMU's physical values
   into ADC counts with the same front end as its on-chip simulation (`t12_frontend.c`), and keeps
   Q3 on the controller's side, driven by its heartbeat.
 - **Lockstep** (default): one tick per plant step, deterministic, as fast as it goes; the runner's

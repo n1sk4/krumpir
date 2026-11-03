@@ -1,3 +1,4 @@
+#ifdef KRUMPIR_IO_HIL /* the plant behind the HIL link: the PC build (host/) and esp32dev-hil */
 #include "io_hil.h"
 
 #include <math.h>
@@ -20,3 +21,4 @@ void motor_io_hil_init(motor_io_hil_t *h, motor_io_t *io_out)
   io_out->safe_state = safe_state;
   io_out->ctx = h;
 }
+#endif

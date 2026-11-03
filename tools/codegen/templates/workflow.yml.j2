@@ -55,6 +55,11 @@ jobs:
       - name: Build firmware
         run: pio run -e esp32dev
 
+{% if m.hil %}
+      - name: Build firmware on the HIL link
+        run: pio run -e esp32dev-hil
+
+{% endif %}
       - name: Build firmware with XCP
         run: |
           cp ../../libs/esp/xcpglue/include/wlan.h.example ../../libs/esp/xcpglue/include/wlan.h

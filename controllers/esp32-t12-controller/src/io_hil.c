@@ -1,3 +1,4 @@
+#ifdef KRUMPIR_IO_HIL /* the plant behind the HIL link: the PC build (host/) and esp32dev-hil */
 #include "io_hil.h"
 
 #include "t12_frontend.h"
@@ -55,3 +56,4 @@ void t12_io_hil_step(t12_io_hil_t *h)
     h->hb_age++;
   }
 }
+#endif

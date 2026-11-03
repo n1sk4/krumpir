@@ -1,30 +1,17 @@
 #include "t12_io_sim.h"
 
-#include <math.h>
-
+#include "t12_frontend.h"
 #include "t12_hw.h"
-
-static uint16_t to_counts(double volts)
-{
-  double c = floor(volts / T12_ADC_VREF * T12_ADC_MAX + 0.5);
-  return (uint16_t)(c < 0 ? 0 : c > T12_ADC_MAX ? T12_ADC_MAX : c);
-}
 
 static void heater_set(void *ctx, bool on) { ((t12_io_sim_t *)ctx)->heater = on; }
 
-static uint16_t tc_read(void *ctx) { return to_counts(((t12_io_sim_t *)ctx)->plant.v_amp); }
+static uint16_t tc_read(void *ctx) { return t12_tc_counts(((t12_io_sim_t *)ctx)->plant.v_amp); }
 
-static uint16_t ntc_read(void *ctx)
-{
-  double t_k = ((t12_io_sim_t *)ctx)->plant.t_c + 273.15;
-  double r = T12_NTC_R25 * exp(T12_NTC_BETA * (1.0 / t_k - 1.0 / 298.15));
-  return to_counts(T12_ADC_VREF * r / (r + T12_NTC_R_FIXED));
-}
+static uint16_t ntc_read(void *ctx) { return t12_ntc_counts(((t12_io_sim_t *)ctx)->plant.t_c); }
 
 static uint16_t current_read(void *ctx)
 {
-  double amps = ((t12_io_sim_t *)ctx)->plant.i_heater;
-  return to_counts(amps * T12_SHUNT_OHM * T12_INA_GAIN);
+  return t12_current_counts(((t12_io_sim_t *)ctx)->plant.i_heater);
 }
 
 static void heartbeat_toggle(void *ctx) { ((t12_io_sim_t *)ctx)->hb_age = 0; }

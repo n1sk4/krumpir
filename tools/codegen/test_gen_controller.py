@@ -106,6 +106,16 @@ def main():
     assert "lib_deps = ctrlcore, dcmotor" in files["platformio.ini"]
     assert "gen_controller.py . --check" in files["demo-controller.yml"]
 
+    assert "host_CMakeLists.txt" not in str(list(g.render(m))) and j["hil"] is None
+    hil = {p.as_posix().split("/")[-2] + "/" + p.name: t for p, t in g.render(model(
+        GOOD + '[hil]\nplant = ["speed_rpm"]\ncmd = ["duty", "brake"]\n')).items()}
+    assert '#define CTRL_GEN_HIL_CMD {"duty", "brake"}' in hil["gen/ctrl_gen.h"]
+    assert "#define CTRL_GEN_HIL_N_CMD 2" in hil["gen/ctrl_gen.h"]
+    assert "add_executable(demo_host" in hil["host/CMakeLists.txt"]
+    assert json.loads(hil["gen/ctrl_gen.json"])["hil"]["plant"] == ["speed_rpm"]
+    expect_error(GOOD + '[hil]\nplant = []\ncmd = ["duty"]\n', "plant must be 1 to 16")
+    expect_error(GOOD + '[hil]\nplant = ["a", "a"]\ncmd = ["duty"]\n', "distinct")
+
     expect_error(GOOD.replace('lib = "democtrl"', 'lib = "democtrl"\nboard = "x"'),
                  "unknown key(s) board")
     expect_error(GOOD.replace("min = -10", "min = 20"), "min < max")

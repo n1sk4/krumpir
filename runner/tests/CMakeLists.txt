@@ -53,6 +53,11 @@ add_executable(test_io_null test_io_null.c)
 target_link_libraries(test_io_null PRIVATE krumpir_core)
 add_test(NAME io_null COMMAND test_io_null)
 
+# The uart backend against a fake controller on a pty pair
+add_executable(test_io_uart test_io_uart.c)
+target_link_libraries(test_io_uart PRIVATE krumpir_core)
+add_test(NAME io_uart COMMAND test_io_uart)
+
 add_executable(test_signal test_signal.c)
 target_link_libraries(test_signal PRIVATE krumpir_core)
 add_test(NAME signal COMMAND test_signal)
@@ -115,6 +120,18 @@ if(Python3_Interpreter_FOUND)
   set_tests_properties(serve PROPERTIES SKIP_RETURN_CODE 77)
 else()
   message(STATUS "Golden and service tests not added: Python 3.11+ not found")
+endif()
+
+# The closed loop on this PC: each controller's own code against its plant FMU over a pty pair,
+# checked against the controller's acceptance figures. SKIPPED without socat (apt install socat).
+if(KRUMPIR_HIL_PC AND Python3_Interpreter_FOUND)
+  foreach(kind motor t12 t12-open)
+    string(REGEX REPLACE "-open$" "" ctrl ${kind})
+    add_test(NAME hil_pc_${kind}
+      COMMAND bash ${PROJECT_SOURCE_DIR}/../tools/hil/pc_loop.sh ${kind} --check)
+    set_tests_properties(hil_pc_${kind} PROPERTIES SKIP_RETURN_CODE 77 RESOURCE_LOCK hil_pty
+      ENVIRONMENT "KRUMPIR=$<TARGET_FILE:krumpir>;CONTROLLER=$<TARGET_FILE:${ctrl}_host>")
+  endforeach()
 endif()
 
 add_executable(test_writer test_writer.c)

@@ -28,7 +28,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libexpat1-dev unzip curl
+          sudo apt-get install -y cmake ninja-build libexpat1-dev unzip curl socat
           pip install -r tools/requirements.txt
 
       - name: Reference FMUs

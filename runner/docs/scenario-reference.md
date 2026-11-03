@@ -49,10 +49,25 @@ Paced ticks are absolute (`start + n * step`), so a late step does not push late
 
 | Key | Type | Meaning |
 |-----|------|---------|
-| `backend` | string | `"null"`: no device; inputs read 0, outputs are discarded. |
+| `backend` | string | `"null"`: no device; inputs read 0, outputs are discarded. `"uart"`: a controller on a serial line (below). |
 | `inputs` | list of strings | Model inputs to drive, up to 16, unique. Float64 variables with causality `input`. |
 | `outputs` | list of strings | Model outputs to read and log, up to 16, unique. Float64 variables with causality `output`. |
 | `stimulus` | list of tables | One per input at most. A stimulus replaces the backend's value for its input; an input without one gets the backend's value. Also written as `[[io.stimulus]]` tables. |
+| `device` | string | `uart` only, required: the serial device (`/dev/ttyAMA0`, a USB adapter, or a pty). |
+| `baud` | integer | `uart`: default `921600`; a standard rate. Ignored on a pty. |
+| `timeout_ms` | number | `uart`: default `100`. How long a step waits for the controller's answer. `0`: never wait, take the newest answer that has arrived (a controller on its own clock). |
+| `late` | string | `uart`: `"fault"` (default) or `"hold"`. A step without its answer keeps the last commands and counts as late; after `max_late` late steps in a row, `fault` faults the run. |
+| `max_late` | integer | `uart`: default `10`. |
+
+### The `uart` backend
+
+The runner and the controller exchange `libs/hil` frames: after step k the runner sends the
+`outputs`, in order, as PLANT(k); the controller answers CMD(k) with one value per input without
+a stimulus, in order, which feed step k+1. Inputs with a stimulus stay the runner's (a load
+torque, a fault). On load the runner sends HELLO with a hash of both name lists and waits up to
+2 s for the controller's; a controller built for other values is refused, with both lists in the
+message. Unloading or a fault sends BYE: the controller goes to its safe state. `late` in `state`
+and the run's summary counts the late steps.
 
 ### Stimulus kinds
 

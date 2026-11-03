@@ -35,7 +35,9 @@ OUTPUTS = [
     ("test_CMakeLists.txt.j2", "test/CMakeLists.txt", "#"),
     ("sdkconfig.defaults.j2", "sdkconfig.defaults", "#"),
     ("workflow.yml.j2", "{root}/.github/workflows/{dir}.yml", "#"),
+    ("host_CMakeLists.txt.j2", "host/CMakeLists.txt", "#"),  # only with [hil]
 ]
+HIL_MAX_VALUES = 16  # libs/hil/include/hil.h
 
 IDENT = re.compile(r"[a-z_][a-z0-9_]*$")
 A2L_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
@@ -97,7 +99,8 @@ def load(ctrl_dir: Path) -> dict:
             d = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError) as e:
         raise DescriptionError(f"{path}: {e}") from None
-    _table(d, "controller.toml", ["controller", "param", "telemetry"], ["command", "ci", "xcp"])
+    _table(d, "controller.toml", ["controller", "param", "telemetry"],
+           ["command", "ci", "xcp", "hil"])
 
     c = d["controller"]
     _table(c, "[controller]", ["name", "plant", "lib"])
@@ -180,9 +183,22 @@ def load(ctrl_dir: Path) -> dict:
     else:  # the telemetry columns that are plain variables
         xcp["monitor"] = [q["value"] for q in columns if A2L_NAME.match(q["value"])]
 
+    # The HIL link's values: the plant values the runner sends, the commands it reads back
+    hil = None
+    if "hil" in d:
+        h = d["hil"]
+        _table(h, "[hil]", ["plant", "cmd"])
+        for k in ("plant", "cmd"):
+            v = h[k]
+            if (not isinstance(v, list) or not 1 <= len(v) <= HIL_MAX_VALUES
+                    or not all(isinstance(s, str) and s for s in v) or len(set(v)) != len(v)):
+                _fail("[hil]", f"{k} must be 1 to {HIL_MAX_VALUES} distinct names")
+        hil = {"plant": h["plant"], "cmd": h["cmd"]}
+
     return {
         "name": name,
         "dir": ctrl_dir.name,
+        "hil": hil,
         "plant": plant,
         "lib": lib,
         "params": params,
@@ -221,6 +237,8 @@ def render(model: dict) -> dict:
     ctrl_rel = f"controllers/{model['dir']}"
     out = {}
     for template, target, style in OUTPUTS:
+        if template.startswith("host_") and not model["hil"]:
+            continue
         text = env.get_template(template).render(m=model, banner=banner(style, ctrl_rel))
         rel = target.format(root="", dir=model["dir"])
         path = ROOT / rel.lstrip("/") if target.startswith("{root}") else ROOT / ctrl_rel / rel
@@ -243,6 +261,9 @@ def describe(model, ctrl_rel):
                     if model["cal"] else None),
         "status": {"running": model["xcp"]["running"], "trip": model["xcp"]["trip"]},
         "monitor": model["xcp"]["monitor"],
+        "hil": model["hil"],
+        # the PC build's A2L (host/, -DKRUMPIR_XCP=ON), when the controller has a HIL link
+        "a2l_host": f"docs/{model['name']}_host.a2l" if model["hil"] else None,
     }
     return json.dumps(d, indent=2) + "\n"
 

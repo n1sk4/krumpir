@@ -73,7 +73,8 @@ jobs:
           plant="../../libs/plants/t12"
           gcc -Ilib/t12ctrl/include -I../../libs/ctrlcore/include -I$plant/include \
             tools/scenarios.c $lib/t12_scenario.c $lib/t12_loop.c $lib/t12_ctrl.c $lib/t12_cycle.c \
-            $lib/t12_convert.c $lib/t12_safety.c $lib/t12_io_sim.c $core/pid.c $core/step_metrics.c \
+            $lib/t12_convert.c $lib/t12_safety.c $lib/t12_io_sim.c $lib/t12_frontend.c \
+            $core/pid.c $core/step_metrics.c \
             $plant/src/t12_plant.c -lm -o .pio/scenarios
           for s in cold load ambient open short stuck runaway; do
             .pio/scenarios $s > out/scenario_$s.csv

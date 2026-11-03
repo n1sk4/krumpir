@@ -108,7 +108,12 @@ static void test_bad_values(void)
   expect_err(MODEL "[rt]\nwait = \"fast\"\n" IO LOG, "rt.wait");
   expect_err(MODEL "[rt]\nmax_overruns = -1\n" IO LOG, "rt.max_overruns must be between");
   expect_err(MODEL "[rt]\npriority = 100\n" IO LOG, "rt.priority must be between");
-  expect_err(MODEL "[io]\nbackend = \"uart\"\n" LOG, "not supported");
+  expect_err(MODEL "[io]\nbackend = \"can\"\n" LOG, "not supported");
+  expect_err(MODEL "[io]\nbackend = \"uart\"\n" LOG, "needs io.device");
+  expect_err(MODEL "[io]\nbackend = \"uart\"\ndevice = \"/dev/x\"\nlate = \"skip\"\n" LOG,
+             "not fault or hold");
+  expect_err(MODEL "[io]\nbackend = \"uart\"\ndevice = \"/dev/x\"\ntimeout_ms = -1\n" LOG,
+             "timeout_ms");
   expect_err(MODEL "[io]\nbackend = \"null\"\ninputs = [\"u\", \"u\"]\n" LOG, "duplicated");
   expect_err(MODEL "[io]\nbackend = \"null\"\ninputs = [1]\n" LOG, "only strings");
 }

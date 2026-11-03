@@ -16,7 +16,7 @@ Firmware for the devices under test of the Krumpir HIL bench. Each controller is
 - The ESP-IDF glue (tick task, telemetry, console helpers) is shared in
   [../libs/esp/espglue](../libs/esp/espglue/README.md).
 - An I/O abstraction lets the same controller run against a simulated plant, a real one, or Krumpir.
-  The firmware currently ships with the simulated plant.
+  The firmware currently ships with the simulated plant; the PC build below runs against Krumpir.
 - A task watchdog resets the board if the control loop hangs; safety trips are latched until `clear`.
 
 ## Initial setup (Windows)
@@ -62,6 +62,32 @@ in every controller (the rest are listed in its README):
 The port can only be open once: close the monitor before running the board scripts in
 `../tools/serial` (`capture.py` records the CSV into a file, `timing_check.py` measures the loop
 timing, PASS or FAIL). Their commands are in each controller's `tools/README.md`.
+
+## On the PC, against the runner (closed loop)
+
+`host/` builds each controller for Linux or WSL: the same control task, console and tables as the
+board, with the plant behind the HIL link (`../libs/hil`) instead of the on-chip simulation. The
+runner steps the plant FMU and talks to it over a serial line, here a pty pair from socat:
+
+```sh
+cmake -S controllers/esp32-t12-controller/host -B ~/build/host-t12 && cmake --build ~/build/host-t12
+tools/hil/pc_loop.sh t12 --check      # or motor, t12-open; --live: own clocks instead of lockstep
+```
+
+- The values on the link are `[hil]` in `controller.toml` (in frame order): the plant values the
+  runner sends and the commands the controller answers with. The runner's scenario names the same
+  (its `outputs`, and its `inputs` without a stimulus); the two check each other at connect.
+- `host/io_hil.c` is the controller's I/O on the link. The T12's turns the FMU's physical values
+  into ADC counts with the same front end as its on-chip simulation (`t12_frontend.c`), and keeps
+  Q3 on the controller's side, driven by its heartbeat.
+- **Lockstep** (default): one tick per plant step, deterministic, as fast as it goes; the runner's
+  `ctest` runs `pc_loop.sh --check` for both controllers. **Free-running** (`--hz 1000`): the
+  controller ticks on its own clock from the first plant frame, as the board will.
+- A link that stops answering reads as a lost sensor: after 10 ticks without a plant frame the
+  controller gets invalid readings and trips `sensor`. The runner's `BYE` (unload, or a fault)
+  stops it.
+- `<name>_host --device DEV [--lockstep | --hz N] [--log] [-c "sp 300"]...`: console on stdin, CSV
+  telemetry on stdout (`--log` or `log on`).
 
 ## XCP measurement and calibration
 

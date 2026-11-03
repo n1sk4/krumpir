@@ -1,5 +1,9 @@
 #include "control_task.h"
 
+#ifdef KRUMPIR_IO_HIL /* the plant is behind the HIL link (host/io_hil.c), not simulated here */
+#include "hil_port.h"
+#include "io_hil.h"
+#endif
 #include "osal.h"
 #include "t12_io_sim.h"
 #include "t12_loop.h"
@@ -30,6 +34,9 @@ static volatile t12_trip_t s_trip;
 
 /* State of the control task: large, so it lives here and not on the task stack. */
 static rte_t s_rte;
+#ifdef KRUMPIR_IO_HIL
+static t12_io_hil_t s_hil_dev;
+#endif
 static t12_io_sim_t s_sim_dev;
 static t12_loop_t s_loop;
 static t12_io_t s_io;
@@ -74,6 +81,9 @@ static void control_init(void *arg)
   const t12_safety_cfg_t safety_cfg = T12_SAFETY_CFG_DEFAULT;
   const t12_cal_t cal = T12_CAL_DEFAULT;
   t12_io_sim_init(&s_sim_dev, &s_io, &plant_params, TICK_DT_S, DEFAULT_AMBIENT_C);
+#ifdef KRUMPIR_IO_HIL
+  t12_io_hil_init(&s_hil_dev, &s_io, TICK_DT_S); /* replaces the simulated tip behind s_io */
+#endif
   t12_loop_init(&s_loop, &s_ctrl_default, &safety_cfg, &cal, TICK_DT_S);
 }
 
@@ -97,7 +107,11 @@ static void control_tick(void *arg, uint32_t tick)
 
   rte_tick_begin(&s_rte); /* clear, changed parameters, start/stop */
   bool fresh = t12_loop_tick(&s_loop, &s_io);
+#ifdef KRUMPIR_IO_HIL
+  t12_io_hil_step(&s_hil_dev);
+#else
   t12_io_sim_step(&s_sim_dev);
+#endif
   s_trip = s_loop.safety.latched;
   rte_tick_end(&s_rte); /* a trip or a refused start drops the run request */
 
@@ -123,6 +137,10 @@ void control_task_start(void)
   ctrl_gen_rte_init(&s_rte, &s_hooks);
 #ifdef KRUMPIR_XCP
   ctrl_gen_cal_init(&s_rte);
+#endif
+#ifdef KRUMPIR_IO_HIL
+  static const char *const plant[] = CTRL_GEN_HIL_PLANT, *const cmd[] = CTRL_GEN_HIL_CMD;
+  hil_port_bind(&s_hil_dev.slots, plant, CTRL_GEN_HIL_N_PLANT, cmd, CTRL_GEN_HIL_N_CMD);
 #endif
   tick_cfg_t cfg = TICK_CFG_DEFAULT;
   cfg.hz = TICK_HZ;

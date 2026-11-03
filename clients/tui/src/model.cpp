@@ -182,6 +182,7 @@ void Model::poll()
     snap_.duration = num(st, "duration");
     snap_.steps = num(st, "steps");
     snap_.overruns = num(st, "overruns");
+    snap_.late = num(st, "late");
     snap_.max_step_ns = num(st, "max_step_ns");
     snap_.max_wake_ns = num(st, "max_wake_ns");
     if (state == "IDLE") {

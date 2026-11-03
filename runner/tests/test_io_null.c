@@ -45,10 +45,10 @@ static void test_unknown_backend(void)
   parse("[model]\nfmu = \"a.fmu\"\nstep = 0.001\nduration = 1\n"
         "[io]\nbackend = \"null\"\n[log]\nfile = \"o.csv\"\n",
         &sc);
-  strcpy(sc.backend, "uart");
+  strcpy(sc.backend, "can");
   char err[256] = "";
   assert(io_open(&sc, err, sizeof err) == NULL);
-  assert(strstr(err, "'uart' is not supported") != NULL);
+  assert(strstr(err, "'can' is not supported") != NULL);
 }
 
 int main(void)

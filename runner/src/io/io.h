@@ -21,11 +21,18 @@ typedef struct io_api {
 
 struct io {
   const io_api_t *api;
+  char error[200];       /* why read or write failed, for the run's fault message */
+  _Atomic uint64_t late; /* steps without a timely answer from the device (uart) */
 };
 
 /* Opens the backend named by sc->backend. Returns NULL and writes a message to err on failure. */
 io_t *io_open(const scenario_t *sc, char *err, size_t errlen);
 
 io_t *null_io_open(const scenario_t *sc, char *err, size_t errlen);
+
+/* Serial link to a controller (libs/hil frames). Sends the FMU outputs (io.outputs, in order)
+ * after each step; reads the controller's commands into the inputs without a stimulus (in
+ * order). Opening exchanges HELLO and checks both ends agree on those names. */
+io_t *uart_io_open(const scenario_t *sc, char *err, size_t errlen);
 
 #endif

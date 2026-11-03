@@ -54,5 +54,15 @@
     "s_loop.ctrl.setpoint",
     "s_loop.speed",
     "s_loop.duty"
-  ]
+  ],
+  "hil": {
+    "plant": [
+      "speed_rpm",
+      "current"
+    ],
+    "cmd": [
+      "duty"
+    ]
+  },
+  "a2l_host": "docs/motor_host.a2l"
 }

@@ -196,6 +196,7 @@ static void add_status(session_t *s, cJSON *r)
   cJSON_AddNumberToObject(r, "overruns", (double)m.overruns);
   cJSON_AddNumberToObject(r, "max_wake_ns", (double)m.max_wake_ns);
   cJSON_AddNumberToObject(r, "max_step_ns", (double)m.max_step_ns);
+  cJSON_AddNumberToObject(r, "late", (double)m.late);
 }
 
 static int by_name(const void *a, const void *b)
@@ -409,6 +410,11 @@ static cJSON *scenario_json(const scenario_t *sc)
                         sc->priority >= 0 ? cJSON_CreateNumber(sc->priority) : cJSON_CreateNull());
   cJSON *io = cJSON_AddObjectToObject(j, "io");
   cJSON_AddStringToObject(io, "backend", sc->backend);
+  cJSON_AddStringToObject(io, "device", sc->device);
+  cJSON_AddNumberToObject(io, "baud", sc->baud);
+  cJSON_AddNumberToObject(io, "timeout_ms", sc->timeout_ms);
+  cJSON_AddStringToObject(io, "late", sc->late_fault ? "fault" : "hold");
+  cJSON_AddNumberToObject(io, "max_late", sc->max_late);
   add_names(io, "inputs", sc->inputs, sc->n_inputs);
   add_names(io, "outputs", sc->outputs, sc->n_outputs);
   cJSON *stim = cJSON_AddArrayToObject(io, "stimulus");
@@ -750,6 +756,7 @@ static void add_summary(cJSON *r, const session_summary_t *m)
   cJSON_AddNumberToObject(o, "max_wake_ns", (double)m->max_wake_ns);
   cJSON_AddNumberToObject(o, "max_step_ns", (double)m->max_step_ns);
   cJSON_AddNumberToObject(o, "mean_step_ns", m->mean_step_ns);
+  cJSON_AddNumberToObject(o, "late", (double)m->late);
 }
 
 static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, sb_t *rows,

@@ -10,6 +10,7 @@ FMUs.
 | `osal/` | OS abstraction contract (critical section, tick task, telemetry, console) and its platform-independent parts |
 | `osal_host/` | host (PC) port of the OSAL contract: spinlock and a table-driven console, for host tests |
 | `rte/` | controller runtime: parameter table with limits, run/stop/clear and trip handling, hand-over to the tick, calibration page mapping, console commands |
+| `hil/` | HIL link frames between the runner and a controller on a serial line: encoder, resyncing parser, CRC-16, the HELLO check of the value names |
 | `esp/` | ESP-IDF ports: `espglue` implements the OSAL contract, `xcpglue` adds XCP over Wi-Fi |
 | `vendor/` | third-party code (see below) |
 

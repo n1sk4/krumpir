@@ -42,6 +42,7 @@ struct Snapshot {
   std::string state, fault, fmu;
   double t = 0, step = 0, duration = 0; // duration 0: runs until stopped
   double steps = 0, overruns = 0, max_step_ns = 0, max_wake_ns = 0;
+  double late = 0; // steps the uart controller did not answer in time
   std::string loaded; // what this client loaded ("" when it found the run already loaded)
 
   std::vector<Variable> vars;                    // inputs, outputs, tunable parameters

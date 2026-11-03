@@ -1,0 +1,27 @@
+# dcmotor_hil_pc with time in it (tools/hil/pc_loop.sh motor --live): the runner paced at 1 kHz,
+# the controller on its own 1 kHz clock, as a board would be. A step takes the controller's newest
+# answer without waiting; a step without a new one holds the last duty and counts as late. On a
+# desktop or WSL the two clocks drift and jitter, so late steps are expected.
+[model]
+fmu = "fmus/dcmotor.fmu"
+step = 0.001
+duration = 1
+params = { Vbus = 6.0 }
+
+[rt]
+wait = "sleep"
+max_overruns = 1000
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 0
+late = "hold"
+inputs = ["duty", "load_torque"]
+outputs = ["speed_rpm", "current"]
+stimulus = [
+  { input = "load_torque", kind = "step", t = 0.5, from = 0, to = 0.0002 },
+]
+
+[log]
+file = "runs/dcmotor_hil_pc_live.csv"

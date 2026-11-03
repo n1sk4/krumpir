@@ -80,6 +80,14 @@ typedef struct {
   size_t n_outputs;
   stimulus_t stimuli[TELEM_MAX_CH];
   size_t n_stimuli;
+  /* backend "uart": the serial device, its baud rate, how long a step waits for the controller's
+   * answer (0: never, take its newest; for a free-running controller), and what too many late
+   * answers in a row do (fault the run, or hold the last values and count them) */
+  char device[CFG_MAX_PATH];
+  int baud;
+  double timeout_ms;
+  bool late_fault;
+  int max_late;
 
   /* [log] */
   char log_file[CFG_MAX_PATH];

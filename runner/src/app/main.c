@@ -79,6 +79,9 @@ static int cmd_run(const char *path)
   printf("overruns:  %llu\n", (unsigned long long)res.overruns);
   printf("dropped:   %llu\n", (unsigned long long)res.dropped);
   printf("rows:      %llu -> %s\n", (unsigned long long)res.rows, sc.log_file);
+  if (strcmp(sc.backend, "uart") == 0) {
+    printf("late:      %llu\n", (unsigned long long)res.late);
+  }
   printf("wake_ns:   max %lld\n", (long long)res.max_wake_ns);
   printf("step_ns:   mean %.0f, max %lld\n", res.mean_step_ns, (long long)res.max_step_ns);
   return rc;

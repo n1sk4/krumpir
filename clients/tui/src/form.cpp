@@ -243,8 +243,33 @@ Form Form::from_describe(const json &reply, const std::vector<std::string> &fmus
 
   // [io]: inputs and outputs the scenario uses (in its order), then the FMU's others
   Field backend = make("io.backend", "io", "backend", Field::Choice, str(io, "backend"));
-  backend.choices = {"null"};
+  backend.choices = {"null", "uart"};
+  backend.hint = "uart: a controller on a serial line; its commands feed the inputs without a "
+                 "stimulus";
   fs.push_back(backend);
+  Field device = make("io.device", "io", "device", Field::Text, str(io, "device"));
+  device.hint = "e.g. /dev/ttyAMA0, or a pty";
+  fs.push_back(device);
+  Field baud = make("io.baud", "io", "baud", Field::Integer, num(io, "baud", "921600"));
+  baud.lo = 1200;
+  baud.hi = 4000000;
+  fs.push_back(baud);
+  Field timeout = make("io.timeout_ms", "io", "timeout", Field::Number,
+                       num(io, "timeout_ms", "100"));
+  timeout.unit = "ms";
+  timeout.lo = 0;
+  timeout.hi = 60000;
+  timeout.hint = "wait per step for the answer; 0: free-running controller, take its newest";
+  fs.push_back(timeout);
+  Field late = make("io.late", "io", "late", Field::Choice, io.value("late", std::string("fault")));
+  late.choices = {"fault", "hold"};
+  late.hint = "too many late answers in a row: fault the run, or hold the last ones";
+  fs.push_back(late);
+  Field max_late = make("io.max_late", "io", "max late", Field::Integer,
+                        num(io, "max_late", "10"));
+  max_late.lo = 1;
+  max_late.hi = 1e9;
+  fs.push_back(max_late);
   std::map<std::string, json> stimuli;
   for (const auto &st : io.value("stimulus", json::array())) {
     stimuli[str(st, "input")] = st;
@@ -345,6 +370,9 @@ void Form::check()
       x.shown = on("rt.pin");
     } else if (k == "rt.priority") {
       x.shown = on("rt.fifo");
+    } else if (k == "io.device" || k == "io.baud" || k == "io.timeout_ms" || k == "io.late" ||
+               k == "io.max_late") {
+      x.shown = value("io.backend") == "uart";
     } else if (k.rfind("stim:", 0) == 0) {
       const auto colon = k.find(':', 5);
       const std::string input = k.substr(5, colon == std::string::npos ? colon : colon - 5);
@@ -465,8 +493,13 @@ std::string Form::to_toml() const
       stimuli += "  " + entry + ",\n";
     }
   }
-  out << "\n[io]\nbackend = " << quote(value("io.backend")) << "\ninputs = [" << inputs
-      << "]\noutputs = [" << outputs << "]\n";
+  out << "\n[io]\nbackend = " << quote(value("io.backend")) << "\n";
+  if (value("io.backend") == "uart") {
+    out << "device = " << quote(value("io.device")) << "\nbaud = " << number("io.baud")
+        << "\ntimeout_ms = " << number("io.timeout_ms") << "\nlate = " << quote(value("io.late"))
+        << "\nmax_late = " << number("io.max_late") << "\n";
+  }
+  out << "inputs = [" << inputs << "]\noutputs = [" << outputs << "]\n";
   if (!stimuli.empty()) {
     out << "stimulus = [\n" << stimuli << "]\n";
   }

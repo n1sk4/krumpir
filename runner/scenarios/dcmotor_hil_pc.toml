@@ -1,0 +1,25 @@
+# DC motor plant against the motor controller's own code on this PC (controllers/
+# esp32-motor-controller/host), over a pty pair: tools/hil/pc_loop.sh motor runs both. Lockstep:
+# the controller ticks once per step, so the run is deterministic and as fast as it goes. A load
+# torque of 0.2 mN*m is applied at t = 0.5 s; the controller holds its setpoint (pc_loop.sh: sp).
+[model]
+fmu = "fmus/dcmotor.fmu"
+step = 0.001
+duration = 1
+params = { Vbus = 6.0 }
+
+[rt]
+wait = "none"
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 500
+inputs = ["duty", "load_torque"]
+outputs = ["speed_rpm", "current"]
+stimulus = [
+  { input = "load_torque", kind = "step", t = 0.5, from = 0, to = 0.0002 },
+]
+
+[log]
+file = "runs/dcmotor_hil_pc.csv"

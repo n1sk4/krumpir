@@ -102,6 +102,14 @@ name = "current_ma"
 value = "s_loop.amps"
 scale = 1000
 
+# The HIL link (libs/hil): the plant values the runner sends and the commands the controller
+# answers with, in frame order; host/io_hil.c reads and writes them by position. A runner scenario
+# for this controller has outputs = plant and its inputs without a stimulus = cmd. t_tip_c is not
+# read by the controller (it has no such sensor), only logged.
+[hil]
+plant = ["v_amp", "i_heater", "t_handle_c", "t_tip_c"]
+cmd = ["heater", "series_on"]
+
 # CI steps of this controller, after the common ones (tests, builds) in the generated workflow.
 [[ci.step]]
 name = "Serial tools self-check"
@@ -119,7 +127,8 @@ core="../../libs/ctrlcore/src"
 plant="../../libs/plants/t12"
 gcc -Ilib/t12ctrl/include -I../../libs/ctrlcore/include -I$plant/include \\
   tools/scenarios.c $lib/t12_scenario.c $lib/t12_loop.c $lib/t12_ctrl.c $lib/t12_cycle.c \\
-  $lib/t12_convert.c $lib/t12_safety.c $lib/t12_io_sim.c $core/pid.c $core/step_metrics.c \\
+  $lib/t12_convert.c $lib/t12_safety.c $lib/t12_io_sim.c $lib/t12_frontend.c \\
+  $core/pid.c $core/step_metrics.c \\
   $plant/src/t12_plant.c -lm -o .pio/scenarios
 for s in cold load ambient open short stuck runaway; do
   .pio/scenarios $s > out/scenario_$s.csv

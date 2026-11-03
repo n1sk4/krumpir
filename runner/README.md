@@ -51,6 +51,15 @@ time spent in the FMU's step, and `flags` bit 0 marks an overrun.
 
 The full list of scenario keys is in [docs/scenario-reference.md](docs/scenario-reference.md).
 
+### A controller in the loop
+
+With `backend = "uart"` the inputs come from a controller on a serial line instead of a stimulus
+(`libs/hil` frames; keys in the scenario reference). `scenarios/*_hil_pc.toml` run the
+controllers' own code built for this PC over a pty pair: `tools/hil/pc_loop.sh motor|t12|t12-open`
+starts both ([controllers/README.md](../controllers/README.md)). This build also builds those
+controllers (`-DKRUMPIR_HIL_PC=OFF` leaves them out), and CTest checks each closed loop against
+the controller's acceptance figures (`hil_pc_*`; skipped without socat).
+
 ## Golden files
 
 `tests/golden/` has three short scenarios and the CSVs they must reproduce (the `n`, `t`, input and

@@ -34,6 +34,7 @@ typedef struct {
   uint64_t overruns;
   uint64_t dropped; /* telemetry records lost because the log writer fell behind */
   uint64_t rows;    /* rows written to the CSV (known after session_unload) */
+  uint64_t late;    /* steps the io device did not answer in time (uart) */
   int64_t max_wake_ns;
   int64_t max_step_ns;
   double mean_step_ns;

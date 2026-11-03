@@ -10,7 +10,7 @@
 get_filename_component(KRUMPIR_LIBS_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 
 macro(krumpir_add_libs)
-  foreach(lib ctrlcore plants/dcmotor plants/t12 osal osal_host rte)
+  foreach(lib ctrlcore plants/dcmotor plants/t12 osal osal_host rte hil)
     get_filename_component(_name ${lib} NAME)
     if(NOT TARGET ${_name})
       add_subdirectory("${KRUMPIR_LIBS_DIR}/${lib}" "${CMAKE_BINARY_DIR}/krumpir_libs/${_name}")

@@ -1,0 +1,23 @@
+# T12 tip plant against the T12 controller's own code on this PC (controllers/esp32-t12-controller/
+# host), over a pty pair: tools/hil/pc_loop.sh t12 runs both. Lockstep, as fast as it goes. The
+# controller heats to its setpoint (pc_loop.sh: sp); a joint (0.1 W/K) is touched at t = 10 s.
+[model]
+fmu = "fmus/t12tip.fmu"
+step = 0.001
+duration = 14
+
+[rt]
+wait = "none"
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 500
+inputs = ["heater", "series_on", "load_wk"]
+outputs = ["v_amp", "i_heater", "t_handle_c", "t_tip_c"]
+stimulus = [
+  { input = "load_wk", kind = "step", t = 10.0, from = 0, to = 0.1 },
+]
+
+[log]
+file = "runs/t12tip_hil_pc.csv"

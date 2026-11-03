@@ -10,4 +10,4 @@ include(cmake/krumpir.cmake)
 krumpir_add_libs()
 
 enable_testing()
-krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}/test" ctrlcore dcmotor t12 rte osal_host)
+krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}/test" ctrlcore dcmotor t12 rte osal_host hil)

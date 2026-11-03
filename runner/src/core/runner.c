@@ -55,6 +55,7 @@ int runner_run(const scenario_t *sc, runner_result_t *res, char *err, size_t err
   res->overruns = sum.overruns;
   res->dropped = sum.dropped;
   res->rows = sum.rows;
+  res->late = sum.late;
   res->max_wake_ns = sum.max_wake_ns;
   res->max_step_ns = sum.max_step_ns;
   res->mean_step_ns = sum.mean_step_ns;

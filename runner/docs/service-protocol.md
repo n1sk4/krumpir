@@ -39,7 +39,7 @@ has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
 | `save` | `path`: `scenarios/<name>.toml`, `toml`: the text, `overwrite` (default false) | | |
 | `start` | | `state` | `StartSimulation` |
 | `stop` | | `state` | `StopSimulation` |
-| `state` | | `state`, `fault`; once loaded also `fmu`, `step`, `duration` (when set), `t`, `steps`, `overruns`, `max_step_ns`, `max_wake_ns` of the run so far | `State` |
+| `state` | | `state`, `fault`; once loaded also `fmu`, `step`, `duration` (when set), `t`, `steps`, `overruns`, `max_step_ns`, `max_wake_ns`, `late` (steps the uart controller did not answer in time) of the run so far | `State` |
 | `files` | | `scenarios`: `scenarios/*.toml`, `fmus`: `fmus/*.fmu` in the service's directory, sorted | |
 | `text` | `path`: a `.toml` file on the server (up to 64 kB) | `text` | |
 | `wait` | `timeout_ms` (default: forever) | `done`, `state` | |
@@ -70,7 +70,8 @@ directory the service was started in.
 **describe** lets a client show a scenario as a form without a TOML parser and without loading.
 `scenario` has every key, defaults filled in: `model` (`fmu`, `step`, `duration`: null when the
 run goes until stopped, `params`: `{name: number}`), `rt` (`wait`, `max_overruns`, `cpu` and
-`priority`: null when not set), `io` (`backend`, `inputs`, `outputs`, `stimulus`: entries as the
+`priority`: null when not set), `io` (`backend`, `device`: "" when not set, `baud`, `timeout_ms`,
+`late`, `max_late`, `inputs`, `outputs`, `stimulus`: entries as the
 `signal` op takes them) and `log` (`file`). `variables` are those of the FMU it names, as
 `variables` gives them. When the text is not a valid scenario the reply has `text` and `problem`
 (why) only; when the FMU cannot be opened it has `scenario` and `problem`. Allowed in any state.

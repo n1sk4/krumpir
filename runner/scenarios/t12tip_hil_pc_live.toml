@@ -1,0 +1,25 @@
+# t12tip_hil_pc with time in it (tools/hil/pc_loop.sh t12 --live): the runner paced at 1 kHz, the
+# controller on its own 1 kHz clock, as a board would be. A step takes the controller's newest
+# answer without waiting; a step without a new one holds the last commands and counts as late.
+[model]
+fmu = "fmus/t12tip.fmu"
+step = 0.001
+duration = 14
+
+[rt]
+wait = "sleep"
+max_overruns = 10000
+
+[io]
+backend = "uart"
+device = "/tmp/krumpir-hil/runner"
+timeout_ms = 0
+late = "hold"
+inputs = ["heater", "series_on", "load_wk"]
+outputs = ["v_amp", "i_heater", "t_handle_c", "t_tip_c"]
+stimulus = [
+  { input = "load_wk", kind = "step", t = 10.0, from = 0, to = 0.1 },
+]
+
+[log]
+file = "runs/t12tip_hil_pc_live.csv"

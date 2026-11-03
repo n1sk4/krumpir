@@ -100,8 +100,8 @@ static void describe_failure(session_t *s)
     break;
   }
   case LOOP_IO_FAIL:
-    snprintf(s->fault, sizeof s->fault, "io backend failed after %llu steps",
-             (unsigned long long)ls->steps);
+    snprintf(s->fault, sizeof s->fault, "io backend failed after %llu steps%s%s",
+             (unsigned long long)ls->steps, s->io->error[0] ? ": " : "", s->io->error);
     break;
   case LOOP_TOO_MANY_OVERRUNS:
     snprintf(s->fault, sizeof s->fault,
@@ -180,6 +180,7 @@ void session_live(session_t *s, session_summary_t *out)
       .overruns = atomic_load_explicit(&s->ls.overruns, memory_order_relaxed),
       .max_wake_ns = atomic_load_explicit(&s->ls.max_wake_ns, memory_order_relaxed),
       .max_step_ns = atomic_load_explicit(&s->ls.max_step_ns, memory_order_relaxed),
+      .late = s->io != NULL ? atomic_load_explicit(&s->io->late, memory_order_relaxed) : 0,
   };
 }
 
@@ -212,6 +213,7 @@ void session_unload(session_t *s, session_summary_t *out)
     ring_free(&s->ring);
   }
   if (s->io != NULL) {
+    sum.late = s->io->late;
     s->io->api->close(s->io);
   }
   if (s->pkg_open) {

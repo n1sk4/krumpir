@@ -64,5 +64,18 @@
     "s_loop.temp",
     "s_loop.duty",
     "s_loop.amps"
-  ]
+  ],
+  "hil": {
+    "plant": [
+      "v_amp",
+      "i_heater",
+      "t_handle_c",
+      "t_tip_c"
+    ],
+    "cmd": [
+      "heater",
+      "series_on"
+    ]
+  },
+  "a2l_host": "docs/t12_host.a2l"
 }

@@ -38,6 +38,9 @@ target_compile_options(cjson PRIVATE -w)
 
 find_package(EXPAT REQUIRED)
 
+# HIL link frames (libs/hil), shared with the controllers.
+add_subdirectory(../libs/hil hil)
+
 add_library(krumpir_core STATIC
   src/app/config.c
   src/app/scaffold.c
@@ -56,12 +59,13 @@ add_library(krumpir_core STATIC
   src/fmi/varmap.c
   src/io/io.c
   src/io/null.c
+  src/io/uart.c
   src/telemetry/ring.c
   src/telemetry/writer.c)
 target_include_directories(krumpir_core PUBLIC src/app src/core src/fmi src/io src/telemetry)
 # FMI 3.0 headers (BSD-2), vendored; SYSTEM keeps their warnings out of our -Werror build.
 target_include_directories(krumpir_core SYSTEM PUBLIC vendor/fmi3)
-target_link_libraries(krumpir_core PUBLIC Threads::Threads tomlc99 miniz EXPAT::EXPAT
+target_link_libraries(krumpir_core PUBLIC Threads::Threads tomlc99 miniz EXPAT::EXPAT hil
   ${CMAKE_DL_LIBS} m)
 
 add_executable(krumpir src/app/main.c src/app/serve.c)
@@ -74,6 +78,15 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/../libs/vendor/Reference-FMUs/src/fmi3Functions
   add_subdirectory(../libs/plants plants)
 else()
   message(STATUS "Plant FMUs not built: run 'git submodule update --init libs/vendor/Reference-FMUs'")
+endif()
+
+# The controllers built for this PC (controllers/*/host), for the closed-loop tests over a pty
+# pair (tools/hil/pc_loop.sh).
+option(KRUMPIR_HIL_PC "Build the controllers for the PC and the closed-loop tests" ON)
+if(KRUMPIR_HIL_PC)
+  foreach(c motor t12)
+    add_subdirectory(../controllers/esp32-${c}-controller/host host-${c})
+  endforeach()
 endif()
 
 enable_testing()

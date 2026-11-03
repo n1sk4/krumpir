@@ -27,7 +27,8 @@ Element Header(const Snapshot &v)
              text(Format("  overruns %.0f", v.overruns)) |
                  color(v.overruns > 0 ? Color(Color::Red) : Color(Color::Default)),
              text(Format("  step max %.1f us", v.max_step_ns / 1e3)),
-             text(Format("  wake max %.1f us", v.max_wake_ns / 1e3))};
+             text(Format("  wake max %.1f us", v.max_wake_ns / 1e3)),
+             text(v.late > 0 ? Format("  late %.0f", v.late) : "") | color(Color::Yellow)};
   if (v.state == "FAULT") {
     e.push_back(text("  " + v.fault) | color(Color::Red));
   }

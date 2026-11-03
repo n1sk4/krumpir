@@ -543,11 +543,15 @@ TEST_CASE("ecu model: status, calibration, requests, watched signals")
 TEST_CASE("controllers of the repo")
 {
   const auto list = find_controllers(KT_REPO_ROOT);
-  REQUIRE(list.size() == 2);
+  REQUIRE(list.size() == 4); // each on the board and on the PC (host/)
   CHECK(list[0].name == "motor");
-  CHECK(list[1].name == "t12");
+  CHECK(list[1].name == "motor pc");
+  CHECK(list[1].a2l.find("docs/motor_host.a2l") != std::string::npos);
+  CHECK(list[2].name == "t12");
+  CHECK(list[3].name == "t12 pc");
   for (const auto &c : list) {
-    CHECK(c.desc.at("request").at("name") == c.name + "_cal_page.request");
+    const std::string name = c.desc.at("name");
+    CHECK(c.desc.at("request").at("name") == name + "_cal_page.request");
     if (!fs::exists(c.a2l)) {
       continue; // gitignored: only there after an XCP build
     }

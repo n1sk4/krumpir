@@ -27,6 +27,13 @@ void ctrl_gen_telemetry_start(void);
 /* The values of one telemetry sample, evaluated where it is used (the control task). */
 #define CTRL_GEN_TELEM_VALUES {s_loop.ctrl.sp_active, s_loop.temp, s_loop.duty, s_loop.amps}
 
+/* The HIL link's values, in frame order (controller.toml [hil]): what the runner sends (PLANT)
+ * and the commands the controller answers with (CMD). The runner's scenario must name the same. */
+#define CTRL_GEN_HIL_PLANT {"v_amp", "i_heater", "t_handle_c", "t_tip_c"}
+#define CTRL_GEN_HIL_N_PLANT 4
+#define CTRL_GEN_HIL_CMD {"heater", "series_on"}
+#define CTRL_GEN_HIL_N_CMD 2
+
 #ifdef KRUMPIR_XCP
 /* The XCP calibration page t12_cal_page (ctrl_gen_task.inc, compiled into the control
  * task's unit, so the A2L generated from that unit finds it). */

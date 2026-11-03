@@ -452,17 +452,38 @@ static int parse_rt(ctx_t *c, const toml_table_t *rt, scenario_t *sc)
 
 static int parse_io(ctx_t *c, const toml_table_t *io, scenario_t *sc)
 {
-  static const char *const keys[] = {"backend", "inputs", "outputs", "stimulus", NULL};
+  static const char *const keys[] = {"backend", "inputs",     "outputs", "stimulus", "device",
+                                     "baud",    "timeout_ms", "late",    "max_late", NULL};
+  char late[CFG_MAX_NAME] = "fault";
+  sc->baud = 921600;
+  sc->timeout_ms = 100;
+  sc->max_late = 10;
   if (check_keys(c, io, "[io]", keys) < 0 ||
       get_string(c, io, "io", "backend", sc->backend, sizeof sc->backend, true) < 0 ||
       get_names(c, io, "io", "inputs", sc->inputs, &sc->n_inputs) < 0 ||
       get_names(c, io, "io", "outputs", sc->outputs, &sc->n_outputs) < 0 ||
-      parse_stimulus(c, io, sc) < 0) {
+      parse_stimulus(c, io, sc) < 0 ||
+      get_string(c, io, "io", "device", sc->device, sizeof sc->device, false) < 0 ||
+      get_int(c, io, "io", "baud", &sc->baud, 1200, 4000000) < 0 ||
+      get_number(c, io, "io", "timeout_ms", &sc->timeout_ms, false) < 0 ||
+      get_string(c, io, "io", "late", late, sizeof late, false) < 0 ||
+      get_int(c, io, "io", "max_late", &sc->max_late, 1, 1000000000) < 0) {
     return -1;
   }
-  if (strcmp(sc->backend, "null") != 0) {
-    return fail(c, "io.backend '%s' is not supported (only 'null')", sc->backend);
+  if (strcmp(sc->backend, "uart") == 0) {
+    if (sc->device[0] == '\0') {
+      return fail(c, "io.backend 'uart' needs io.device");
+    }
+  } else if (strcmp(sc->backend, "null") != 0) {
+    return fail(c, "io.backend '%s' is not supported (null or uart)", sc->backend);
   }
+  if (sc->timeout_ms < 0 || sc->timeout_ms > 60000) {
+    return fail(c, "io.timeout_ms must be between 0 and 60000");
+  }
+  if (strcmp(late, "fault") != 0 && strcmp(late, "hold") != 0) {
+    return fail(c, "io.late '%s' is not fault or hold", late);
+  }
+  sc->late_fault = strcmp(late, "fault") == 0;
   return 0;
 }
 

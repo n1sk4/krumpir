@@ -40,8 +40,13 @@ std::vector<Controller> find_controllers(const std::string &root)
     if (j.is_discarded() || !j.is_object()) {
       continue;
     }
-    out.push_back({d.path().generic_string(), str(j, "name"),
-                   (d.path() / str(j, "a2l")).generic_string(), std::move(j)});
+    const std::string name = str(j, "name"), host_a2l = str(j, "a2l_host");
+    if (!host_a2l.empty()) { // the same controller built for the PC (host/), its own target
+      out.push_back({(d.path() / "host").generic_string(), name + " pc",
+                     (d.path() / host_a2l).generic_string(), j});
+    }
+    out.push_back({d.path().generic_string(), name, (d.path() / str(j, "a2l")).generic_string(),
+                   std::move(j)});
   }
   std::sort(out.begin(), out.end(), [](const auto &a, const auto &b) { return a.dir < b.dir; });
   return out;

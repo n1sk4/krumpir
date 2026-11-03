@@ -1,0 +1,36 @@
+{{ banner }}
+# The controller on a PC (Linux, WSL): the same control task, console and tables as the board, with
+# the plant behind the HIL link (host/io_hil.c, libs/hil) instead of the on-chip simulation:
+#   cmake -S host -B <build> && cmake --build <build>
+#   <build>/{{ m.name }}_host --device /dev/pts/N [--lockstep | --hz 1000] [--log] [-c "sp ..."]
+cmake_minimum_required(VERSION 3.20)
+project({{ m.name }}_host C)
+set(CMAKE_C_STANDARD 11)
+add_compile_options(-Wall -Wextra -Wno-unused-parameter) # the board's hooks ignore their ctx
+
+include(../../../libs/cmake/krumpir.cmake)
+krumpir_add_libs()
+add_subdirectory(../lib/{{ m.lib }} {{ m.lib }})
+
+add_executable({{ m.name }}_host ../src/control_task.c ../src/console.c ../src/gen/ctrl_gen.c io_hil.c)
+target_include_directories({{ m.name }}_host PRIVATE ../src .)
+target_compile_definitions({{ m.name }}_host PRIVATE KRUMPIR_IO_HIL)
+target_link_libraries({{ m.name }}_host PRIVATE {{ m.lib }} rte hil_host)
+
+# XCP on UDP (XCPlite, Linux) for the TUI and xcpclient: -DKRUMPIR_XCP=ON, then run with
+# --xcp <port> and make the A2L from this ELF (controllers/README.md). Every build has a new EPK.
+option(KRUMPIR_XCP "XCP on UDP (XCPlite)" OFF)
+if(KRUMPIR_XCP)
+  set(XCPLITE_CFG_OVERRIDE ${KRUMPIR_LIBS_DIR}/osal_host/xcplib_host_cfg.h)
+  add_subdirectory(${KRUMPIR_LIBS_DIR}/vendor/XCPlite xcplite EXCLUDE_FROM_ALL)
+  target_compile_options(xcplite PRIVATE -w) # vendored
+  add_custom_target({{ m.name }}_epk BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/xcp_epk.h
+    COMMAND ${CMAKE_COMMAND} -DOUT=${CMAKE_CURRENT_BINARY_DIR}/xcp_epk.h
+            -P ${KRUMPIR_LIBS_DIR}/osal_host/xcp_epk.cmake)
+  add_dependencies({{ m.name }}_host {{ m.name }}_epk)
+  target_sources({{ m.name }}_host PRIVATE ${KRUMPIR_LIBS_DIR}/osal_host/src/xcp_host.c)
+  target_include_directories({{ m.name }}_host PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+  target_compile_definitions({{ m.name }}_host PRIVATE KRUMPIR_XCP CTRL_NAME="{{ m.name }}_host")
+  target_compile_options({{ m.name }}_host PRIVATE -g) # the A2L is read from the debug info
+  target_link_libraries({{ m.name }}_host PRIVATE xcplite)
+endif()

@@ -170,6 +170,20 @@ TEST_CASE("form: at most 16 inputs and parameters")
   CHECK(error(f, "param:p15") == "more than 16 parameters"); // Vbus + 15
 }
 
+TEST_CASE("form: the uart backend's keys")
+{
+  Form f = Form::from_describe(kReply, {});
+  CHECK_FALSE(f.find("io.device")->shown);
+  set(f, "io.backend", "uart");
+  CHECK(error(f, "io.device") == "empty");
+  set(f, "io.device", "/dev/pts/3");
+  set(f, "io.timeout_ms", "0");
+  set(f, "io.late", "hold");
+  CHECK(f.ok());
+  CHECK(f.to_toml().find("backend = \"uart\"\ndevice = \"/dev/pts/3\"\nbaud = 921600\n"
+                         "timeout_ms = 0\nlate = \"hold\"\nmax_late = 10\n") != std::string::npos);
+}
+
 TEST_CASE("form: a reply without a scenario")
 {
   Form f = Form::from_describe(json{{"text", "[model]\n"}, {"problem", "missing [io]"}}, {});

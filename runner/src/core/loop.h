@@ -41,6 +41,8 @@ typedef struct {
   /* Optional (NULL: every input from the I/O backend): where each input slot gets its value.
    * CMD_WRITE_INPUT and CMD_SET_SIGNAL change it while the loop runs. */
   input_src_t *src;
+  /* Optional (0: none): a timing_pin fd, high from each step's wake-up to the end of its work */
+  int timing_fd;
 } loop_ctx_t;
 
 typedef enum {

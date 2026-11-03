@@ -71,6 +71,7 @@ typedef struct {
   int max_overruns;
   int cpu;
   int priority;
+  int timing_gpio; /* GPIO line high while each step runs, for a logic analyzer (-1 = none) */
 
   /* [io] */
   char backend[CFG_MAX_NAME];

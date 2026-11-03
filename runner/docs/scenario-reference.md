@@ -42,6 +42,7 @@ file = "runs/dahlquist.csv"
 | `max_overruns` | `0` | Paced runs only. A step that finishes after its deadline is an overrun; the run faults when the count exceeds this. |
 | `cpu` | unset | Pins the loop thread to this CPU (the isolated core on the Pi). |
 | `priority` | unset | Runs the loop thread `SCHED_FIFO` at this priority (1 to 99) and locks the process's memory (`mlockall`). Needs root, or `rtprio` and `memlock` limits for the user; otherwise the run does not start and says why. |
+| `timing_gpio` | unset | A GPIO line (on `/dev/gpiochip0`: the Pi 4's GPIO numbers) that is high from each step's wake-up to the end of its work, for a logic analyzer: the period is the tick, the rising edges show the jitter, the width the step's work. One ioctl per edge, about 1 to 2 µs. Loading fails if the line cannot be had (no such chip, or the line is in use). |
 
 Paced ticks are absolute (`start + n * step`), so a late step does not push later ones back.
 

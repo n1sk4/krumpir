@@ -17,6 +17,7 @@
 #include "loop.h"
 #include "ring.h"
 #include "rt_setup.h"
+#include "timing_pin.h"
 #include "varmap.h"
 #include "writer.h"
 
@@ -38,6 +39,7 @@ struct session {
   pthread_t thread;
   bool thread_started;
   bool mem_locked; /* rt_lock_memory() was called for this load */
+  int timing_fd;   /* rt.timing_gpio's line (timing_pin), 0 when none */
   atomic_bool done; /* the loop thread has returned */
   atomic_int stop;
   loop_stats_t ls;
@@ -222,6 +224,7 @@ void session_unload(session_t *s, session_summary_t *out)
   if (s->mem_locked) {
     rt_unlock_memory();
   }
+  timing_pin_close(s->timing_fd);
   for (size_t i = 0; i < TELEM_MAX_CH; i++) {
     if (s->src[i].kind == SRC_SIGNAL) {
       signal_free(s->src[i].sig);
@@ -348,6 +351,13 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
     }
     s->mem_locked = true;
   }
+  if (s->sc.timing_gpio >= 0) {
+    const int fd = timing_pin_open(s->sc.timing_gpio, err, errlen);
+    if (fd < 0) {
+      goto fail;
+    }
+    s->timing_fd = fd;
+  }
   lifecycle_set(&s->state, LC_INITIALIZED);
   return 0;
 
@@ -385,7 +395,8 @@ static void *loop_thread(void *arg)
                     .stop = &s->stop,
                     .cmd = &s->cmd,
                     .reply = &s->reply,
-                    .src = s->src};
+                    .src = s->src,
+                    .timing_fd = s->timing_fd};
   rt_prefault_stack();
   loop_run(&ctx, &s->ls);
   atomic_store(&s->done, true);

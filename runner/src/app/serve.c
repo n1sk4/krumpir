@@ -408,6 +408,9 @@ static cJSON *scenario_json(const scenario_t *sc)
   cJSON_AddItemToObject(rt, "cpu", sc->cpu >= 0 ? cJSON_CreateNumber(sc->cpu) : cJSON_CreateNull());
   cJSON_AddItemToObject(rt, "priority",
                         sc->priority >= 0 ? cJSON_CreateNumber(sc->priority) : cJSON_CreateNull());
+  cJSON_AddItemToObject(rt, "timing_gpio", sc->timing_gpio >= 0
+                                               ? cJSON_CreateNumber(sc->timing_gpio)
+                                               : cJSON_CreateNull());
   cJSON *io = cJSON_AddObjectToObject(j, "io");
   cJSON_AddStringToObject(io, "backend", sc->backend);
   cJSON_AddStringToObject(io, "device", sc->device);

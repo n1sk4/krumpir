@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "platform.h"
+#include "timing_pin.h"
 
 int64_t loop_step_ns(double step) { return (int64_t)llround(step * 1e9); }
 
@@ -112,6 +113,9 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
       }
     }
 
+    if (c->timing_fd > 0) {
+      timing_pin_set(c->timing_fd, true);
+    }
     const double t = loop_time(n, sc->step);
     if (c->cmd != NULL) {
       handle_commands(c, n, t);
@@ -170,6 +174,9 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
       }
     }
     ring_push(c->ring, &rec);
+    if (c->timing_fd > 0) {
+      timing_pin_set(c->timing_fd, false);
+    }
 
     /* The loop is the only writer, so relaxed load + store is enough (no lock prefix on x86). */
     const memory_order rx = memory_order_relaxed;

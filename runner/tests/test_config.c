@@ -39,6 +39,7 @@ static void test_minimal_defaults(void)
   assert(sc.step == 0.001 && sc.duration == 1.0 && sc.n_steps == 1000);
   assert(sc.n_params == 0 && sc.n_stimuli == 0);
   assert(sc.wait == WAIT_NONE && sc.max_overruns == 0 && sc.cpu == -1 && sc.priority == -1);
+  assert(sc.timing_gpio == -1);
   assert(strcmp(sc.backend, "null") == 0);
   assert(sc.n_inputs == 1 && strcmp(sc.inputs[0], "u") == 0);
   assert(sc.n_outputs == 1 && strcmp(sc.outputs[0], "y") == 0);
@@ -108,6 +109,10 @@ static void test_bad_values(void)
   expect_err(MODEL "[rt]\nwait = \"fast\"\n" IO LOG, "rt.wait");
   expect_err(MODEL "[rt]\nmax_overruns = -1\n" IO LOG, "rt.max_overruns must be between");
   expect_err(MODEL "[rt]\npriority = 100\n" IO LOG, "rt.priority must be between");
+  expect_err(MODEL "[rt]\ntiming_gpio = -1\n" IO LOG, "rt.timing_gpio must be between");
+  scenario_t pin;
+  expect_ok(MODEL "[rt]\ntiming_gpio = 17\n" IO LOG, &pin);
+  assert(pin.timing_gpio == 17);
   expect_err(MODEL "[io]\nbackend = \"can\"\n" LOG, "not supported");
   expect_err(MODEL "[io]\nbackend = \"uart\"\n" LOG, "needs io.device");
   expect_err(MODEL "[io]\nbackend = \"uart\"\ndevice = \"/dev/x\"\nlate = \"skip\"\n" LOG,

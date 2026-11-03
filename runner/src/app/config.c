@@ -429,13 +429,15 @@ static int parse_model(ctx_t *c, const toml_table_t *model, scenario_t *sc)
 
 static int parse_rt(ctx_t *c, const toml_table_t *rt, scenario_t *sc)
 {
-  static const char *const keys[] = {"wait", "max_overruns", "cpu", "priority", NULL};
+  static const char *const keys[] = {"wait", "max_overruns", "cpu", "priority", "timing_gpio",
+                                     NULL};
   char wait[CFG_MAX_NAME] = "none";
   if (check_keys(c, rt, "[rt]", keys) < 0 ||
       get_string(c, rt, "rt", "wait", wait, sizeof wait, false) < 0 ||
       get_int(c, rt, "rt", "max_overruns", &sc->max_overruns, 0, 1000000000) < 0 ||
       get_int(c, rt, "rt", "cpu", &sc->cpu, 0, 255) < 0 ||
-      get_int(c, rt, "rt", "priority", &sc->priority, 1, 99) < 0) {
+      get_int(c, rt, "rt", "priority", &sc->priority, 1, 99) < 0 ||
+      get_int(c, rt, "rt", "timing_gpio", &sc->timing_gpio, 0, 511) < 0) {
     return -1;
   }
   if (strcmp(wait, "none") == 0) {
@@ -523,6 +525,7 @@ int config_parse(const char *text, scenario_t *sc, char *err, size_t errlen)
   sc->wait = WAIT_NONE;
   sc->cpu = -1;
   sc->priority = -1;
+  sc->timing_gpio = -1;
 
   char *copy = strdup(text); /* toml_parse modifies its input */
   if (copy == NULL) {

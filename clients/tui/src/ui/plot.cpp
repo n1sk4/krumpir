@@ -47,8 +47,8 @@ Element Plot(const std::string &name, const std::vector<Sample> &h, double t0, d
       }
     }
   });
-  return vbox({hbox({title, filler(), text(Format("max %.6g", top)) | dim}), plot | flex,
-               hbox({filler(), text(Format("min %.6g", bottom)) | dim})});
+  return vbox({hbox({title, filler(), text("max " + Number(top)) | dim}), plot | flex,
+               hbox({filler(), text("min " + Number(bottom)) | dim})});
 }
 
 // Several variables in one graph, each scaled to its own min..max (their units differ), with a

@@ -14,7 +14,8 @@ using namespace ftxui;
 
 namespace {
 
-std::string Value(double v) { return std::isfinite(v) ? Format("%.6g", v) : std::string(); }
+// The text of an edit box: blank while there is no value to start from.
+std::string EditText(double v) { return std::isfinite(v) ? Format("%.6g", v) : std::string(); }
 
 std::string Name(const EcuSnapshot &v)
 {
@@ -74,7 +75,7 @@ Component ControllerSetup(EcuModel &ecu)
   };
   auto revert = [s] {
     for (std::size_t i = 0; i < s->params.size(); i++) {
-      s->edit[i] = s->base[i] = Value(s->params[i].value);
+      s->edit[i] = s->base[i] = EditText(s->params[i].value);
       s->cursor[i] = static_cast<int>(s->edit[i].size());
     }
   };
@@ -126,7 +127,7 @@ Component ControllerSetup(EcuModel &ecu)
       for (std::size_t i = 0; i < s->params.size() && i < v.params.size(); i++) {
         s->params[i].value = v.params[i].value;
         if (s->base[i].empty() && std::isfinite(v.params[i].value)) { // first read: fill in
-          s->edit[i] = s->base[i] = Value(v.params[i].value);
+          s->edit[i] = s->base[i] = EditText(v.params[i].value);
           s->cursor[i] = static_cast<int>(s->edit[i].size());
         }
       }
@@ -155,7 +156,7 @@ Component ControllerSetup(EcuModel &ecu)
       rows.push_back({text(p.name + " ") | bold, field | size(WIDTH, EQUAL, 14),
                       text(" " + (p.unit.empty() ? "-" : p.unit) + " "),
                       text(Format("%g..%g ", p.min, p.max)) | dim,
-                      text(Format("%-10s", Value(p.value).c_str())), text(" " + p.help) | dim});
+                      text(Format("%-10s", Number(p.value).c_str())), text(" " + p.help) | dim});
     }
     return vbox({
         hbox({text(" " + name + " ") | bold, addr->Render() | size(WIDTH, EQUAL, kAddressWidth) | underlined,
@@ -231,7 +232,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
         const bool on = std::find(v.watched.begin(), v.watched.end(), name) != v.watched.end();
         const auto val = v.values.find(name);
         s->rows.push_back(Format("%s %-*.*s %11s", on ? "[x]" : "[ ]", nw, nw, name.c_str(),
-                                 val != v.values.end() ? Value(val->second).c_str() : ""));
+                                 val != v.values.end() ? Number(val->second).c_str() : ""));
         s->names.push_back(name);
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));

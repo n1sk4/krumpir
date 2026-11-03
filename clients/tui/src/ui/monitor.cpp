@@ -163,8 +163,8 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
           continue;
         }
         s->shown.push_back(i);
-        s->rows.push_back(Format("%s %-*.*s %-6s %12.6g", s->checked.count(x.name) ? "[x]" : "[ ]",
-                                 nw, nw, x.name.c_str(), x.kind.c_str(), x.value));
+        s->rows.push_back(Format("%s %-*.*s %-6s %12s", s->checked.count(x.name) ? "[x]" : "[ ]",
+                                 nw, nw, x.name.c_str(), x.kind.c_str(), Number(x.value).c_str()));
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
       s->sel = s->shown.empty() ? Variable{} : v.vars[s->shown[static_cast<std::size_t>(s->selected)]];

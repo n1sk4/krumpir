@@ -40,6 +40,9 @@ ftxui::Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout>
 // Shared look
 ftxui::Color StateColor(const std::string &state);
 std::string Format(const char *fmt, ...);
+// A value as the lists and the plot show it: up to 6 significant digits; "nan", "inf" or "-inf"
+// when it is not finite, never blank.
+std::string Number(double v);
 
 // Shared pieces (plot.cpp)
 std::vector<Sample> Thin(const std::deque<Sample> &h); // at most ~4000 points, to draw

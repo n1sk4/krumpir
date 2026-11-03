@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <memory>
@@ -36,6 +37,14 @@ std::string Format(const char *fmt, ...)
   std::vsnprintf(buf, sizeof buf, fmt, ap);
   va_end(ap);
   return buf;
+}
+
+std::string Number(double v)
+{
+  if (std::isnan(v)) {
+    return "nan"; // not "-nan", which printf gives for a NaN with the sign set
+  }
+  return std::isinf(v) ? (v < 0 ? "-inf" : "inf") : Format("%.6g", v);
 }
 
 namespace {

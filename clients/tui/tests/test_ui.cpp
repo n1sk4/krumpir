@@ -232,6 +232,19 @@ TEST_CASE("ui root: the pane setting is shared by every Monitor page")
   CHECK(has(draw(r.root, 130, 36), " Signals"));
 }
 
+TEST_CASE("ui number: six digits, and a word for what is not finite")
+{
+  using krumpir::ui::Number;
+  CHECK(Number(0.5) == "0.5");
+  CHECK(Number(2748.33) == "2748.33");
+  CHECK(Number(1.0 / 3.0) == "0.333333");
+  CHECK(Number(1e-9) == "1e-09");
+  CHECK(Number(NAN) == "nan");
+  CHECK(Number(-NAN) == "nan");
+  CHECK(Number(INFINITY) == "inf");
+  CHECK(Number(-INFINITY) == "-inf");
+}
+
 TEST_CASE("ui filter: a substring of the name, any case, empty shows all")
 {
   using krumpir::ui::MatchesFilter;

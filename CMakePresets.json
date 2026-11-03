@@ -1,0 +1,79 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": { "CMAKE_EXPORT_COMPILE_COMMANDS": "ON" }
+    },
+    {
+      "name": "linux",
+      "hidden": true,
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+    },
+    {
+      "name": "dev",
+      "inherits": "base",
+      "displayName": "Debug, everything this platform builds",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "displayName": "Release (the Pi, a TUI to hand out)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "asan",
+      "inherits": "linux",
+      "displayName": "Debug with address and undefined-behaviour sanitizers",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "KRUMPIR_SANITIZE": "address" }
+    },
+    {
+      "name": "tsan",
+      "inherits": "linux",
+      "displayName": "Debug with the thread sanitizer (run its tests under setarch -R on WSL)",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "KRUMPIR_SANITIZE": "thread" }
+    },
+    {
+      "name": "pi-cross",
+      "inherits": "linux",
+      "displayName": "The plant FMUs for aarch64 (Raspberry Pi), cross-built (gcc-aarch64-linux-gnu, qemu-user)",
+      "toolchainFile": "${sourceDir}/libs/plants/aarch64-linux-gnu.cmake",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "KRUMPIR_ONLY": "plants" }
+    },
+    {
+      "name": "mingw",
+      "inherits": "base",
+      "displayName": "Windows with MinGW: the libraries, the controllers' tests and the TUI",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "CMAKE_C_COMPILER": "gcc", "CMAKE_CXX_COMPILER": "g++" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "tsan", "configurePreset": "tsan" },
+    { "name": "pi-cross", "configurePreset": "pi-cross" },
+    { "name": "mingw", "configurePreset": "mingw" }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" }
+    },
+    { "name": "dev", "inherits": "base", "configurePreset": "dev" },
+    { "name": "release", "inherits": "base", "configurePreset": "release" },
+    { "name": "asan", "inherits": "base", "configurePreset": "asan" },
+    { "name": "tsan", "inherits": "base", "configurePreset": "tsan" },
+    { "name": "pi-cross", "inherits": "base", "configurePreset": "pi-cross" },
+    { "name": "mingw", "inherits": "base", "configurePreset": "mingw" }
+  ]
+}

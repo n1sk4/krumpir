@@ -7,7 +7,7 @@ project({{ m.name }}_controller_tests C)
 include(../../../cmake/krumpir.cmake)
 
 krumpir_add_libs()
-add_subdirectory(../lib/{{ m.lib }} {{ m.lib }})
+krumpir_add_subdirectory_once({{ m.lib }} ../lib/{{ m.lib }} {{ m.lib }})
 
 enable_testing()
-krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" {{ m.lib }})
+krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" PREFIX {{ m.name }}_ {{ m.lib }})

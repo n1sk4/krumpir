@@ -9,7 +9,9 @@
 #   KRUMPIR_SANITIZE           OFF | address | thread (ON = address): every C/C++ target here
 #   krumpir_add_libs()         the portable libraries: ctrlcore, dcmotor, t12, osal, osal_host
 #                              (alias osal_port), rte, hil, unity; each also as krumpir::<name>
-#   krumpir_unity_tests(<dir> <libs...>)   each <dir>/test_*/test_main.c: one CTest test
+#   krumpir_unity_tests(<dir> [PREFIX <p>] <libs...>)   each <dir>/test_*/test_main.c: one CTest
+#                              test, <p>test_<name> (a prefix keeps two controllers' tests apart)
+#   krumpir_add_subdirectory_once(<target> <dir> <bindir>)   a library several projects add
 #   krumpir_add_test(NAME <n> SOURCES <c...> | COMMAND <cmd...>
 #                    [LIBS <targets>] [DEFINES <defs>] [ENV <k=v...>] [WORKDIR <dir>] [SKIP_77])
 #   krumpir_vendor(<target>)   third-party code: no warnings of ours
@@ -82,16 +84,25 @@ function(krumpir_vendor target)
 endfunction()
 
 function(krumpir_unity_tests dir)
+  cmake_parse_arguments(ARG "" "PREFIX" "" ${ARGN})
   file(GLOB _tests LIST_DIRECTORIES true "${dir}/test_*")
   foreach(_t ${_tests})
     if(EXISTS "${_t}/test_main.c")
       get_filename_component(_name "${_t}" NAME)
+      set(_name ${ARG_PREFIX}${_name})
       add_executable(${_name} "${_t}/test_main.c")
       target_include_directories(${_name} PRIVATE "${_t}") # test data headers next to the test
-      target_link_libraries(${_name} PRIVATE unity ${ARGN} krumpir::warnings)
+      target_link_libraries(${_name} PRIVATE unity ${ARG_UNPARSED_ARGUMENTS} krumpir::warnings)
       add_test(NAME ${_name} COMMAND ${_name})
     endif()
   endforeach()
+endfunction()
+
+# add_subdirectory once, for libraries that several projects of one tree use
+function(krumpir_add_subdirectory_once target dir bindir)
+  if(NOT TARGET ${target})
+    add_subdirectory("${dir}" "${bindir}")
+  endif()
 endfunction()
 
 function(krumpir_add_test)

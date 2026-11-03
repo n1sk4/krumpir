@@ -7,7 +7,7 @@ project(motor_controller_tests C)
 include(../../../cmake/krumpir.cmake)
 
 krumpir_add_libs()
-add_subdirectory(../lib/motorctrl motorctrl)
+krumpir_add_subdirectory_once(motorctrl ../lib/motorctrl motorctrl)
 
 enable_testing()
-krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" motorctrl)
+krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" PREFIX motor_ motorctrl)

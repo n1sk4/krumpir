@@ -9,7 +9,7 @@ project(t12_host C)
 include(../../../cmake/krumpir.cmake)
 
 krumpir_add_libs()
-add_subdirectory(../lib/t12ctrl t12ctrl)
+krumpir_add_subdirectory_once(t12ctrl ../lib/t12ctrl t12ctrl)
 
 set(srcs
   ../src/console.c

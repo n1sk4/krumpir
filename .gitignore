@@ -8,4 +8,6 @@ __pycache__/
 /*.py
 /runs
 /clients/tui/build
+/build
+CMakeUserPresets.json
 /docs/img/temp

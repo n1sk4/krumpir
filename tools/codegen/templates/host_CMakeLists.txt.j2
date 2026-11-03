@@ -9,7 +9,7 @@ project({{ m.name }}_host C)
 include(../../../cmake/krumpir.cmake)
 
 krumpir_add_libs()
-add_subdirectory(../lib/{{ m.lib }} {{ m.lib }})
+krumpir_add_subdirectory_once({{ m.lib }} ../lib/{{ m.lib }} {{ m.lib }})
 
 set(srcs
   ../src/console.c

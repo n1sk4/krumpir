@@ -9,7 +9,7 @@ project(motor_host C)
 include(../../../cmake/krumpir.cmake)
 
 krumpir_add_libs()
-add_subdirectory(../lib/motorctrl motorctrl)
+krumpir_add_subdirectory_once(motorctrl ../lib/motorctrl motorctrl)
 
 set(srcs
   ../src/console.c

@@ -7,7 +7,7 @@ project(t12_controller_tests C)
 include(../../../cmake/krumpir.cmake)
 
 krumpir_add_libs()
-add_subdirectory(../lib/t12ctrl t12ctrl)
+krumpir_add_subdirectory_once(t12ctrl ../lib/t12ctrl t12ctrl)
 
 enable_testing()
-krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" t12ctrl)
+krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" PREFIX t12_ t12ctrl)

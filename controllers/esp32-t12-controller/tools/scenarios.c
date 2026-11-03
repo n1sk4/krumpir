@@ -11,7 +11,7 @@
 static void print_sample(void *ctx, const t12_scn_sample_t *s)
 {
   (void)ctx;
-  printf("%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.4f,%.3f,%.3f,%.1f,%d\n", s->t_s, s->setpoint, s->temp,
+  printf("%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.4f,%.3f,%.3f,%.1f,%d\n", s->t_s, s->setpoint, s->temp,
          s->tip, s->sensor, s->handle, s->duty, s->amps, s->load, s->ambient, (int)s->trip);
 }
 

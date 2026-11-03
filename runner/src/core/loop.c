@@ -81,6 +81,21 @@ void loop_run(const loop_ctx_t *c, loop_stats_t *st)
 
   st->end = LOOP_DONE; /* the caller has zeroed *st */
 
+  /* The device first gets the outputs before step 0 (the initialized model), so the input of
+   * every step can come from the plant before it, the first one too. */
+  if (vm->n_out > 0) {
+    const fmu_result_t r = fmu_get_real(c->fmu, vm->out_vr, vm->n_out, out);
+    if (r != FMU_OK) {
+      st->end = LOOP_FMU_FAIL;
+      st->fail_result = r;
+      return;
+    }
+    if (c->io->api->write(c->io, 0.0, out, vm->n_out) != 0) {
+      st->end = LOOP_IO_FAIL;
+      return;
+    }
+  }
+
   const int64_t start = plat_now_ns();
   for (uint64_t n = 0; n < sc->n_steps; n++) {
     if (*c->stop) {

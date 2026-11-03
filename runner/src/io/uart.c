@@ -1,8 +1,9 @@
 /* HIL backend: a controller on a serial line (a UART, or a pty pair on a PC), libs/hil frames.
  *
- * After step k the runner sends PLANT(seq k) with the FMU outputs; the controller answers
- * CMD(seq k) with its commands, which feed the inputs of step k+1. With timeout_ms > 0 (a
- * lockstep controller) read() waits that long for CMD(k); with 0 (a free-running controller) it
+ * Before step k the runner sends PLANT(seq k) with the FMU outputs (the loop writes the initial
+ * ones before step 0); the controller answers CMD(seq k), which feeds the inputs of step k. With
+ * timeout_ms > 0 (a lockstep controller) read() waits that long for CMD(k); with 0 (a free-running
+ * controller) it
  * takes the newest CMD that has arrived. A step without its answer holds the last commands and
  * counts as late; io.max_late late steps in a row fault the run when io.late = "fault". */
 #define _DEFAULT_SOURCE /* cfmakeraw, B921600 and up */

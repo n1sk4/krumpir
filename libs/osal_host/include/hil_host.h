@@ -19,4 +19,11 @@ int hil_host_open(const char *device, char *err, size_t errlen);
 /* Runs the link after control_task_start(): never returns unless the device fails (-1). */
 int hil_host_run(bool lockstep, uint32_t hz);
 
+/* A console command run at a tick, before that tick's body (a setpoint profile in plant time:
+ * tick = seconds * rate). At most 16, in any order; returns false when full. */
+bool hil_host_at(uint32_t tick, const char *line);
+
+/* Called after every tick's body with its tick number (main_host: reports trips). */
+void hil_host_after_tick(void (*fn)(uint32_t tick));
+
 #endif

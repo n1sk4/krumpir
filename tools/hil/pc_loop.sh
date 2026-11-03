@@ -2,7 +2,7 @@
 # The closed loop on this PC: a controller's own code (controllers/<x>/host) against its plant FMU
 # in the runner, over a pty pair from socat. Linux or WSL.
 #
-#   tools/hil/pc_loop.sh motor|t12|t12-open [--live] [--check]
+#   tools/hil/pc_loop.sh motor|t12|t12-open [--live] [--check] [--scenario FILE] [-- ARGS...]
 #
 #   motor     dcmotor_hil_pc: speed setpoint 3000 rpm, a load torque step at 0.5 s
 #   t12       t12tip_hil_pc: cold start to 350 degC, a joint touched at 10 s
@@ -10,6 +10,8 @@
 #   --live    the controller on its own 1 kHz clock and the runner paced (the *_live scenario)
 #             instead of lockstep; WSL is not real time, so expect late steps
 #   --check   check the run against the controller's acceptance figures (check_loop.py)
+#   --scenario FILE  another runner scenario on the same link; ARGS go to the controller after
+#             its default setpoint and start, e.g. -- -c "sp 0" --at 0.1 "sp 3000"
 #
 # Logs: runner/runs/<scenario>.csv (the runner) and runner/runs/<scenario>_ctrl.csv (the
 # controller's telemetry). KRUMPIR and CONTROLLER override the programs (default: ~/build/krumpir/
@@ -17,18 +19,22 @@
 # serves XCP on that port (a build with -DKRUMPIR_XCP=ON). Exits 77 when socat is missing.
 set -euo pipefail
 
-usage() { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 [ $# -ge 1 ] || usage
 kind=$1
 shift
-live=0 check=0
-for a in "$@"; do
-  case $a in
+live=0 check=0 scenario=
+while [ $# -gt 0 ]; do
+  case $1 in
     --live) live=1 ;;
     --check) check=1 ;;
+    --scenario) scenario=$2; shift ;;
+    --) shift; break ;;
     *) usage ;;
   esac
+  shift
 done
+extra=("$@") # after --: more controller arguments, after the default setpoint and start
 case $kind in
   motor) ctrl=motor scn=dcmotor_hil_pc sp=3000 ;;
   t12) ctrl=t12 scn=t12tip_hil_pc sp=350 ;;
@@ -39,6 +45,8 @@ mode=--lockstep
 if [ $live = 1 ]; then
   scn=${scn}_live mode="--hz 1000"
 fi
+scenario=$(realpath "${scenario:-$(dirname "$0")/../../runner/scenarios/$scn.toml}")
+scn=$(basename "$scenario" .toml)
 
 command -v socat >/dev/null || { echo "pc_loop: socat is not installed (apt install socat)"; exit 77; }
 here=$(cd "$(dirname "$0")" && pwd)
@@ -60,11 +68,11 @@ for _ in $(seq 50); do
 done
 
 # shellcheck disable=SC2086 # $mode is two words for --live
-"$CONTROLLER" --device "$dir/controller" $mode ${XCP_PORT:+--xcp $XCP_PORT} --log -c "sp $sp" -c start </dev/null \
-  >"$runner/runs/${scn}_ctrl.csv" 2>"$dir/controller.err" &
+"$CONTROLLER" --device "$dir/controller" $mode ${XCP_PORT:+--xcp $XCP_PORT} --log -c "sp $sp" \
+  -c start "${extra[@]}" </dev/null >"$runner/runs/${scn}_ctrl.csv" 2>"$dir/controller.err" &
 cpid=$!
 cd "$runner"
-"$KRUMPIR" run "scenarios/$scn.toml"
+"$KRUMPIR" run "$scenario"
 sleep 0.2 # the controller writes its last rows on BYE
 cat "$dir/controller.err" >&2
 [ $check = 1 ] || exit 0

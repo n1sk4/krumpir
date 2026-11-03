@@ -132,10 +132,40 @@ static void send_frame(const hil_frame_t *f)
   pthread_mutex_unlock(&s_write_mu);
 }
 
+static void (*s_after)(uint32_t tick);
+void hil_host_after_tick(void (*fn)(uint32_t tick)) { s_after = fn; }
+
+/* Timed console commands (hil_host_at) */
+static struct {
+  uint32_t tick;
+  const char *line;
+} s_at[16];
+static size_t s_n_at;
+
+bool hil_host_at(uint32_t tick, const char *line)
+{
+  if (s_n_at == sizeof s_at / sizeof s_at[0]) {
+    return false;
+  }
+  s_at[s_n_at].tick = tick;
+  s_at[s_n_at++].line = line;
+  return true;
+}
+
 /* One tick, then its commands as CMD(seq). */
 static void tick(uint16_t seq, bool answer)
 {
-  s_body(s_ctx, s_tick++);
+  for (size_t i = 0; i < s_n_at; i++) {
+    if (s_at[i].line != NULL && s_at[i].tick <= s_tick) {
+      console_host_exec(s_at[i].line); /* applied by this tick's rte_tick_begin */
+      s_at[i].line = NULL;
+    }
+  }
+  s_body(s_ctx, s_tick);
+  if (s_after != NULL) {
+    s_after(s_tick);
+  }
+  s_tick++;
   if (answer) {
     hil_frame_t f = {HIL_CMD, seq, (uint8_t)s_n_cmd, {0}};
     memcpy(f.v, s_slots->cmd, s_n_cmd * sizeof f.v[0]);

@@ -89,6 +89,21 @@ tools/hil/pc_loop.sh t12 --check      # or motor, t12-open; --live: own clocks i
 - `<name>_host --device DEV [--lockstep | --hz N] [--log] [-c "sp 300"]...`: console on stdin, CSV
   telemetry on stdout (`--log` or `log on`).
 
+### SIL vs PC loop
+
+`tools/hil/compare.py motor|t12` runs every closed-loop scenario of `tools/scenarios.c` twice: on
+the controller's on-chip plant (SIL), and as the PC loop against the plant FMU in the runner, with
+the same setpoints (`--at` on the PC controller) and plant events (runner stimuli). It compares
+the signals (RMS error in % of full scale), the step figures and the trips, and writes
+`docs/sil_vs_pc.md` with an overlay plot per case (matplotlib, e.g. the venv of
+`runner/tools/setup_wsl.sh`). A case passes with an RMS error under 2 %, figures within 10 % and
+the same trip; the runner's CTest runs it as `hil_compare_motor` and `hil_compare_t12`
+(`--check`, which leaves the report alone).
+
+Both loops compute the command for plant step k from the plant before it: the runner sends the
+model's initial outputs before step 0, so tick k of the PC controller is step k, as on the chip.
+The remaining differences are the float motor plant on the chip and the integer telemetry columns.
+
 ### XCP on the PC build
 
 With `-DKRUMPIR_XCP=ON` the PC build serves XCP on UDP (XCPlite's Linux configuration, the same

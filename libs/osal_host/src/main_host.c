@@ -11,12 +11,26 @@
 
 #include "console_host.h"
 #include "hil_host.h"
+#include "rte.h"
 #include "telemetry.h"
 
 /* The controller's (src/control_task.c, src/console.c, src/gen/ctrl_gen.c) */
 void control_task_start(void);
 void console_start(void);
 void ctrl_gen_telemetry_start(void);
+
+rte_t *control_task_rte(void);
+
+/* A trip latched or cleared, on stderr with its tick (plant time in lockstep), for the tools */
+static void report_trip(uint32_t tick)
+{
+  static const char *last;
+  const char *trip = rte_trip(control_task_rte()); /* a static name, or NULL */
+  if (trip != last) {
+    fprintf(stderr, "trip: %s at tick %u\n", trip != NULL ? trip : "cleared", (unsigned)tick);
+    last = trip;
+  }
+}
 
 /* xcp_host.c, in a build with -DKRUMPIR_XCP=ON only */
 bool xcp_host_start(uint16_t port) __attribute__((weak));
@@ -53,6 +67,8 @@ static int usage(const char *prog)
           "  --lockstep    one tick per plant frame (default); --hz N: own clock, N ticks/s\n"
           "  --log         CSV telemetry on stdout from the start (else: `log on` on stdin)\n"
           "  -c COMMAND    a console command at boot, e.g. -c \"sp 300\" -c start\n"
+          "  --at S COMMAND  a console command at plant time S seconds (tick S * N; lockstep: the\n"
+          "                runner's step at 1 kHz), e.g. --at 0.1 \"sp 3000\"\n"
           "  --xcp PORT    XCP on UDP on this port (a build with -DKRUMPIR_XCP=ON)\n",
           prog);
   return 2;
@@ -63,8 +79,9 @@ int main(int argc, char **argv)
   const char *device = NULL;
   bool lockstep = true, log = false;
   unsigned hz = 1000, xcp_port = 0;
-  char *cmds[32];
-  int n_cmds = 0;
+  char *cmds[32], *at_cmd[16];
+  double at_s[16];
+  int n_cmds = 0, n_at = 0;
   for (int i = 1; i < argc; i++) {
     const bool more = i + 1 < argc;
     if (!strcmp(argv[i], "--device") && more) {
@@ -80,6 +97,9 @@ int main(int argc, char **argv)
       log = true;
     } else if (!strcmp(argv[i], "-c") && more && n_cmds < 32) {
       cmds[n_cmds++] = argv[++i];
+    } else if (!strcmp(argv[i], "--at") && i + 2 < argc && n_at < 16) {
+      at_s[n_at] = strtod(argv[++i], NULL);
+      at_cmd[n_at++] = argv[++i];
     } else {
       return usage(argv[0]);
     }
@@ -102,6 +122,10 @@ int main(int argc, char **argv)
   console_start();
   for (int i = 0; i < n_cmds; i++) {
     run_line(cmds[i]);
+  }
+  hil_host_after_tick(report_trip);
+  for (int i = 0; i < n_at; i++) {
+    hil_host_at((uint32_t)(at_s[i] * hz + 0.5), at_cmd[i]);
   }
   pthread_t t;
   pthread_create(&t, NULL, console_thread, NULL);

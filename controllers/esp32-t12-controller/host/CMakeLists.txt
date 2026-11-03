@@ -17,6 +17,11 @@ target_include_directories(t12_host PRIVATE ../src .)
 target_compile_definitions(t12_host PRIVATE KRUMPIR_IO_HIL)
 target_link_libraries(t12_host PRIVATE t12ctrl rte hil_host)
 
+# The controller's closed-loop scenarios on its on-chip plant (tools/scenarios.c), the SIL side
+# of tools/hil/compare.py
+add_executable(t12_scenarios ../tools/scenarios.c)
+target_link_libraries(t12_scenarios PRIVATE t12ctrl)
+
 # XCP on UDP (XCPlite, Linux) for the TUI and xcpclient: -DKRUMPIR_XCP=ON, then run with
 # --xcp <port> and make the A2L from this ELF (controllers/README.md). Every build has a new EPK.
 option(KRUMPIR_XCP "XCP on UDP (XCPlite)" OFF)

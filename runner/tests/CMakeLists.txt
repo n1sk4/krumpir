@@ -132,6 +132,15 @@ if(KRUMPIR_HIL_PC AND Python3_Interpreter_FOUND)
     set_tests_properties(hil_pc_${kind} PROPERTIES SKIP_RETURN_CODE 77 RESOURCE_LOCK hil_pty
       ENVIRONMENT "KRUMPIR=$<TARGET_FILE:krumpir>;CONTROLLER=$<TARGET_FILE:${ctrl}_host>")
   endforeach()
+  # SIL vs PC loop: every closed-loop scenario on the controller's on-chip plant and as the PC
+  # loop, compared signal by signal (tools/hil/compare.py; the report: compare.py without --check)
+  foreach(ctrl motor t12)
+    add_test(NAME hil_compare_${ctrl}
+      COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/../tools/hil/compare.py ${ctrl}
+              --build ${PROJECT_BINARY_DIR} --check --no-plots)
+    set_tests_properties(hil_compare_${ctrl} PROPERTIES SKIP_RETURN_CODE 77
+      RESOURCE_LOCK hil_pty)
+  endforeach()
 endif()
 
 add_executable(test_writer test_writer.c)

@@ -17,6 +17,11 @@ target_include_directories(motor_host PRIVATE ../src .)
 target_compile_definitions(motor_host PRIVATE KRUMPIR_IO_HIL)
 target_link_libraries(motor_host PRIVATE motorctrl rte hil_host)
 
+# The controller's closed-loop scenarios on its on-chip plant (tools/scenarios.c), the SIL side
+# of tools/hil/compare.py
+add_executable(motor_scenarios ../tools/scenarios.c)
+target_link_libraries(motor_scenarios PRIVATE motorctrl)
+
 # XCP on UDP (XCPlite, Linux) for the TUI and xcpclient: -DKRUMPIR_XCP=ON, then run with
 # --xcp <port> and make the A2L from this ELF (controllers/README.md). Every build has a new EPK.
 option(KRUMPIR_XCP "XCP on UDP (XCPlite)" OFF)

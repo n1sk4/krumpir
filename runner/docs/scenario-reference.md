@@ -61,9 +61,10 @@ Paced ticks are absolute (`start + n * step`), so a late step does not push late
 
 ### The `uart` backend
 
-The runner and the controller exchange `libs/hil` frames: after step k the runner sends the
-`outputs`, in order, as PLANT(k); the controller answers CMD(k) with one value per input without
-a stimulus, in order, which feed step k+1. Inputs with a stimulus stay the runner's (a load
+The runner and the controller exchange `libs/hil` frames: before step k the runner sends the
+`outputs`, in order, as PLANT(k) (before step 0: the outputs of the initialized model); the
+controller answers CMD(k) with one value per input without a stimulus, in order, which feed step
+k. So each step's command comes from the plant before it, as on a board that samples, then acts. Inputs with a stimulus stay the runner's (a load
 torque, a fault). On load the runner sends HELLO with a hash of both name lists and waits up to
 2 s for the controller's; a controller built for other values is refused, with both lists in the
 message. Unloading or a fault sends BYE: the controller goes to its safe state. `late` in `state`

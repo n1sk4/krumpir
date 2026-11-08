@@ -34,6 +34,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+PY_MIN = (3, 13)  # also tools/krumpir/pyproject.toml, runner/tests/CMakeLists.txt, the CI
 DRY = False
 
 
@@ -170,7 +171,7 @@ def cmd_setup(a):
             skip("system packages", "only on Debian, Ubuntu, WSL or Raspberry Pi OS (apt-get)")
         else:
             sudo = [] if os.geteuid() == 0 else ["sudo"]
-            pkgs = ["build-essential", "cmake", "ninja-build", "libexpat1-dev", "unzip", "curl",
+            pkgs = ["build-essential", "cmake", "ninja-build", "libexpat1-dev",
                     "python3-venv", "python3-pip", "socat", "gcc-aarch64-linux-gnu", "qemu-user"]
             step(run(sudo + ["apt-get", "update"]) == 0, "apt-get update")
             step(run(sudo + ["apt-get", "install", "-y"] + pkgs) == 0, "apt-get install")
@@ -178,8 +179,11 @@ def cmd_setup(a):
         if not have[tool]:
             print(f"kb: missing: {why[tool]}")
     venv = venv_python()
-    if not venv.exists():
-        step(run([sys.executable, "-m", "venv", venv.parent.parent]) == 0, "creating the venv")
+    old = venv.exists() and not DRY and subprocess.run(  # e.g. made before a distro upgrade
+        [venv, "-c", f"import sys; sys.exit(sys.version_info < {PY_MIN})"]).returncode != 0
+    if old or not venv.exists():
+        step(run([sys.executable, "-m", "venv", "--clear", venv.parent.parent]) == 0,
+             "creating the venv")
     step(run([venv, "-m", "pip", "install", "-q", "-r", ROOT / "tools/requirements.txt"]) == 0,
          "pip install")
     for sub in ("libs/vendor/Reference-FMUs", "libs/vendor/XCPlite"):
@@ -383,4 +387,7 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    if sys.version_info < PY_MIN:
+        sys.exit(f"kb: needs Python {'.'.join(map(str, PY_MIN))}+, this is "
+                 f"{platform.python_version()} (BUILDING.md, Setup)")
     sys.exit(main())

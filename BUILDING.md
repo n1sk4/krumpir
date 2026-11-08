@@ -7,14 +7,14 @@ Back to the [README](README.md).
 **Contents:** [Setup](#setup) · [kb.py](#kbpy) · [The CMake tree](#the-cmake-tree) ·
 [Firmware](#firmware) · [Plant FMUs](#plant-fmus) · [PC controllers](#pc-controllers) ·
 [CMake conventions](#cmake-conventions) · [Options and environment](#options-and-environment) ·
-[Versions and downloads](#versions-and-downloads) · [Scripts](#scripts)
+[Versions and downloads](#versions-and-downloads) · [Scripts](#scripts) · [CI](#ci)
 
 ## Setup
 
 | Machine | Builds | Needs |
 |---|---|---|
-| Linux, WSL, the Pi | everything on the PC: libraries, controller tests, runner, plant FMUs, PC controllers, TUI; the loops and comparisons | Python 3.11+, CMake 3.25+, Ninja, gcc, libexpat; socat for the loops; for the Pi's FMUs gcc-aarch64-linux-gnu and qemu-user |
-| Windows | libraries, controller tests, TUI (MinGW); the firmware | Python 3.11+, CMake, Ninja, MinGW-w64 gcc (`winget install BrechtSanders.WinLibs.POSIX.UCRT`) |
+| Linux, WSL, the Pi | everything on the PC: libraries, controller tests, runner, plant FMUs, PC controllers, TUI; the loops and comparisons | Python 3.13+, CMake 3.25+, Ninja, gcc, libexpat; socat for the loops; for the Pi's FMUs gcc-aarch64-linux-gnu and qemu-user |
+| Windows | libraries, controller tests, TUI (MinGW); the firmware | Python 3.13+, CMake, Ninja, MinGW-w64 gcc (`winget install BrechtSanders.WinLibs.POSIX.UCRT`) |
 | any, for a board | the firmware | PlatformIO (`pip install platformio`, or the VS Code extension: `~/.platformio/penv/.../pio`), the DevKit's USB driver (CP210x or CH340) |
 
 ```sh
@@ -31,6 +31,17 @@ in the repository; the venv on WSL stays on the Linux side, since `/mnt/<drive>`
 and the Reference FMUs on Linux. Empty submodules (`libs/vendor/Reference-FMUs`,
 `libs/vendor/XCPlite`) are named with the command that fetches them. On Windows run it with
 `python`: `python3` there is the Microsoft Store stub.
+
+**Python 3.13+:** Debian 13, Raspberry Pi OS 13 and Ubuntu 25.04 ship it; `kb.py` refuses an older
+one, and `setup` makes the venv again when it is older (after a distro upgrade). Debian 12 has
+3.11; a Debian 12 WSL is upgraded to 13 in place, then `setup` runs again:
+
+```sh
+sudo sed -i 's/bookworm/trixie/g' /etc/apt/sources.list
+sudo apt update && sudo apt full-upgrade -y && sudo apt autoremove -y
+wsl.exe --shutdown                   # from Windows; then open WSL again
+python3 tools/kb.py setup --system
+```
 
 ## kb.py
 
@@ -197,9 +208,17 @@ warnings. Each library thus builds from PlatformIO (`library.json`), any CMake p
 
 ## Scripts
 
-The shell scripts (`runner/tools/setup_wsl.sh`, `runner/tools/fetch_fmus.sh`,
-`libs/plants/tools/build_fmus.sh`, `tools/hil/pc_loop.sh`) and the Python tools share one shape:
-a header with the usage (`--help`), overrides named `KRUMPIR_*`, exit status 0 ok, 1 failed,
-2 usage, 77 skipped (CTest's skip code), and a `--selftest` where a tool has logic that can be
-checked without hardware (run by `kb.py check`). `setup_wsl.sh` and `fetch_fmus.sh` are kept for
-CI and run `kb.py setup --system` and `cmake/fetch_reference_fmus.cmake`.
+The shell scripts (`runner/tools/setup_wsl.sh`, `libs/plants/tools/build_fmus.sh`,
+`tools/hil/pc_loop.sh`) and the Python tools share one shape: a header with the usage (`--help`),
+overrides named `KRUMPIR_*`, exit status 0 ok, 1 failed, 2 usage, 77 skipped (CTest's skip code),
+and a `--selftest` where a tool has logic that can be checked without hardware (run by
+`kb.py check`). `setup_wsl.sh` runs `kb.py setup --system`.
+
+## CI
+
+`.github/workflows/`: `controllers.yml` (every folder under `controllers/` with a
+`controller.toml`, one job each: the codegen check, the Unity tests with PlatformIO and CMake, the
+firmware builds, then the controller's generated `tools/ci.sh` from its `[[ci.step]]`s),
+`runner.yml` (with and without the sanitizers), `plants.yml` (both architectures) and `tui.yml`
+(Linux, the Pi's arm64, Windows). Each builds its folder alone; they run on demand
+(`workflow_dispatch`).

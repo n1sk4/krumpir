@@ -1,0 +1,26 @@
+{{ banner }}
+# The CI steps of this controller after the common ones (.github/workflows/controllers.yml):
+# its [hil] firmware and its [[ci.step]]s. Needs gcc, PlatformIO and tools/requirements.txt.
+#
+#   bash controllers/{{ m.dir }}/tools/ci.sh
+#
+# Exit status: 0 ok, 1 a step failed, 2 usage.
+set -euo pipefail
+
+usage() { sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+case ${1:-} in
+  -h | --help) usage 0 ;;
+  "") ;;
+  *) usage ;;
+esac
+cd "$(dirname "$0")/.."
+{% if m.hil %}
+
+echo "== Build firmware on the HIL link"
+pio run -e esp32dev-hil
+{% endif %}
+{% for s in m.ci_steps %}
+
+echo "== {{ s.name }}"
+{{ s.run | trim }}
+{% endfor %}

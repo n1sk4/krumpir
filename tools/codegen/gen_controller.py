@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 RTE_MAX_PARAMS = 16
 
-# template -> output path ({root}: repository, otherwise relative to the controller), comment style
+# template -> output path relative to the controller, comment style
 OUTPUTS = [
     ("ctrl_gen.h.j2", "src/gen/ctrl_gen.h", "c"),
     ("ctrl_gen.c.j2", "src/gen/ctrl_gen.c", "c"),
@@ -34,7 +34,7 @@ OUTPUTS = [
     ("src_CMakeLists.txt.j2", "src/CMakeLists.txt", "#"),
     ("test_CMakeLists.txt.j2", "test/CMakeLists.txt", "#"),
     ("sdkconfig.defaults.j2", "sdkconfig.defaults", "#"),
-    ("workflow.yml.j2", "{root}/.github/workflows/{dir}.yml", "#"),
+    ("ci.sh.j2", "tools/ci.sh", "#"),  # run by .github/workflows/controllers.yml
     ("host_CMakeLists.txt.j2", "host/CMakeLists.txt", "#"),  # only with [hil]
 ]
 HIL_MAX_VALUES = 16  # libs/hil/include/hil.h
@@ -240,9 +240,7 @@ def render(model: dict) -> dict:
         if template.startswith("host_") and not model["hil"]:
             continue
         text = env.get_template(template).render(m=model, banner=banner(style, ctrl_rel))
-        rel = target.format(root="", dir=model["dir"])
-        path = ROOT / rel.lstrip("/") if target.startswith("{root}") else ROOT / ctrl_rel / rel
-        out[path] = text
+        out[ROOT / ctrl_rel / target] = text
     out[ROOT / ctrl_rel / "src/gen/ctrl_gen.json"] = describe(model, ctrl_rel)
     return out
 

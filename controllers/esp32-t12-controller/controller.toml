@@ -110,7 +110,8 @@ scale = 1000
 plant = ["v_amp", "i_heater", "t_handle_c", "t_tip_c"]
 cmd = ["heater", "series_on"]
 
-# CI steps of this controller, after the common ones (tests, builds) in the generated workflow.
+# CI steps of this controller, after the common ones (tests, builds) of .github/workflows/controllers.yml:
+# generated into tools/ci.sh.
 [[ci.step]]
 name = "Serial tools self-check"
 run = """

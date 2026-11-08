@@ -88,7 +88,8 @@ scale = 1000
 plant = ["speed_rpm", "current"]
 cmd = ["duty"]
 
-# CI steps of this controller, after the common ones (tests, builds) in the generated workflow.
+# CI steps of this controller, after the common ones (tests, builds) of .github/workflows/controllers.yml:
+# generated into tools/ci.sh.
 [[ci.step]]
 name = "Serial tools self-check"
 run = """

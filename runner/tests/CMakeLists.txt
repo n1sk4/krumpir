@@ -8,7 +8,7 @@ foreach(t ring config lifecycle modeldesc varmap loader loop_time io_null io_uar
   krumpir_add_test(NAME ${t} SOURCES test_${t}.c LIBS krumpir_core)
 endforeach()
 
-# Need the FMUs (runner/fmus, built with the runner and fetched by tools/fetch_fmus.sh); the last
+# Need the FMUs (runner/fmus, built with the runner and fetched when it is configured); the last
 # also root or rtprio/memlock limits (SCHED_FIFO, pinning, mlockall)
 foreach(t loader_fmus fmi3 scaffold runner session rt_setup)
   krumpir_add_test(NAME ${t} SOURCES test_${t}.c LIBS krumpir_core DEFINES ${fmus} SKIP_77)
@@ -39,9 +39,9 @@ endif()
 # Golden files (tests/golden), the service over TCP, and the closed loops. Regenerate a golden file
 # after an intended change: cd runner && python3 tools/check_golden.py <build>/krumpir
 #   tests/golden/<name>.toml tests/golden/<name>.csv --update
-find_package(Python3 3.11 COMPONENTS Interpreter)
+find_package(Python3 3.13 COMPONENTS Interpreter)
 if(NOT Python3_Interpreter_FOUND)
-  message(STATUS "Golden, service and closed-loop tests not added: Python 3.11+ not found")
+  message(STATUS "Golden, service and closed-loop tests not added: Python 3.13+ not found")
   return()
 endif()
 foreach(name feedthrough dahlquist vanderpol dcmotor t12tip)

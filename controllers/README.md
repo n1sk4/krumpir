@@ -273,12 +273,12 @@ python tools/codegen/gen_controller.py controllers/esp32-motor-controller --chec
 
 | Description | Generated |
 |-------------|-----------|
-| `[controller]` name, plant, lib | console prompt, calibration page name, `platformio.ini`, CMake files, `sdkconfig.defaults`, `.github/workflows/<dir>.yml` |
+| `[controller]` name, plant, lib | console prompt, calibration page name, `platformio.ini`, CMake files, `sdkconfig.defaults` |
 | `[[param]]` name, help, hint, min, max, default, unit, cal | `src/gen/ctrl_gen.{h,c}`: `PARAM_*` ids and the `rte_param_t` table (console commands, limits, boot values); `src/gen/ctrl_gen_task.inc`: the XCP calibration page for the params with `cal` |
 | `[[command]]` name, help, hint, handler, after_run | console registration in help order; the handlers stay in `src/console.c` |
 | `[[telemetry.column]]` name, value, scale, nan | CSV header, row format, `CTRL_GEN_TELEM_VALUES` |
-| `[hil]` plant, cmd | the values on the HIL link in frame order, the `esp32dev-hil` env and the `host/` build |
-| `[[ci.step]]` name, run | the controller's own CI steps |
+| `[hil]` plant, cmd | the values on the HIL link in frame order, the `esp32dev-hil` env (built by `tools/ci.sh`) and the `host/` build |
+| `[[ci.step]]` name, run | `tools/ci.sh`: the controller's own CI steps, run by `.github/workflows/controllers.yml` after the common ones |
 | `[xcp]` running, trip, monitor | `src/gen/ctrl_gen.json`, the controller for tools such as the TUI |
 
 - Hand-written and never touched: `lib/<lib>`, the hooks in `src/control_task.c`, the handlers in

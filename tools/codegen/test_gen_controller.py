@@ -104,7 +104,10 @@ def main():
     assert j["status"]["trip"] == "s_fault" and j["monitor"] == ["a.b"]
     expect_error(GOOD + "[xcp]\nmonitor = 1\n", "monitor must be a list")
     assert "lib_deps = ctrlcore, dcmotor" in files["platformio.ini"]
-    assert "gen_controller.py . --check" in files["demo-controller.yml"]
+    assert "set -euo pipefail" in files["ci.sh"] and "esp32dev-hil" not in files["ci.sh"]
+    ci = {p.name: t for p, t in g.render(model(
+        GOOD + '[[ci.step]]\nname = "Plots"\nrun = """\necho hi\n"""\n')).items()}["ci.sh"]
+    assert 'echo "== Plots"\necho hi\n' in ci
 
     assert "host_CMakeLists.txt" not in str(list(g.render(m))) and j["hil"] is None
     hil = {p.as_posix().split("/")[-2] + "/" + p.name: t for p, t in g.render(model(
@@ -112,6 +115,7 @@ def main():
     assert '#define CTRL_GEN_HIL_CMD {"duty", "brake"}' in hil["gen/ctrl_gen.h"]
     assert "#define CTRL_GEN_HIL_N_CMD 2" in hil["gen/ctrl_gen.h"]
     assert "add_executable(demo_host" in hil["host/CMakeLists.txt"]
+    assert "pio run -e esp32dev-hil" in hil["tools/ci.sh"]
     assert json.loads(hil["gen/ctrl_gen.json"])["hil"]["plant"] == ["speed_rpm"]
     expect_error(GOOD + '[hil]\nplant = []\ncmd = ["duty"]\n', "plant must be 1 to 16")
     expect_error(GOOD + '[hil]\nplant = ["a", "a"]\ncmd = ["duty"]\n', "distinct")

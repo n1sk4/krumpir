@@ -10,7 +10,7 @@ the other numbers are compared with a small tolerance, because the last bits of 
 result can differ between CPUs (x86_64 and aarch64 contract multiply-adds differently).
 
 Exit status: 0 match, 1 differs, 2 error, 77 skipped (FMU not installed).
-Only the standard library is needed (Python 3.11+).
+Only the standard library is needed (Python 3.13+).
 """
 import argparse
 import csv

@@ -27,7 +27,7 @@ def service():
     if not exe.exists():
         pytest.skip(f"{exe} not found: build the runner or set KRUMPIR_EXE")
     if not (RUNNER / "fmus/Feedthrough.fmu").exists():
-        pytest.skip("runner/fmus/Feedthrough.fmu not found (runner/tools/fetch_fmus.sh)")
+        pytest.skip("runner/fmus/Feedthrough.fmu not found (configure the runner)")
     srv = subprocess.Popen([str(exe), "serve", "127.0.0.1:0"], cwd=RUNNER,
                            stdout=subprocess.PIPE, text=True)
     line = srv.stdout.readline().split()  # listening on host:port

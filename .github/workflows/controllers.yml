@@ -1,16 +1,29 @@
-{{ banner }}
-name: {{ m.dir }}
+name: controllers
 
 on:
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: controllers/{{ m.dir }}
-
 jobs:
-  build-test:
+  list: # every folder under controllers/ with a controller.toml
     runs-on: ubuntu-latest
+    outputs:
+      dirs: ${{ steps.ls.outputs.dirs }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: ls
+        run: echo "dirs=$(ls controllers/*/controller.toml | cut -d/ -f2 | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+
+  build-test:
+    needs: list
+    name: ${{ matrix.controller }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        controller: ${{ fromJSON(needs.list.outputs.dirs) }}
+    defaults:
+      run:
+        working-directory: controllers/${{ matrix.controller }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,10 +33,10 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: controllers/{{ m.dir }}/requirements.txt
+          cache-dependency-path: tools/requirements.txt
 
       - name: Install tools
-        run: pip install platformio -r requirements.txt -r ../../tools/codegen/requirements.txt
+        run: pip install platformio -r ../../tools/requirements.txt
 
       - name: Generated files are up to date
         run: |
@@ -34,7 +47,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.platformio
-          key: pio-${{ "{{" }} hashFiles('controllers/{{ m.dir }}/platformio.ini') {{ "}}" }}
+          key: pio-${{ hashFiles('controllers/*/platformio.ini') }}
 
       - name: Library tests (native)
         working-directory: libs
@@ -46,7 +59,7 @@ jobs:
       - name: Library and unit tests (CMake, without PlatformIO)
         run: |
           for p in ../../libs test; do
-            b="${{ "{{" }} runner.temp {{ "}}" }}/ctest/$(basename "$(realpath "$p")")"
+            b="${{ runner.temp }}/ctest/$(basename "$(realpath "$p")")"
             cmake -S "$p" -B "$b"
             cmake --build "$b"
             ctest --test-dir "$b" --output-on-failure
@@ -55,26 +68,20 @@ jobs:
       - name: Build firmware
         run: pio run -e esp32dev
 
-{% if m.hil %}
-      - name: Build firmware on the HIL link
-        run: pio run -e esp32dev-hil
-
-{% endif %}
       - name: Build firmware with XCP
         run: |
           cp ../../libs/esp/xcpglue/include/wlan.h.example ../../libs/esp/xcpglue/include/wlan.h
           pio run -e esp32dev-xcp
-{% for s in m.ci_steps %}
 
-      - name: {{ s.name }}
-        run: |
-          {{ s.run | indent(10) }}
-{% endfor %}
+      - name: The controller's own steps (tools/ci.sh, from controller.toml)
+        run: bash tools/ci.sh
 
       - name: Collect firmware
-        run: cp .pio/build/esp32dev/firmware.bin .pio/build/esp32dev/firmware.elf out/
+        run: |
+          mkdir -p out
+          cp .pio/build/esp32dev/firmware.bin .pio/build/esp32dev/firmware.elf out/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: {{ m.dir }}
-          path: controllers/{{ m.dir }}/out/
+          name: ${{ matrix.controller }}
+          path: controllers/${{ matrix.controller }}/out/

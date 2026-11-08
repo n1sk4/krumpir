@@ -1,0 +1,6 @@
+# LF in the working tree on every system (Windows' core.autocrlf would write CRLF): Windows, WSL
+# and the Pi then see the same files, and the shell scripts run in bash.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.fmu binary

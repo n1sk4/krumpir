@@ -77,7 +77,7 @@ presets. Without `kb.py`:
 
 ```sh
 cmake --preset dev && cmake --build --preset dev && ctest --preset dev
-cmake --preset dev -B ~/build/dev && cmake --build ~/build/dev && ctest --test-dir ~/build/dev
+cmake --preset dev -B ~/build/krumpir/dev && cmake --build ~/build/krumpir/dev && ctest --test-dir ~/build/krumpir/dev
 ```
 
 | Preset | |

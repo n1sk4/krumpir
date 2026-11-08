@@ -2,8 +2,8 @@
 # is PlatformIO's: pio run in controllers/<x>). Use the presets (CMakePresets.json):
 #   cmake --preset dev && cmake --build --preset dev && ctest --preset dev
 # The build goes to build/<preset>; on WSL with the repository on /mnt/<drive>, put it on the Linux
-# side instead, which builds much faster: cmake --preset dev -B ~/build/dev, then
-# cmake --build ~/build/dev && ctest --test-dir ~/build/dev.
+# side instead, which builds much faster (tools/kb.py does): cmake --preset dev -B
+# ~/build/krumpir/dev, then cmake --build ~/build/krumpir/dev && ctest --test-dir ~/build/krumpir/dev.
 # Presets: dev, release, asan, tsan (Linux), pi-cross (the plant FMUs for aarch64), mingw (Windows).
 # Parts, each also buildable on its own (cmake -S <dir>):
 #   libs         the shared libraries and their Unity tests (libs/)

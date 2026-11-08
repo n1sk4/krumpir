@@ -2,7 +2,7 @@
 # Builds and tests the plant FMUs for x86_64-linux and aarch64-linux, and merges them into FMUs
 # that carry both binaries (and the sources); python3 tools/kb.py fmus --both-archs runs this.
 #
-#   bash libs/plants/tools/build_fmus.sh [BUILD_DIR]     (default ~/build/plant-fmus)
+#   bash libs/plants/tools/build_fmus.sh [BUILD_DIR]     (default: kb.py's plant-fmus folder)
 #
 # Result: BUILD_DIR/fmus/fmi3/*.fmu and BUILD_DIR/fmus/fmi2/*.fmu. Needs cmake, ninja, gcc,
 # gcc-aarch64-linux-gnu and qemu-user. The FMPy checks run with KRUMPIR_PYTHON (or PYTHON;
@@ -17,7 +17,9 @@ esac
 [ $# -le 1 ] || usage
 
 src="$(cd "$(dirname "$0")/.." && pwd)"
-out="${1:-$HOME/build/plant-fmus}"
+repo="$(cd "$src/../.." && pwd)" # the build root as kb.py makes it (also tools/hil/pc_loop.sh)
+root=${KRUMPIR_BUILD_ROOT:-$([[ $repo == /mnt/* ]] && echo "$HOME/build/krumpir" || echo "$repo/build")}
+out="${1:-$root/plant-fmus}"
 
 for arch in x86_64 aarch64; do
   toolchain=()

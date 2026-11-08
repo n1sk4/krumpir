@@ -7,7 +7,8 @@ against the plant FMU in the runner over the HIL link, pc_loop.sh), compared sig
 
 Writes controllers/<dir>/docs/sil_vs_pc.md and, with matplotlib, one overlay plot per case
 (sil_vs_pc_<case>.png). --check only checks (CTest): exit 1 when a case fails, 77 without socat.
---build is the runner build that also built the controllers for the PC (default ~/build/krumpir).
+--build is the runner build that also built the controllers for the PC (default: the runner/ of
+kb.py's dev build, e.g. ~/build/krumpir/dev/runner on WSL).
 
 A case passes when the RMS error of each compared signal is under 2 % of its full scale, the step
 figures agree within 10 % (or a small absolute floor), and both runs trip the same way.
@@ -24,6 +25,9 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from kb import build_dir  # noqa: E402  the build folder, as kb.py makes it
 
 ROOT = Path(__file__).resolve().parents[2]
 RMS_LIMIT_PCT = 2.0
@@ -398,7 +402,7 @@ COMPARE = {"motor": compare_motor, "t12": compare_t12}
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("ctrl", choices=sorted(CASES))
-    ap.add_argument("--build", default=str(Path.home() / "build/krumpir"))
+    ap.add_argument("--build", default=str(build_dir("dev") / "runner"))
     ap.add_argument("--check", action="store_true", help="exit 1 when a case fails")
     ap.add_argument("--no-plots", action="store_true")
     ap.add_argument("--case", action="append", help="only these cases (no report)")

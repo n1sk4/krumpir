@@ -1,18 +1,22 @@
 """Fixtures: a running service and a model-access port on it.
 
 By default the tests start `krumpir serve` on a free local port, in runner/ (where fmus/ is), from
-KRUMPIR_EXE (default ~/build/krumpir/krumpir). With KRUMPIR_SERVICE=host:port they use a service
+KRUMPIR_EXE (default: kb.py's dev build, e.g. ~/build/krumpir/dev/runner/krumpir on WSL). With KRUMPIR_SERVICE=host:port they use a service
 that is already running instead (e.g. on the Pi, started in its runner/ directory).
 """
 import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from krumpir import Testbench
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from kb import build_dir  # noqa: E402  the build folder, as kb.py makes it
 
 RUNNER = Path(__file__).resolve().parents[3] / "runner"
 
@@ -23,7 +27,7 @@ def service():
         host, port = os.environ["KRUMPIR_SERVICE"].rsplit(":", 1)
         yield host, int(port)
         return
-    exe = Path(os.environ.get("KRUMPIR_EXE", "~/build/krumpir/krumpir")).expanduser()
+    exe = Path(os.environ.get("KRUMPIR_EXE", build_dir("dev") / "runner/krumpir")).expanduser()
     if not exe.exists():
         pytest.skip(f"{exe} not found: build the runner or set KRUMPIR_EXE")
     if not (RUNNER / "fmus/Feedthrough.fmu").exists():

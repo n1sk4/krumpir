@@ -67,6 +67,9 @@ python tools/plot.py docs/scenario_step.csv docs/scenario_step.png
   - overspeed: |speed| above 7000 rpm (the no-load speed is about 5600 rpm).
   - sensor timeout: 50 consecutive non-finite speed readings (50 ms). A single bad reading is
     ignored; the PID holds its last output.
+  - no rotation: |duty| 0.5 or more while |speed| reads under 100 rpm, 200 ticks in a row
+    (200 ms): a dead encoder (it reads 0) or a jammed shaft. The motor passes 100 rpm within about
+    a millisecond at half duty, so a start or a reversal does not trip it.
 - **Watchdog:** the control task is registered with the task watchdog and feeds it every 100
   cycles. The timeout is 1 s and a timeout resets the board.
 

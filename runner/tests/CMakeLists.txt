@@ -55,7 +55,8 @@ krumpir_add_test(NAME serve WORKDIR ${PROJECT_SOURCE_DIR} SKIP_77
 if(KRUMPIR_HIL_PC)
   # Each controller's own code against its plant FMU over a pty pair (tools/hil/pc_loop.sh),
   # checked against its acceptance figures, and the faults (check_loop.py); needs socat
-  foreach(kind motor motor-sensor motor-link t12 t12-open t12-short t12-stuck t12-runaway)
+  foreach(kind motor motor-sensor motor-stall motor-link t12 t12-open t12-short t12-stuck
+               t12-runaway)
     string(REGEX REPLACE "-.*$" "" ctrl ${kind})
     krumpir_add_test(NAME hil_pc_${kind} SKIP_77
       COMMAND bash ${PROJECT_SOURCE_DIR}/../tools/hil/pc_loop.sh ${kind} --check

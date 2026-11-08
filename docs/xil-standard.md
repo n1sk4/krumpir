@@ -124,7 +124,7 @@ what the XiL method asks for (one model at every level), and many commercial set
 | MDF recording | CSV | not readable by MDF tools, no channel units |
 | ECU port: measurement and calibration | XCP (XCPlite) over Wi-Fi on the boards and over UDP on the PC builds, the A2L from the ELF (`EcuPort`, the TUI); the text console (`sp`, `kp`, `status`, `log on`) | the console is text, slow (115200 baud, 10 Hz rows) |
 | Diag port: fault memory | `status` shows the latched trip, `clear` clears it | one trip only, no history |
-| EES port: electrical faults | `fault open/short/stuck` inside the simulated tip; the dcmotor FMU's `fault` input (encoder lost) | only simulated; no electrical faults on a real board |
+| EES port: electrical faults | `fault open/short/stuck` inside the simulated tip; the dcmotor FMU's `fault` input (encoder lost or dead) | only simulated; no electrical faults on a real board |
 | Network port | none | CAN is out of scope |
 | SOC port | none | not relevant |
 

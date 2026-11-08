@@ -12,7 +12,8 @@ void motor_loop_init(motor_loop_t *l, const motor_ctrl_cfg_t *ctrl,
 void motor_loop_tick(motor_loop_t *l, const motor_io_t *io)
 {
   l->speed = io->speed_read(io->ctx);
-  if (motor_safety_update(&l->safety, l->speed) != MOTOR_TRIP_NONE && l->ctrl.run)
+  /* l->duty is still the previous tick's command, the one the speed was measured under */
+  if (motor_safety_update(&l->safety, l->speed, l->duty) != MOTOR_TRIP_NONE && l->ctrl.run)
     motor_ctrl_stop(&l->ctrl);
   if (l->ctrl.run) {
     l->duty = motor_ctrl_update(&l->ctrl, l->speed);

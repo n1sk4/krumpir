@@ -50,7 +50,7 @@ are lost on reset. Common to both controllers:
 
 `esp32-motor-controller`: PID speed control of a DC motor, 1 kHz. Control logic in
 `lib/motorctrl/` (`motor_loop`: the whole controller per tick, behind `motor_io_t`). CSV telemetry
-at 100 Hz. Latched overspeed and sensor-timeout trips. Prompt `motor>`; besides the common
+at 100 Hz. Latched overspeed, sensor-timeout and no-rotation trips. Prompt `motor>`; besides the common
 commands:
 
 | Command | Effect |
@@ -344,7 +344,7 @@ link; a pty pair from socat is the wire. From the repository root:
 
 ```sh
 python3 tools/kb.py loop t12           # or motor; --live: own clocks instead of lockstep
-python3 tools/kb.py loop t12-open      # faults: t12-open|-short|-stuck|-runaway, motor-sensor|-link
+python3 tools/kb.py loop t12-open      # faults: t12-open|-short|-stuck|-runaway, motor-sensor|-stall|-link
 bash tools/hil/pc_loop.sh t12 --check -- -c "sp 300"   # the script itself, more controller commands
 ```
 
@@ -368,7 +368,8 @@ bash tools/hil/pc_loop.sh t12 --check -- -c "sp 300"   # the script itself, more
   `KRUMPIR_XCP_PORT` override it. Logs: `runner/runs/<scenario>.csv` and `<scenario>_ctrl.csv`.
 - **Faults** (CTest `hil_pc_*`, `tools/hil/check_loop.py`): the T12 must trip `no tip`, `heater
   short`, `heater stuck on` within 0.5 s and `thermal runaway` within 25 s, with Q1 and Q3 off;
-  the motor `sensor timeout` within 0.1 s of a lost encoder, duty 0; a controller that stops
+  the motor `sensor timeout` within 0.1 s of a lost encoder and `no rotation` within 0.25 s of a
+  dead one (it reads 0), duty 0; a controller that stops
   answering faults the run after `max_late` steps, its last duty held until then.
 
 ### SIL vs PC loop

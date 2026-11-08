@@ -22,6 +22,7 @@ TRIPS = {
     "t12-stuck": ("heater stuck on", 3.0, 0.5),
     "t12-runaway": ("thermal runaway", 6.0, 25.0),
     "motor-sensor": ("sensor timeout", 0.5, 0.1),
+    "motor-stall": ("no rotation", 0.5, 0.25),
 }
 
 
@@ -110,7 +111,7 @@ def main():
         checks += [("heater never on before the fault", 1 - heated, 0),
                    ("heater at the end", last["heater"], 0),
                    ("series_on at the end", last["series_on"], 0)]
-    elif kind == "motor-sensor":
+    elif kind in ("motor-sensor", "motor-stall"):
         checks += [("duty at the end", abs(run[-1]["duty"]), 0)]
     elif kind == "motor-link":
         # muted at 0.5 s: the runner holds the last duty while late; the 10th late answer

@@ -51,7 +51,8 @@ speed 3000.0 rpm  duty 0.537  log off  telemetry dropped 0
 loop (since last status): period ns min/mean/max 995718/1000000/1004237  exec ns min/mean/max 3081/3100/3993  overruns 0  n=5000
 ```
 
-- State is `running` or `stopped`. Trip is `none`, `overspeed` or `sensor timeout`.
+- State is `running` or `stopped`. Trip is `none`, `overspeed`, `sensor timeout` or
+  `no rotation`.
 - `duty` is signed, -1 to +1.
 - The `loop` line appears once the control loop has run since the previous `status`. `n` is the
   number of cycles in that window.
@@ -95,11 +96,13 @@ cycle counter; an external capture of this pin is an independent check.
 | `stop` | duty 0, PID reset |
 | overspeed: speed beyond 7000 rpm in either direction | trip `overspeed` latched, controller stops, duty 0 |
 | sensor timeout: 50 consecutive non-finite speed readings | trip `sensor timeout` latched, controller stops, duty 0 |
+| no rotation: \|duty\| 0.5 or more and \|speed\| under 100 rpm for 200 ticks in a row (a dead encoder reads 0, or the shaft is jammed) | trip `no rotation` latched, controller stops, duty 0 |
 | control loop stops running for 1 s | task watchdog resets the board; it comes back stopped with defaults |
 
 A latched trip stays until `clear`; `start` is refused in the meantime. A single bad speed reading
 is ignored and the PID holds its last output. The sensor timeout cannot occur with the simulated
-motor.
+motor; `no rotation` only under a load torque that stalls it. On the HIL link the plant FMU's
+`fault` input gives both: 1 the encoder lost (`sensor timeout`), 2 the encoder dead (`no rotation`).
 
 ## Typical test sequence
 

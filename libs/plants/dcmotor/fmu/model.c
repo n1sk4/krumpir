@@ -59,7 +59,9 @@ Status getFloat64(ModelInstance *comp, ValueReference vr, double values[], size_
   case vr_duty: v = M(duty); break;
   case vr_load_torque: v = M(load_torque); break;
   case vr_speed: v = M(sim).w; break;
-  case vr_speed_rpm: v = M(fault) >= 0.5 ? NAN : M(sim).w * RAD_S_TO_RPM; break; /* encoder */
+  case vr_speed_rpm: /* the encoder: lost (NaN), dead (no pulses: 0) or the shaft's speed */
+    v = M(fault) == 1.0 ? NAN : M(fault) == 2.0 ? 0.0 : M(sim).w * RAD_S_TO_RPM;
+    break;
   case vr_current: v = M(sim).i; break;
   case vr_R: v = M(R); break;
   case vr_L: v = M(L); break;
@@ -107,8 +109,8 @@ Status setFloat64(ModelInstance *comp, ValueReference vr, const double values[],
       logError(comp, "Input %u must be finite.", vr);
       return Error;
     }
-    if (vr == vr_fault && v != 0.0 && v != 1.0) {
-      logError(comp, "fault = %g must be 0 (none) or 1 (encoder lost).", v);
+    if (vr == vr_fault && v != 0.0 && v != 1.0 && v != 2.0) {
+      logError(comp, "fault = %g must be 0 (none), 1 (encoder lost) or 2 (encoder dead).", v);
       return Error;
     }
     if (vr == vr_duty)

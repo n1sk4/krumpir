@@ -6,6 +6,7 @@
 #
 #   motor        dcmotor_hil_pc: speed setpoint 3000 rpm, a load torque step at 0.5 s
 #   motor-sensor the encoder is lost at 0.5 s: the controller must trip (sensor timeout)
+#   motor-stall  the encoder dies (reads 0) at 0.5 s: the controller must trip (no rotation)
 #   motor-link   the controller stops answering at 0.5 s: the runner must fault after max_late
 #   t12          t12tip_hil_pc: cold start to 350 degC, a joint touched at 10 s
 #   t12-open|-short|-stuck  the tip opens, shorts, or the heater switch sticks at 3 s: must trip
@@ -24,7 +25,7 @@
 # Exit status: 0 ok, 1 a figure missed (--check), 2 usage or the run faulted, 77 no socat.
 set -euo pipefail
 
-usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
+usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-2}"; }
 case ${1:-} in -h | --help) usage 0 ;; esac
 [ $# -ge 1 ] || usage
 kind=$1
@@ -44,6 +45,7 @@ extra=("$@") # after --: more controller arguments, after the default setpoint a
 case $kind in
   motor) ctrl=motor scn=dcmotor_hil_pc sp=3000 ;;
   motor-sensor) ctrl=motor scn=dcmotor_sensor_hil_pc sp=3000 ;;
+  motor-stall) ctrl=motor scn=dcmotor_stall_hil_pc sp=3000 ;;
   motor-link) ctrl=motor scn=dcmotor_link_hil_pc sp=3000; extra+=(--mute-at 0.5) ;;
   t12) ctrl=t12 scn=t12tip_hil_pc sp=350 ;;
   t12-open | t12-short | t12-stuck | t12-runaway) ctrl=t12 scn=t12tip_${kind#t12-}_hil_pc sp=350 ;;

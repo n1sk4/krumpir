@@ -64,7 +64,7 @@ def main():
         sc = tomllib.load(f)
     fmu, log = Path(sc["model"]["fmu"]), Path(sc["log"]["file"])
     if not fmu.exists():
-        print(f"SKIP: {fmu} not found, see runner/fmus/README.md", file=sys.stderr)
+        print(f"SKIP: {fmu} not found, see runner/README.md", file=sys.stderr)
         return SKIP
 
     r = subprocess.run([args.krumpir, "run", args.scenario], capture_output=True, text=True)

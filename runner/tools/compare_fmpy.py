@@ -198,7 +198,7 @@ def main():
 
     sc = load_scenario(args.scenario)
     if not sc["fmu"].exists():
-        print(f"SKIP: {sc['fmu']} not found, see runner/fmus/README.md", file=sys.stderr)
+        print(f"SKIP: {sc['fmu']} not found, see runner/README.md", file=sys.stderr)
         return SKIP
 
     if args.run:

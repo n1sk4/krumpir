@@ -21,7 +21,7 @@ namespace krumpir {
 struct Controller {
   std::string dir;  // controllers/<dir>
   std::string name; // e.g. "t12"
-  std::string a2l;  // path of its A2L file (exists only after an XCP build, see the READMEs)
+  std::string a2l;  // path of its A2L file (exists only after an XCP build, see controllers/README.md, XCP)
   json desc;        // ctrl_gen.json
 };
 

@@ -27,7 +27,8 @@ add_executable(motor_scenarios ../tools/scenarios.c)
 target_link_libraries(motor_scenarios PRIVATE motorctrl krumpir::warnings)
 
 # XCP on UDP (XCPlite, Linux) for the TUI and xcpclient: -DKRUMPIR_XCP=ON, then run with
-# --xcp <port> and make the A2L from this ELF (controllers/README.md). Every build has a new EPK.
+# --xcp <port> and make the A2L from this ELF (controllers/README.md, "XCP on the PC build").
+# Every build has a new EPK.
 option(KRUMPIR_XCP "XCP on UDP (XCPlite)" OFF)
 if(KRUMPIR_XCP)
   set(XCPLITE_CFG_OVERRIDE ${KRUMPIR_LIBS_DIR}/osal_host/xcplib_host_cfg.h)

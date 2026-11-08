@@ -563,7 +563,7 @@ TEST_CASE("controllers of the repo")
 }
 
 // With KT_ECU=<a2l> (a controller running with XCP at the A2L's address, e.g. a PC build with
-// --xcp, controllers/README.md) also against it: the EPK at connect, a calibration write read back,
+// --xcp, controllers/README.md "XCP on the PC build") also against it: the EPK at connect, a calibration write read back,
 // and DAQ on the 1 kHz tick.
 TEST_CASE("xcp: a live controller (KT_ECU)")
 {

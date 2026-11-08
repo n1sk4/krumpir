@@ -1,4 +1,4 @@
-/* FMI 3.0 backend against the real Reference FMUs (runner/fmus/README.md). Skipped (exit 77) if
+/* FMI 3.0 backend against the real Reference FMUs (runner/README.md). Skipped (exit 77) if
  * they are not installed. */
 #include <assert.h>
 #include <math.h>
@@ -172,7 +172,7 @@ int main(void)
   char probe[512];
   snprintf(probe, sizeof probe, "%s/Dahlquist.fmu", KRUMPIR_FMU_DIR);
   if (access(probe, R_OK) != 0) {
-    fprintf(stderr, "SKIP: %s not found, see runner/fmus/README.md\n", probe);
+    fprintf(stderr, "SKIP: %s not found, see runner/README.md\n", probe);
     return SKIP;
   }
   test_dahlquist();

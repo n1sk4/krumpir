@@ -8,7 +8,7 @@ Board: ESP32-WROOM-32 DevKit (CH340 USB-serial, COM4), CPU 160 MHz (ESP-IDF defa
 - The body is the closed loop: PID + simulated motor, parameter copy and telemetry push.
 - `../../tools/serial/timing_check.py` (shared by all controllers) starts the controller at 3000 rpm
   (`--setup "sp 3000" "start"`) and reads the loop stats from the `status` command over about 5.6 s (the first status call discards the startup window).
-  Commands and pass limits: [tools/README.md](../tools/README.md#timing_checkpy).
+  Commands and pass limits: [Board tools](../../README.md#board-tools).
 
 ## Results
 

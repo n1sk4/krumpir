@@ -124,7 +124,7 @@ The speed measurement and the duty output go through the `motor_io_t` interface 
 
 The firmware uses the simulated motor (`motor_io_sim`); the motor driver, speed sensor and
 Krumpir-injected signal pins are not driven. The wiring and pins are in the schematic
-([../hardware/README.md](../hardware/README.md)); using them means writing another `motor_io_t`
+(`../hardware`, see [Motor controller](../../README.md#motor-controller)); using them means writing another `motor_io_t`
 backend, with the controller and the tests unchanged.
 
 ## HIL link (env esp32dev-hil)

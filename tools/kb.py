@@ -231,8 +231,9 @@ def cmd_check(a):
              f"codegen --check of {name}")
     for tool in ("tools/serial/capture.py", "tools/serial/timing_check.py",
                  "tools/hil/check_loop.py", "tools/hil/fix_host_a2l.py",
-                 "libs/plants/tools/merge_fmus.py"):
+                 "libs/plants/tools/merge_fmus.py", "tools/check_links.py"):
         step(run([py, ROOT / tool, "--selftest"]) == 0, f"{tool} --selftest")
+    step(run([py, ROOT / "tools/check_links.py"]) == 0, "the markdown links")
     if not DRY:  # kb itself (its test runs kb dry)
         step(run([py, ROOT / "tools/test_kb.py"]) == 0, "tools/test_kb.py")
     return 0

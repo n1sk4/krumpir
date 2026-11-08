@@ -1,5 +1,5 @@
 """EcuPort against the T12 controller on its board, over Wi-Fi. Skipped unless KRUMPIR_ECU_A2L
-names the A2L of the firmware that is running (controllers/esp32-t12-controller/README.md, XCP);
+names the A2L of the firmware that is running (controllers/README.md, XCP);
 the address comes from the A2L, or from KRUMPIR_ECU_HOST.
 
     KRUMPIR_ECU_A2L=controllers/esp32-t12-controller/docs/t12.a2l python -m pytest tests/test_ecu_board.py

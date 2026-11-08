@@ -307,7 +307,7 @@ void EcuModel::open(std::string dir)
       a2l_ = load_a2l(c.a2l);
     } catch (const A2lError &e) {
       error = std::string(e.what()) +
-              " (build with -e esp32dev-xcp and generate it, see the controller's README)";
+              " (build with -e esp32dev-xcp and generate it, see controllers/README.md, XCP)";
     }
     std::vector<std::string> names;
     for (const auto &[name, s] : a2l_.symbols) {

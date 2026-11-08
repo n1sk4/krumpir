@@ -1,5 +1,5 @@
 /* Host program: PID + simulated motor, 3000 rpm setpoint step. Prints CSV to stdout.
- * Build/run: see README ("Step response"). */
+ * Build/run: see controllers/README.md ("Motor controller"). */
 #include <stdio.h>
 
 #include "motor_io_sim.h"

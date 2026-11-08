@@ -1,6 +1,7 @@
 /* XCP on UDP for a controller on the PC (XCPlite, Linux), started by main_host.c with --xcp PORT.
  * Built only into a controller's host build with -DKRUMPIR_XCP=ON, so the hil_host library itself
- * does not need XCPlite. The A2L comes from the program's ELF (controllers/README.md). */
+ * does not need XCPlite. The A2L comes from the program's ELF (controllers/README.md, "XCP on the
+ * PC build"). */
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>

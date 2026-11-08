@@ -33,6 +33,18 @@ The repository contains:
 - **Terminal UI**: load, run and watch simulations on a runner, from Windows, Linux or the Pi
   ([clients/tui/](clients/tui/README.md)).
 - **Tools**: a Python client for scripting tests, controller code generation, serial capture and
-  timing scripts, and schematic generation ([tools/](tools/)).
+  timing scripts, and schematic generation ([tools/](tools/README.md)).
 - **Docs**: ([docs/](docs/)).
 
+## Quick setup
+
+Needs Python 3.11+, CMake 3.25+, Ninja and gcc (MinGW-w64 on Windows).
+
+```sh
+git clone --recurse-submodules https://github.com/n1sk4/krumpir && cd krumpir
+python3 tools/kb.py setup --system   # build tools, the Python venv, the Reference FMUs
+python3 tools/kb.py all              # build everything this machine can, run the tests
+```
+
+On Windows: `python tools/kb.py setup`, then `python tools/kb.py all` (the runner needs Linux or
+WSL). Everything else about the build: [BUILDING.md](BUILDING.md).

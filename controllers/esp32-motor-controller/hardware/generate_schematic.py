@@ -6,7 +6,7 @@ Usage (from this folder):
   python generate_schematic.py --out DIR  # write into DIR instead of this folder
 
 The writer itself is shared with the other boards: tools/kicad/kicadgen.py (see its docstring for
-the KiCad library locations). Edit the tables, rerun, then export with kicad-cli (see README.md).
+the KiCad library locations). Edit the tables, rerun, then export with kicad-cli (controllers/README.md, Schematics).
 """
 import os
 import sys

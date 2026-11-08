@@ -62,6 +62,7 @@ target_link_libraries(krumpir PRIVATE krumpir_core cjson krumpir::warnings)
 
 # The Reference FMUs for the tests (cmake/versions.cmake), into fmus/ when they are missing; no
 # network: a warning, and the tests that need them skip
+file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/fmus") # not in git: the FMUs only
 option(KRUMPIR_FETCH_FMUS "Download the Reference FMUs into fmus/ when they are missing" ON)
 if(KRUMPIR_FETCH_FMUS)
   krumpir_reference_fmus("${PROJECT_SOURCE_DIR}/fmus" OPTIONAL)

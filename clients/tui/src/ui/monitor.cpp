@@ -79,9 +79,19 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     }
     s->error.clear();
   };
-  auto open_write = [s, current] {
+  auto open_signal = [s, fill_defaults] {
+    s->target = s->sel;
+    fill_defaults();
+    s->signal_row = 0;
+    s->show_signal = true;
+  };
+  auto open_write = [s, current, open_signal] {
     if (s->sel.name.empty() || s->sel.kind == "output") {
       s->hint = s->sel.name.empty() ? "nothing to write" : s->sel.name + " is an output: read-only";
+      return;
+    }
+    if (s->sel.kind == "input") { // an input takes a signal; "constant" is a plain value
+      open_signal();
       return;
     }
     s->target = s->sel;
@@ -90,17 +100,6 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     s->error.clear();
     s->write_row = 0;
     s->show_write = true;
-  };
-  auto open_signal = [s, fill_defaults] {
-    if (s->sel.kind != "input") {
-      s->hint = "signals are for inputs; " +
-                (s->sel.name.empty() ? "none selected" : s->sel.name + " is " + s->sel.kind);
-      return;
-    }
-    s->target = s->sel;
-    fill_defaults();
-    s->signal_row = 0;
-    s->show_signal = true;
   };
   auto apply_write = [&m, s] {
     double v;
@@ -251,8 +250,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
 
   auto with_dialogs =
       Modal(Modal(view, write_dialog, &s->show_write), signal_dialog, &s->show_signal);
-  return CatchEvent(with_dialogs, [&m, s, split, filter, open_write, open_signal,
-                                   close](const Event &e) {
+  return CatchEvent(with_dialogs, [&m, s, split, filter, open_write, close](const Event &e) {
     if (s->show_write || s->show_signal) { // the dialog gets the keys
       return EscapeCloses(e, close);
     }
@@ -262,7 +260,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     if (e.is_character()) {
       s->hint.clear();
     }
-    if (!split->shown() && (e == Event::Character('w') || e == Event::Character('g') ||
+    if (!split->shown() && (e == Event::Character('w') ||
                             e == Event::Character(' '))) {
       s->hint = "the variables are hidden: v shows them";
       return true;
@@ -280,8 +278,6 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
       m.reset();
     } else if (e == Event::Character('w')) {
       open_write();
-    } else if (e == Event::Character('g')) {
-      open_signal();
     } else if (e == Event::Character(' ') && !s->sel.name.empty()) {
       if (!s->checked.erase(s->sel.name)) {
         s->checked.insert(s->sel.name);

@@ -378,6 +378,7 @@ void Model::note(const std::string &text, bool ok)
 // args: what `load` takes. A refusal is the form's note as well as an event.
 void Model::do_load(const std::string &label, const json &args)
 {
+  setpoints_.clear(); // another scenario: start clean
   if (str(svc_.call("state"), "state") != "IDLE") {
     svc_.call("unload");
     event("unloaded the previous run");
@@ -472,6 +473,7 @@ void Model::write(std::string name, double value)
 {
   post([this, name, value] {
     svc_.call("write", {{"values", {{name, value}}}});
+    setpoints_[name] = {false, value};
     char line[160];
     std::snprintf(line, sizeof line, "%s = %.6g", name.c_str(), value);
     event(line);
@@ -482,6 +484,7 @@ void Model::signal(json stimulus)
 {
   post([this, stimulus] {
     svc_.call("signal", {{"stimulus", stimulus}});
+    setpoints_[stimulus["input"].get<std::string>()] = {true, stimulus};
     json what = stimulus;
     what.erase("input");
     event(stimulus["input"].get<std::string>() + ": " + what.dump());
@@ -500,6 +503,17 @@ void Model::do_reset()
   std::snprintf(line, sizeof line, "reset: the run of %.0f steps ended, again from t = 0",
                 num(s, "steps"));
   event(line);
+  for (const auto &[name, sp] : setpoints_) { // keep what was set: the run starts with it again
+    try {
+      if (sp.first) {
+        svc_.call("signal", {{"stimulus", sp.second}});
+      } else {
+        svc_.call("write", {{"values", {{name, sp.second}}}});
+      }
+    } catch (const ServiceError &e) {
+      event("not kept: " + name + ": " + e.what());
+    }
+  }
 }
 
 void Model::reset()
@@ -511,6 +525,7 @@ void Model::unload()
 {
   post([this] {
     const json s = svc_.call("unload").at("summary");
+    setpoints_.clear();
     if (str(s, "state") == "IDLE") {
       event("nothing to unload");
       return;

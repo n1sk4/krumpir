@@ -40,8 +40,7 @@ krumpir-tui --repo ~/krumpir                  # where controllers/ is (default: 
 | s / x / u | (Monitor) start / stop / unload; `s` on a stopped run resets it and starts again |
 | r | (Monitor) reset a stopped or faulted run: the same scenario again from t = 0 |
 | up / down | (Monitor) the variable to plot |
-| w, Enter | (Monitor) write a value to the selected input or tunable parameter |
-| g | (Monitor) play a signal on the selected input |
+| w, Enter | (Monitor) write a value to the selected tunable parameter, or play a signal on the selected input (`constant` is a plain value) |
 | w | (Monitor, a controller) write a calibration parameter, inside its limits |
 | Enter | (Load, a controller) in the address: connect; in the grid: write the changed values |
 | s / x / c | (Monitor, a controller) start / stop / clear a latched trip |

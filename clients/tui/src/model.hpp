@@ -102,6 +102,8 @@ private:
   void do_load(const std::string &label, const json &args); // worker thread
 
   Service svc_;
+  std::map<std::string, std::pair<bool, json>> setpoints_; // per name: (is a signal, its value or
+                                                           // stimulus); replayed after a reset (worker thread only)
   int cap_id_ = -1;           // the capture armed at start, -1: none (worker thread only)
   std::size_t cap_from_ = 0;  // rows of it fetched so far
   std::vector<std::string> captured_; // its variables; the others are polled

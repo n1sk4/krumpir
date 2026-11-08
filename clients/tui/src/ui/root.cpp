@@ -145,7 +145,7 @@ Component Root(Model &m, Controllers ecus, std::string address, std::function<vo
         {" Tab/arrows move   Enter load   F2 monitor   F10 quit",
          " Tab/arrows move   Enter in the grid: write   F2 monitor   F10 quit"},
         {" s start  x stop  r reset  u unload  space check  c uncheck all  m one/many graphs  "
-         "w/Enter write  g signal  v hide  [ ] resize  Esc close  F1 load  F10 quit",
+         "w/Enter write  v hide  [ ] resize  Esc close  F1 load  F10 quit",
          " s start  x stop  c clear trip  w write  space/Enter plot a signal  m one/many graphs  "
          "v hide  [ ] resize  F1 load  F10 quit"}};
   };

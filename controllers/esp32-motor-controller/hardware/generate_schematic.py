@@ -61,7 +61,7 @@ FOOTPRINTS = {
 CONNECTIONS = [
     # ESP32 DevKitC (pin numbers are the DevKitC header pads; 14, 32 and 38 are all GND)
     ("U1", "1", "+3V3"), ("U1", "14", "GND"), ("U1", "2", "EN"),
-    ("U1", "35", "UART_TX"), ("U1", "34", "UART_RX"),
+    ("U1", "28", "HIL_TX"), ("U1", "27", "HIL_RX"),  # UART2, GPIO17 / GPIO16: the HIL link
     ("U1", "30", "M_IN1"), ("U1", "31", "M_IN2"), ("U1", "11", "M_NSLEEP"),
     ("U1", "10", "M_NFAULT"), ("U1", "5", "ENC_A"), ("U1", "6", "ENC_B"),
     ("U1", "37", "LOOP_TIMING"),
@@ -76,7 +76,7 @@ CONNECTIONS = [
     ("J2", "1", "MOT_A"), ("J2", "2", "GND!"), ("J2", "3", "ENC_A"), ("J2", "4", "ENC_B"),
     ("J2", "5", "+3V3"), ("J2", "6", "MOT_B"),
     ("J3", "1", "LOOP_TIMING"), ("J3", "2", "GND"),
-    ("J4", "1", "GND"), ("J4", "2", "UART_TX"), ("J4", "3", "UART_RX"), ("J4", "4", "EN"),
+    ("J4", "1", "GND"), ("J4", "2", "HIL_TX"), ("J4", "3", "HIL_RX"), ("J4", "4", "EN"),
     # Passives
     ("C1", "1", "+6V"), ("C1", "2", "GND"),
     ("C2", "1", "+6V"), ("C2", "2", "GND"),
@@ -94,9 +94,9 @@ NO_CONNECT = [("U2", "BOUT1"), ("U2", "BOUT2")]
 NOTES = [
     (20.0, 25.0, "ESP32 DC motor speed controller - intended wiring (6 V N20 gearmotor)"),
     (20.0, 31.0, "Pins are proposed. The firmware currently simulates the motor and uses only"),
-    (20.0, 36.0, "GPIO23 (loop timing) and UART0; the other pins are not driven yet."),
+    (20.0, 36.0, "GPIO23 (loop timing), the UART0 console and the UART2 HIL link; the others are not driven yet."),
     (20.0, 262.0, "J2 pin order is typical for N20 hall-encoder motors: check yours before wiring."),
-    (20.0, 267.0, "UART0 is also the USB console: do not drive GPIO3 from the Pi while USB is attached."),
+    (20.0, 267.0, "J4 is the HIL link (UART2, GPIO17 TX / GPIO16 RX) to the Pi; the console stays on UART0 (USB)."),
     (20.0, 272.0, "ESP32 and Raspberry Pi are 3.3 V logic. The 6 V supply must share GND with both."),
 ]
 

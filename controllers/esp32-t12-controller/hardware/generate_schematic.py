@@ -205,9 +205,10 @@ part("J5", CONN4, "Krumpir", 395.00, 178.00)
 conn(("U1", "1", "+3V3"), ("U1", "14", "GND"), ("U1", "2", "EN"),
      ("U1", "9", "PWM"), ("U1", "10", "HEARTBEAT"),
      ("U1", "5", "TC_ADC"), ("U1", "6", "NTC_NODE"), ("U1", "3", "CUR_ADC"),
-     ("U1", "35", "UART_TX"), ("U1", "34", "UART_RX"), ("U1", "37", "LOOP_TIMING"),
+     ("U1", "28", "HIL_TX"), ("U1", "27", "HIL_RX"),  # UART2, GPIO17 / GPIO16: the HIL link
+     ("U1", "37", "LOOP_TIMING"),
      ("J4", "1", "LOOP_TIMING"), ("J4", "2", "GND>"),
-     ("J5", "1", "GND!"), ("J5", "2", "UART_TX"), ("J5", "3", "UART_RX"), ("J5", "4", "EN"))
+     ("J5", "1", "GND!"), ("J5", "2", "HIL_TX"), ("J5", "3", "HIL_RX"), ("J5", "4", "EN"))
 
 # --- Power flags give ERC a driver for the supplied nets -----------------------------------------
 part("#FLG01", "power:PWR_FLAG", "PWR_FLAG", 240.00, 268.00)

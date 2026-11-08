@@ -103,18 +103,19 @@ only GPIO 23 (loop timing) and the UARTs.
 | GPIO 34 (5) | `ENC_A` | encoder A (J2 pin 3), pulled up by R2 (10 k) |
 | GPIO 35 (6) | `ENC_B` | encoder B (J2 pin 4), pulled up by R3 (10 k) |
 | GPIO 23 (37) | `LOOP_TIMING` | test header J3 (loop-timing pulse) |
-| GPIO 1, TX0 (35) | `UART_TX` | Krumpir header J4 pin 2 |
-| GPIO 3, RX0 (34) | `UART_RX` | Krumpir header J4 pin 3 |
+| GPIO 17, U2TXD (28) | `HIL_TX` | Krumpir header J4 pin 2 (HIL link, UART2) |
+| GPIO 16, U2RXD (27) | `HIL_RX` | Krumpir header J4 pin 3 (HIL link, UART2) |
 | EN, CHIP_PU (2) | `EN` | Krumpir header J4 pin 4 (reset) |
 
 - Connectors: J1 6 V in (1 `+6V`, 2 `GND`); J2 motor + encoder (1 motor +, 2 `GND`, 3 `ENC_A`,
   4 `ENC_B`, 5 `+3V3`, 6 motor -: the common N20 order, check yours); J3 loop timing; J4 the Pi
-  (1 `GND`, 2 `UART_TX`, 3 `UART_RX`, 4 `EN`).
+  (1 `GND`, 2 `HIL_TX`, 3 `HIL_RX`, 4 `EN`).
 - The pins avoid the strapping pins (0, 2, 5, 12, 15); GPIO 34/35 are input-only without pull-ups,
   hence R2/R3. DRV8833 bridge A drives the motor (C1 100 uF and C2 100 nF on `+6V`, C3 10 nF
   charge pump, C4 2.2 uF on `VINT`); bridge B and current sensing are unused (tied to GND).
-- `UART_TX` goes to the Pi's receive pin. UART0 is also the USB console: use USB or the Pi, not
-  both. All 3.3 V logic; the 6 V supply shares GND with both.
+- J4 is the HIL link (`esp32dev-hil`, UART2 at 921600): `HIL_TX` goes to the Pi's (or the
+  USB-serial adapter's) receive pin. The console stays on UART0, the DevKit's USB. All 3.3 V
+  logic; the 6 V supply shares GND with both.
 - Not included: PCB layout, current sensing, reverse-polarity protection, an emergency stop.
 
 ## T12 controller
@@ -193,13 +194,13 @@ bench supply. The firmware simulates the tip and drives only GPIO 23 and the UAR
 | GPIO 35 (6) | `NTC_NODE` | handle NTC divider |
 | GPIO 36 (3) | `CUR_ADC` | INA240 output (R15 / C4) |
 | GPIO 23 (37) | `LOOP_TIMING` | test header J4 |
-| GPIO 1, TX0 (35) | `UART_TX` | Krumpir header J5 pin 2 |
-| GPIO 3, RX0 (34) | `UART_RX` | Krumpir header J5 pin 3 |
+| GPIO 17, U2TXD (28) | `HIL_TX` | Krumpir header J5 pin 2 (HIL link, UART2) |
+| GPIO 16, U2RXD (27) | `HIL_RX` | Krumpir header J5 pin 3 (HIL link, UART2) |
 | EN, CHIP_PU (2) | `EN` | Krumpir header J5 pin 4 (reset) |
 
 - Connectors: J1 24 V in (1 `GND`, 2 `+24V_IN`), J2 tip (1 shell `GND`, 2 `TIP_PLUS`), J3 handle
-  NTC, J4 loop timing, J5 the Pi (1 `GND`, 2 `UART_TX`, 3 `UART_RX`, 4 `EN`). J1/J2 are drawn
-  rotated: pin 2 is the live pin.
+  NTC, J4 loop timing, J5 the Pi: the HIL link on UART2 (1 `GND`, 2 `HIL_TX`, 3 `HIL_RX`,
+  4 `EN`). J1/J2 are drawn rotated: pin 2 is the live pin.
 - Only ADC1 (GPIO 34, 35, 36), since ADC2 is unusable while Wi-Fi runs. The buck converter feeds
   the DevKit's 3V3: do not power it from USB and 24 V at once. The tip shell is ground, so the
   heater is switched high-side; everything on `+24V_SW` must be rated 60 V or more (the TVS can

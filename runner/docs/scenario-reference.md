@@ -120,7 +120,7 @@ relative to the working directory, like `model.fmu`. Files are read when the sce
 
 | Key | Meaning |
 |-----|---------|
-| `file` | CSV written during the run. A single missing parent directory (such as `runs/`) is created. |
+| `file` | CSV written during the run. A single missing parent directory (such as `runs/`) is created. Under `krumpir serve` it must be under `runs/` and end in `.csv`. |
 
 Columns: `n,t,<inputs>,<outputs>,wake_ns,step_ns,flags`. Row `n` is one step: `t = (n+1) * step`,
 the inputs are the values applied at its start, the outputs are read after it. `wake_ns` is how late

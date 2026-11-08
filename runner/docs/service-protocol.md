@@ -8,8 +8,9 @@ krumpir serve                 # local clients only
 krumpir serve 0.0.0.0:7700    # reachable from the LAN (on the Pi)
 ```
 
-There is no authentication. A client can load any FMU and write the log to any path the service
-user can write. Listen on `127.0.0.1` or a trusted LAN only.
+There is no authentication. A client can load any FMU. The service writes a run's log only under
+`runs/` (`log.file` must be under `runs/` and end in `.csv`; `load`, `check` and `save` refuse any
+other). Listen on `127.0.0.1` or a trusted LAN only.
 
 ## Framing
 
@@ -81,7 +82,8 @@ causalities, the stimuli's data files) without loading anything: no instance, no
 Allowed in any state, also while a run goes on.
 
 **save** writes the text to `scenarios/<name>.toml` (no other folder, no `..`, no leading dot),
-after the same check as `check`. An existing file is refused unless `overwrite` is true. The file
+after the same check as `check` (which includes the `log.file` rule above). An existing file is
+refused unless `overwrite` is true. The file
 is written to `<path>.tmp` and renamed, so a reader never sees half of it.
 
 **read** and **write** follow the session's rules: any Float64 variable can be read; only the

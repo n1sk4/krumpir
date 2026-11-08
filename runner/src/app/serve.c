@@ -468,6 +468,39 @@ static int op_describe(const cJSON *req, cJSON *r, char *err, size_t errlen)
   return 0;
 }
 
+/* True when path is <dir>/<rest> and rest ends in ext: at most 100 characters, no '\', every
+ * '/' part non-empty and not starting with '.' (so no "..", no hidden names); with subdirs
+ * false, no '/' in rest at all. Limitation: a symlink inside dir is followed. */
+static bool served_path(const char *path, const char *dir, const char *ext, bool subdirs)
+{
+  const size_t dl = strlen(dir), el = strlen(ext);
+  if (path == NULL || strncmp(path, dir, dl) != 0 || path[dl] != '/') {
+    return false;
+  }
+  const char *rest = path + dl + 1;
+  const size_t n = strlen(rest);
+  if (n <= el || n > 100 || strcmp(rest + n - el, ext) != 0 || strchr(rest, '\\') != NULL ||
+      rest[0] == '.' || rest[0] == '/') {
+    return false;
+  }
+  for (const char *s = strchr(rest, '/'); s != NULL; s = strchr(s + 1, '/')) {
+    if (!subdirs || s[1] == '.' || s[1] == '/') {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* The service writes logs only under runs/. */
+static int check_log(const scenario_t *sc, char *err, size_t errlen)
+{
+  if (served_path(sc->log_file, "runs", ".csv", true)) {
+    return 0;
+  }
+  snprintf(err, errlen, "log.file '%s' must be under runs/ and end in .csv", sc->log_file);
+  return -1;
+}
+
 /* Parses the text and checks it against its FMU as loading would, without loading. */
 static int check_text(const char *text, char *err, size_t errlen)
 {
@@ -475,6 +508,9 @@ static int check_text(const char *text, char *err, size_t errlen)
   char perr[400];
   if (config_parse(text, &sc, perr, sizeof perr) < 0) {
     snprintf(err, errlen, "scenario: %s", perr);
+    return -1;
+  }
+  if (check_log(&sc, err, errlen) < 0) {
     return -1;
   }
   return scenario_check(&sc, err, errlen);
@@ -495,10 +531,7 @@ static int op_check(const cJSON *req, char *err, size_t errlen)
 static int op_save(const cJSON *req, char *err, size_t errlen)
 {
   const char *path = get_str(req, "path"), *text = get_str(req, "toml");
-  const char *name = path != NULL && strncmp(path, "scenarios/", 10) == 0 ? path + 10 : "";
-  size_t n = strlen(name);
-  if (text == NULL || n < 6 || n > 100 || strcmp(name + n - 5, ".toml") != 0 || name[0] == '.' ||
-      strpbrk(name, "/\\") != NULL) {
+  if (text == NULL || !served_path(path, "scenarios", ".toml", false)) {
     snprintf(err, errlen, "save takes \"path\": scenarios/<name>.toml and \"toml\": the text");
     return -1;
   }
@@ -533,7 +566,8 @@ static int op_load(session_t *s, const cJSON *req, cJSON *r, char *err, size_t e
   }
   char perr[400];
   if ((path != NULL ? config_load(path, &sc, perr, sizeof perr)
-                    : config_parse(text, &sc, perr, sizeof perr)) < 0) {
+                    : config_parse(text, &sc, perr, sizeof perr)) < 0 ||
+      check_log(&sc, perr, sizeof perr) < 0) {
     snprintf(err, errlen, "scenario: %s", perr);
     return -1;
   }

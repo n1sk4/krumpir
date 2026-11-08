@@ -47,7 +47,7 @@ def main():
     if not fmu.exists():
         print(f"SKIP: {fmu} not found")
         return 77
-    log = Path(tempfile.gettempdir()) / f"krumpir_test_serve_{os.getpid()}.csv"
+    log = Path(f"runs/krumpir_test_serve_{os.getpid()}.csv")  # the service logs only under runs/
     scenario = f"""
 [model]
 fmu = "{fmu}"
@@ -139,6 +139,27 @@ file = "{log}"
             assert Path(name).read_text() == seg  # a refused save leaves the file alone
         finally:
             Path(name).unlink(missing_ok=True)
+
+        # the log: under runs/ and ending in .csv, subfolders allowed; refused by load, check, save
+        outside = Path(tempfile.gettempdir()) / f"krumpir_test_serve_{os.getpid()}_outside.csv"
+        for bad in [str(outside), "x.csv", "../x.csv", "runs/../x.csv", "runs/.x.csv",
+                    "runs/a/../x.csv", "runs/x.txt", "runs/.csv", "runs/a\\x.csv", "runs//x.csv"]:
+            toml = scenario.replace(f'"{log}"', json.dumps(bad))
+            c.fails("load", "scenario: log.file", toml=toml)
+            c.fails("check", "must be under runs/ and end in .csv", toml=toml)
+            c.fails("save", "must be under runs/ and end in .csv", path=name, toml=toml)
+        assert c.call("state")["state"] == "IDLE"
+        assert not outside.exists() and not Path(name).exists()
+        sub = Path(f"runs/krumpir_test_serve_{os.getpid()}")
+        try:
+            sub.mkdir(parents=True, exist_ok=True)
+            toml = scenario.replace(f'"{log}"', f'"{sub}/x.csv"')
+            c.call("check", toml=toml)
+            assert c.call("load", toml=toml)["state"] == "INITIALIZED" and (sub / "x.csv").exists()
+            c.call("unload")
+        finally:
+            (sub / "x.csv").unlink(missing_ok=True)
+            sub.rmdir()
 
         assert c.call("load", toml=scenario)["state"] == "INITIALIZED"
         names = {v["name"]: v for v in c.call("variables")["variables"]}

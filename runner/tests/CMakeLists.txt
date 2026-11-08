@@ -15,7 +15,7 @@ foreach(t loader_fmus fmi3 scaffold runner session rt_setup)
 endforeach()
 
 # FMPy reference comparison (tools/compare_fmpy.py) and the Python client (tools/krumpir): need the
-# venv from tools/setup_wsl.sh
+# venv from tools/kb.py setup
 set(KRUMPIR_PYTHON "$ENV{HOME}/.venvs/krumpir/bin/python" CACHE FILEPATH "Python with fmpy")
 if(EXISTS "${KRUMPIR_PYTHON}")
   foreach(name feedthrough dahlquist vanderpol dcmotor t12tip)
@@ -33,7 +33,7 @@ if(EXISTS "${KRUMPIR_PYTHON}")
     message(STATUS "Client tests not added: pytest not found in ${KRUMPIR_PYTHON}")
   endif()
 else()
-  message(STATUS "FMPy comparison tests not added: ${KRUMPIR_PYTHON} not found (tools/setup_wsl.sh)")
+  message(STATUS "FMPy comparison tests not added: ${KRUMPIR_PYTHON} not found (python3 tools/kb.py setup)")
 endif()
 
 # Golden files (tests/golden), the service over TCP, and the closed loops. Regenerate a golden file

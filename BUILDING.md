@@ -203,16 +203,16 @@ warnings. Each library thus builds from PlatformIO (`library.json`), any CMake p
 - Submodules: `libs/vendor/Reference-FMUs` (the plant FMUs' framework) and `libs/vendor/XCPlite`;
   vendored copies and their hashes are in
   [libs/README.md](libs/README.md#vendored-code) and [runner/README.md](runner/README.md#vendored-code).
-- Python: `tools/requirements.txt` (minimum versions); the older per-folder files include it.
+- Python: `tools/requirements.txt` (minimum versions), the one file for every tool.
 - PlatformIO: the platform version is pinned in each `platformio.ini` (from codegen).
 
 ## Scripts
 
-The shell scripts (`runner/tools/setup_wsl.sh`, `libs/plants/tools/build_fmus.sh`,
-`tools/hil/pc_loop.sh`) and the Python tools share one shape: a header with the usage (`--help`),
+The shell scripts (`libs/plants/tools/build_fmus.sh`, `tools/hil/pc_loop.sh`, the controllers'
+generated `tools/ci.sh`) and the Python tools share one shape: a header with the usage (`--help`),
 overrides named `KRUMPIR_*`, exit status 0 ok, 1 failed, 2 usage, 77 skipped (CTest's skip code),
 and a `--selftest` where a tool has logic that can be checked without hardware (run by
-`kb.py check`). `setup_wsl.sh` runs `kb.py setup --system`.
+`kb.py check`).
 
 ## CI
 

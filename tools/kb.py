@@ -179,8 +179,10 @@ def cmd_setup(a):
         if not have[tool]:
             print(f"kb: missing: {why[tool]}")
     venv = venv_python()
-    old = venv.exists() and not DRY and subprocess.run(  # e.g. made before a distro upgrade
-        [venv, "-c", f"import sys; sys.exit(sys.version_info < {PY_MIN})"]).returncode != 0
+    # made before a distro upgrade: an older Python, or its packages (pip) for the old version
+    old = venv.exists() and not DRY and subprocess.run(
+        [venv, "-c", f"import sys, pip; sys.exit(sys.version_info < {PY_MIN})"],
+        capture_output=True).returncode != 0
     if old or not venv.exists():
         step(run([sys.executable, "-m", "venv", "--clear", venv.parent.parent]) == 0,
              "creating the venv")

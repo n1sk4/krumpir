@@ -17,6 +17,8 @@ add_library(miniz STATIC vendor/miniz/miniz.c)
 target_include_directories(miniz PUBLIC vendor/miniz)
 # Drops the zlib-style wrappers (static functions in miniz.h that -Wunused-function flags).
 target_compile_definitions(miniz PUBLIC MINIZ_NO_ZLIB_APIS)
+# ftello/fseeko are POSIX: hidden in strict C11, an error since GCC 14 (implicit declaration)
+target_compile_definitions(miniz PRIVATE _POSIX_C_SOURCE=200809L)
 krumpir_vendor(miniz)
 add_library(cjson STATIC vendor/cjson/cJSON.c)
 target_include_directories(cjson PUBLIC vendor/cjson)

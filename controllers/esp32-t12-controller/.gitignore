@@ -1,9 +1,0 @@
-.pio/
-sdkconfig.esp32dev
-.venv/
-__pycache__/
-docs/*.csv
-out/
-sdkconfig.esp32dev-xcp
-docs/*.a2l
-sdkconfig.esp32dev-hil

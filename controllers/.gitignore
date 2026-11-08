@@ -1,0 +1,16 @@
+# Made by PlatformIO from sdkconfig.defaults
+*/sdkconfig.esp32dev
+*/sdkconfig.esp32dev-xcp
+*/sdkconfig.esp32dev-hil
+
+# CI and tool output
+*/out/
+*/docs/*.csv
+*/docs/*.a2l
+
+# KiCad
+*/hardware/erc.rpt
+*/hardware/fp-info-cache
+*.kicad_prl
+*.lck
+*-backups/

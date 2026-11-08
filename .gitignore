@@ -1,13 +1,19 @@
 /temp
 /docs/temp
+/docs/img/temp
+/build
+/runs
+/*.py
+CMakeUserPresets.json
+
+# Python
 __pycache__/
 *.egg-info/
 .pytest_cache/
 .venv/
-/tools/kicad/__pycache__
-/*.py
-/runs
-/clients/tui/build
-/build
-CMakeUserPresets.json
-/docs/img/temp
+
+# PlatformIO (libs/, the controllers)
+.pio/
+
+# Wi-Fi credentials for the XCP firmware (copy wlan.h.example)
+/libs/esp/xcpglue/include/wlan.h

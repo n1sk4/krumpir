@@ -3,10 +3,6 @@ name: tui
 on:
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: clients/tui
-
 jobs:
   build-test:
     name: build-test (${{ matrix.os }})
@@ -14,23 +10,38 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
+        include:
+          - { os: ubuntu-latest, preset: release }
+          - { os: ubuntu-24.04-arm, preset: release }
+          - { os: windows-latest, preset: mingw }
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
-      - name: Build
-        run: cmake --build build --config Release
+      - run: pip install ninja
 
-      - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
+      - name: MinGW-w64 gcc (the mingw preset)
+        if: runner.os == 'Windows'
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc
+
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: Add-Content $env:GITHUB_PATH "${{ steps.msys2.outputs.msys2-location }}\ucrt64\bin"
+
+      - run: python tools/kb.py build --preset ${{ matrix.preset }} --only tui
+      - run: python tools/kb.py test --preset ${{ matrix.preset }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: krumpir-tui-${{ matrix.os }}
           path: |
-            clients/tui/build/krumpir-tui
-            clients/tui/build/Release/krumpir-tui.exe
+            build/${{ matrix.preset }}/clients/tui/krumpir-tui
+            build/${{ matrix.preset }}/clients/tui/krumpir-tui.exe
           if-no-files-found: error

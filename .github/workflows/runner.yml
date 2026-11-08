@@ -3,17 +3,13 @@ name: runner
 on:
   workflow_dispatch:
 
-defaults:
-  run:
-    working-directory: runner
-
 jobs:
   build-test:
-    name: build-test (sanitizers ${{ matrix.sanitize }})
+    name: build-test (${{ matrix.preset }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        sanitize: ["OFF", "address"]
+        preset: [dev, asan]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,34 +21,24 @@ jobs:
           cache: pip
           cache-dependency-path: tools/requirements.txt
 
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libexpat1-dev socat
-          pip install -r ../tools/requirements.txt
+      - name: Setup (apt packages, the venv, the Reference FMUs)
+        run: python tools/kb.py setup --system
 
-      - name: Configure (also fetches the Reference FMUs)
-        run: >
-          cmake -S . -B build -G Ninja
-          -DKRUMPIR_SANITIZE=${{ matrix.sanitize }}
-          -DKRUMPIR_PYTHON=$(which python)
-
-      - name: Build
-        run: cmake --build build
-
-      - name: Test
-        run: ctest --test-dir build --output-on-failure
+      - run: python tools/kb.py build --preset ${{ matrix.preset }} --only runner
+      - run: python tools/kb.py test --preset ${{ matrix.preset }}
 
       - name: FMPy overlay plots
-        if: matrix.sanitize == 'OFF'
+        if: matrix.preset == 'dev'
+        working-directory: runner
         run: |
           mkdir -p out
           for s in feedthrough dahlquist vanderpol dcmotor t12tip; do
-            python tools/compare_fmpy.py scenarios/$s.toml --run build/krumpir --plot out/$s.png
+            ~/.venvs/krumpir/bin/python tools/compare_fmpy.py scenarios/$s.toml \
+              --run ../build/dev/runner/krumpir --plot out/$s.png
           done
 
       - uses: actions/upload-artifact@v4
-        if: matrix.sanitize == 'OFF'
+        if: matrix.preset == 'dev'
         with:
           name: runner-fmpy-plots
           path: runner/out/

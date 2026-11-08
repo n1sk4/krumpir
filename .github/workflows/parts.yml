@@ -1,0 +1,25 @@
+name: parts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  alone: # each part still configures without the root tree (BUILDING.md, The CMake tree)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - run: sudo apt-get update && sudo apt-get install -y ninja-build libexpat1-dev
+
+      - name: Configure each part alone
+        run: |
+          for p in libs controllers/*/test controllers/*/host runner libs/plants clients/tui; do
+            echo "== $p"
+            cmake -S "$p" -B "$RUNNER_TEMP/alone/$p" -G Ninja
+          done

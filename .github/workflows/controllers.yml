@@ -4,6 +4,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  tests: # the libraries' and controllers' Unity tests, codegen up to date, the tools' self-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tools/requirements.txt
+
+      - run: pip install ninja
+      - run: python tools/kb.py setup
+      - run: python tools/kb.py check
+      - run: python tools/kb.py build --only "libs;controllers"
+      - run: python tools/kb.py test
+
   list: # every folder under controllers/ with a controller.toml
     runs-on: ubuntu-latest
     outputs:
@@ -13,17 +32,14 @@ jobs:
       - id: ls
         run: echo "dirs=$(ls controllers/*/controller.toml | cut -d/ -f2 | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
 
-  build-test:
+  firmware:
     needs: list
-    name: ${{ matrix.controller }}
+    name: firmware (${{ matrix.controller }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         controller: ${{ fromJSON(needs.list.outputs.dirs) }}
-    defaults:
-      run:
-        working-directory: controllers/${{ matrix.controller }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,13 +51,8 @@ jobs:
           cache: pip
           cache-dependency-path: tools/requirements.txt
 
-      - name: Install tools
-        run: pip install platformio -r ../../tools/requirements.txt
-
-      - name: Generated files are up to date
-        run: |
-          python ../../tools/codegen/test_gen_controller.py
-          python ../../tools/codegen/gen_controller.py . --check
+      - name: Install tools (tools/ci.sh's plots and self-checks use this Python)
+        run: pip install platformio -r tools/requirements.txt
 
       - name: Cache PlatformIO packages
         uses: actions/cache@v4
@@ -49,34 +60,18 @@ jobs:
           path: ~/.platformio
           key: pio-${{ hashFiles('controllers/*/platformio.ini') }}
 
-      - name: Library tests (native)
-        working-directory: libs
-        run: pio test -e native
+      - run: python tools/kb.py fw ${{ matrix.controller }}
 
-      - name: Unit tests (native)
-        run: pio test -e native
-
-      - name: Library and unit tests (CMake, without PlatformIO)
+      - name: kb.py fw xcp
         run: |
-          for p in ../../libs test; do
-            b="${{ runner.temp }}/ctest/$(basename "$(realpath "$p")")"
-            cmake -S "$p" -B "$b"
-            cmake --build "$b"
-            ctest --test-dir "$b" --output-on-failure
-          done
-
-      - name: Build firmware
-        run: pio run -e esp32dev
-
-      - name: Build firmware with XCP
-        run: |
-          cp ../../libs/esp/xcpglue/include/wlan.h.example ../../libs/esp/xcpglue/include/wlan.h
-          pio run -e esp32dev-xcp
+          cp libs/esp/xcpglue/include/wlan.h.example libs/esp/xcpglue/include/wlan.h
+          python tools/kb.py fw ${{ matrix.controller }} xcp
 
       - name: The controller's own steps (tools/ci.sh, from controller.toml)
-        run: bash tools/ci.sh
+        run: bash controllers/${{ matrix.controller }}/tools/ci.sh
 
       - name: Collect firmware
+        working-directory: controllers/${{ matrix.controller }}
         run: |
           mkdir -p out
           cp .pio/build/esp32dev/firmware.bin .pio/build/esp32dev/firmware.elf out/

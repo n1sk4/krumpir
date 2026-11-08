@@ -17,14 +17,11 @@ jobs:
           cache: pip
           cache-dependency-path: tools/requirements.txt
 
-      - name: Install tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build gcc-aarch64-linux-gnu qemu-user
-          pip install -r tools/requirements.txt
+      - name: Setup (apt packages with the aarch64 cross compiler and qemu, the venv)
+        run: python tools/kb.py setup --system
 
       - name: Build, test and merge the plant FMUs (x86_64-linux, aarch64-linux)
-        run: KRUMPIR_PYTHON=$(which python) bash libs/plants/tools/build_fmus.sh build/plant-fmus
+        run: python tools/kb.py fmus --both-archs
 
       - uses: actions/upload-artifact@v4
         with:

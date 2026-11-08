@@ -216,9 +216,12 @@ and a `--selftest` where a tool has logic that can be checked without hardware (
 
 ## CI
 
-`.github/workflows/`: `controllers.yml` (every folder under `controllers/` with a
-`controller.toml`, one job each: the codegen check, the Unity tests with PlatformIO and CMake, the
-firmware builds, then the controller's generated `tools/ci.sh` from its `[[ci.step]]`s),
-`runner.yml` (with and without the sanitizers), `plants.yml` (both architectures) and `tui.yml`
-(Linux, the Pi's arm64, Windows). Each builds its folder alone; they run on demand
-(`workflow_dispatch`).
+`.github/workflows/` runs the same `kb.py` commands as above, on demand (`workflow_dispatch`):
+
+| Workflow | Runs |
+|---|---|
+| `controllers.yml` | `kb.py check`; `build --only "libs;controllers"` and `test`; per folder with a `controller.toml`: `fw CTRL`, `fw CTRL xcp`, then its generated `tools/ci.sh` (`[[ci.step]]`) |
+| `runner.yml` | `setup --system`, `build --only runner` and `test` with the `dev` and `asan` presets; the FMPy overlay plots |
+| `plants.yml` | `setup --system`, `fmus --both-archs` |
+| `tui.yml` | `build --only tui` and `test`: `release` on Linux and arm64, `mingw` on Windows |
+| `parts.yml` | each part configured alone (`cmake -S <part>`), without `kb.py` |

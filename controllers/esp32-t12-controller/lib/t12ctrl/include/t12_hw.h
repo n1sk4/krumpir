@@ -5,6 +5,7 @@
  * docs/T12 Controller Design.md and an ideal 12-bit ADC (no eFuse nonlinearity). The NTC divider
  * is a placeholder until the board is built. */
 #define T12_ADC_MAX 4095            /* 12-bit counts */
+#define T12_ADC_NONE 0xFFFF         /* no reading at all (a lost HIL link), above every count */
 #define T12_ADC_VREF 3.3            /* full scale [V] */
 #define T12_SHUNT_OHM 0.010         /* heater current shunt */
 #define T12_INA_GAIN 50.0           /* INA240A2: 3 A gives 1.5 V */

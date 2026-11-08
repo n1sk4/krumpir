@@ -23,18 +23,12 @@ python ../../tools/serial/capture.py --selftest
 python ../../tools/serial/timing_check.py --selftest
 
 echo "== Scenario CSVs, plots and tables"
-mkdir -p .pio out
-lib="lib/t12ctrl/src"
-core="../../libs/ctrlcore/src"
-plant="../../libs/plants/t12"
-gcc -Ilib/t12ctrl/include -I../../libs/ctrlcore/include -I$plant/include \
-  tools/scenarios.c $lib/t12_scenario.c $lib/t12_loop.c $lib/t12_ctrl.c $lib/t12_cycle.c \
-  $lib/t12_convert.c $lib/t12_safety.c $lib/t12_io_sim.c $lib/t12_frontend.c \
-  $core/pid.c $core/step_metrics.c \
-  $plant/src/t12_plant.c -lm -o .pio/scenarios
+mkdir -p out
+cmake -S test -B .pio/tools
+cmake --build .pio/tools --target t12_scenarios
 for s in cold load ambient open short stuck runaway; do
-  .pio/scenarios $s > out/scenario_$s.csv
+  .pio/tools/t12_scenarios $s > out/scenario_$s.csv
   python tools/plot.py out/scenario_$s.csv out/scenario_$s.png
 done
-.pio/scenarios summary > out/scenarios.md
-.pio/scenarios sweep > out/gain_sweep.md
+.pio/tools/t12_scenarios summary > out/scenarios.md
+.pio/tools/t12_scenarios sweep > out/gain_sweep.md

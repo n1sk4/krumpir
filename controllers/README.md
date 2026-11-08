@@ -73,15 +73,15 @@ Example: `sp 3000`, `start`, then `status` shows the speed settling at 3000 rpm.
 On the PC, from the controller folder (`tools/step_response.c`, `tools/scenarios.c`):
 
 ```sh
-gcc -Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include \
-  tools/step_response.c lib/motorctrl/src/motor_io_sim.c lib/motorctrl/src/motor_ctrl.c \
-  lib/motorctrl/src/motor_safety.c lib/motorctrl/src/motor_loop.c ../../libs/ctrlcore/src/pid.c \
-  ../../libs/plants/dcmotor/src/plant_sim.c -lm -o .pio/step_response.exe
-.pio/step_response.exe > docs/step_response.csv
+cmake -S test -B .pio/tools -G Ninja
+cmake --build .pio/tools --target motor_step_response motor_scenarios
+.pio/tools/motor_step_response > docs/step_response.csv
 python tools/plot.py docs/step_response.csv docs/step_response.png
-.pio/scenarios.exe step|load|saturation|inertia > docs/scenario_x.csv   # build: docs/tuning.md
-.pio/scenarios.exe sweep                                                  # gain sweep, markdown
+.pio/tools/motor_scenarios step > docs/scenario_step.csv   # or load|saturation|inertia
+.pio/tools/motor_scenarios sweep                           # gain sweep, markdown
 ```
+
+Each `tools/*.c` is a program `<name>_<file>` of the controller's `test/` build (and of `host/`).
 
 Docs: [tuning](esp32-motor-controller/docs/tuning.md) (motor model, gains, scenarios, targets,
 trips), [timing](esp32-motor-controller/docs/timing.md) (the measured loop),
@@ -152,14 +152,10 @@ the simulation), then holds 350 to 351 C at a duty of about 0.16 and 3.00 A.
 On the PC, from the controller folder:
 
 ```sh
-gcc -Ilib/t12ctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/t12/include \
-  tools/scenarios.c lib/t12ctrl/src/t12_scenario.c lib/t12ctrl/src/t12_loop.c \
-  lib/t12ctrl/src/t12_ctrl.c lib/t12ctrl/src/t12_cycle.c lib/t12ctrl/src/t12_convert.c \
-  lib/t12ctrl/src/t12_safety.c lib/t12ctrl/src/t12_io_sim.c ../../libs/ctrlcore/src/pid.c \
-  ../../libs/ctrlcore/src/step_metrics.c ../../libs/plants/t12/src/t12_plant.c -lm -o .pio/scenarios.exe
-.pio/scenarios.exe cold > docs/scenario_cold.csv     # or load|ambient|open|short|stuck|runaway
-.pio/scenarios.exe summary                           # every scenario's results, markdown
-.pio/scenarios.exe sweep                             # kp / ki sweep
+cmake -S test -B .pio/tools -G Ninja && cmake --build .pio/tools --target t12_scenarios
+.pio/tools/t12_scenarios cold > docs/scenario_cold.csv   # or load|ambient|open|short|stuck|runaway
+.pio/tools/t12_scenarios summary                         # every scenario's results, markdown
+.pio/tools/t12_scenarios sweep                           # kp / ki sweep
 python tools/plot.py docs/scenario_cold.csv docs/scenario_cold.png
 ```
 

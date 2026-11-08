@@ -27,10 +27,12 @@ static t12_trip_t check(t12_safety_t *s, const t12_meas_t *m, float temp)
   if (isfinite(temp) && temp > c->max_temp)
     return T12_TRIP_OVER_TEMP;
 
-  if (t12_heater_amps(m->current_off) > c->max_off_amps)
+  /* A lost measurement (the HIL link gone) has no current to judge: only its invalid temperature
+   * counts, towards the sensor timeout. */
+  if (!m->lost && t12_heater_amps(m->current_off) > c->max_off_amps)
     return T12_TRIP_STUCK_ON;
 
-  if (m->current_valid) {
+  if (!m->lost && m->current_valid) {
     float amps = t12_heater_amps(m->current);
     if (amps < c->min_heat_amps)
       return T12_TRIP_NO_TIP;

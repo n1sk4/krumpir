@@ -1,5 +1,7 @@
 #include "t12_cycle.h"
 
+#include "t12_hw.h"
+
 void t12_cycle_init(t12_cycle_t *c, uint32_t period, uint32_t settle, uint32_t samples)
 {
   c->period = period;
@@ -10,8 +12,18 @@ void t12_cycle_init(t12_cycle_t *c, uint32_t period, uint32_t settle, uint32_t s
   c->heat = 0;
   c->acc = 0;
   c->n = 0;
+  c->tc_bad = false;
+  c->lost = false;
   c->current = 0;
   c->duty = 0.0f;
+}
+
+/* A reading, noting a missing one (T12_ADC_NONE) for the cycle's measurement. */
+static uint16_t note(t12_cycle_t *c, uint16_t v)
+{
+  if (v == T12_ADC_NONE)
+    c->lost = true;
+  return v;
 }
 
 void t12_cycle_set_duty(t12_cycle_t *c, float duty)
@@ -25,6 +37,8 @@ bool t12_cycle_tick(t12_cycle_t *c, const t12_io_t *io, t12_meas_t *meas)
     c->heat = (uint32_t)(c->duty * (float)c->max_heat + 0.5f);
     c->acc = 0;
     c->n = 0;
+    c->tc_bad = false;
+    c->lost = false;
     c->current = 0;
   }
 
@@ -32,20 +46,24 @@ bool t12_cycle_tick(t12_cycle_t *c, const t12_io_t *io, t12_meas_t *meas)
   if (c->tick < c->heat) {
     io->heater_set(io->ctx, true);
     if (c->tick + 1 == c->heat)
-      c->current = io->current_read(io->ctx); /* sees the previous tick's heating */
+      c->current = note(c, io->current_read(io->ctx)); /* sees the previous tick's heating */
   } else {
     io->heater_set(io->ctx, false);
     uint32_t off = c->tick - c->heat;
     if (off >= c->settle && off < c->settle + c->samples) {
-      c->acc += io->tc_read(io->ctx);
+      uint16_t tc = note(c, io->tc_read(io->ctx));
+      c->tc_bad |= tc >= T12_ADC_MAX;
+      c->acc += tc;
       c->n++;
     }
     if (off + 1 == c->settle + c->samples) {
-      meas->tc = (uint16_t)((c->acc + c->n / 2) / c->n);
-      meas->ntc = io->ntc_read(io->ctx);
+      meas->tc = c->tc_bad ? T12_ADC_MAX : (uint16_t)((c->acc + c->n / 2) / c->n);
+      meas->ntc = note(c, io->ntc_read(io->ctx));
       meas->current = c->current;
-      meas->current_off = io->current_read(io->ctx); /* heater off for settle + samples ticks */
+      /* heater off for settle + samples ticks */
+      meas->current_off = note(c, io->current_read(io->ctx));
       meas->current_valid = c->heat >= 2;
+      meas->lost = c->lost;
       meas->heat_ticks = (uint16_t)c->heat;
       meas->duty = (float)c->heat / (float)c->max_heat;
       done = true;

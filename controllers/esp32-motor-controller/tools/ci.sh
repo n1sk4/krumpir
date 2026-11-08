@@ -23,18 +23,13 @@ python ../../tools/serial/timing_check.py --selftest
 python ../../tools/serial/capture.py --selftest
 
 echo "== Simulation CSVs and plots"
-mkdir -p .pio out
-lib="lib/motorctrl/src"
-core="../../libs/ctrlcore/src"
-plant="../../libs/plants/dcmotor/src"
-inc="-Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include"
-src="$lib/motor_io_sim.c $lib/motor_ctrl.c $lib/motor_safety.c $lib/motor_loop.c $core/pid.c $plant/plant_sim.c"
-gcc $inc tools/step_response.c $src -lm -o .pio/step_response
-gcc $inc tools/scenarios.c $src $lib/motor_scenario.c $core/step_metrics.c -lm -o .pio/scenarios
-.pio/step_response > out/step_response.csv
+mkdir -p out
+cmake -S test -B .pio/tools
+cmake --build .pio/tools --target motor_step_response motor_scenarios
+.pio/tools/motor_step_response > out/step_response.csv
 python tools/plot.py out/step_response.csv out/step_response.png
 for s in step load saturation inertia; do
-  .pio/scenarios $s > out/scenario_$s.csv
+  .pio/tools/motor_scenarios $s > out/scenario_$s.csv
   python tools/plot.py out/scenario_$s.csv out/scenario_$s.png
 done
-.pio/scenarios sweep > out/gain_sweep.md
+.pio/tools/motor_scenarios sweep > out/gain_sweep.md

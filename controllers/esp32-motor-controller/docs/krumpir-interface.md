@@ -72,7 +72,7 @@ t_ms,setpoint_rpm,speed_rpm,duty_permille
 |---|---|---|
 | `t_ms` | ms | control-loop tick count (1 tick = 1 ms) |
 | `setpoint_rpm` | rpm | setpoint in use, rounded to an integer |
-| `speed_rpm` | rpm | measured speed, rounded to an integer |
+| `speed_rpm` | rpm | measured speed, rounded to an integer; `99999` while the reading is invalid (the encoder or the HIL link lost) |
 | `duty_permille` | 1/1000 | actuator command, -1000 to +1000 |
 
 Command replies and the prompt share the same serial stream, so a parser should keep only lines

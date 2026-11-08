@@ -52,11 +52,12 @@ Each scenario is a native test (`test/test_scenarios`) using the default gains.
 | rotor inertia doubled, then step | same targets as the step |
 
 Plots: `scenario_step.png`, `scenario_load.png`, `scenario_saturation.png`,
-`scenario_inertia.png`. To regenerate them (needs gcc and the Python venv):
+`scenario_inertia.png`. To regenerate them, from the controller folder (needs CMake, Ninja, gcc
+and the Python venv):
 
 ```
-gcc -Ilib/motorctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/dcmotor/include tools/scenarios.c lib/motorctrl/src/motor_io_sim.c lib/motorctrl/src/motor_ctrl.c lib/motorctrl/src/motor_safety.c lib/motorctrl/src/motor_loop.c ../../libs/ctrlcore/src/pid.c ../../libs/plants/dcmotor/src/plant_sim.c lib/motorctrl/src/motor_scenario.c ../../libs/ctrlcore/src/step_metrics.c -lm -o .pio/scenarios.exe
-.pio/scenarios.exe step > docs/scenario_step.csv
+cmake -S test -B .pio/tools -G Ninja && cmake --build .pio/tools --target motor_scenarios
+.pio/tools/motor_scenarios step > docs/scenario_step.csv
 python tools/plot.py docs/scenario_step.csv docs/scenario_step.png
 ```
 

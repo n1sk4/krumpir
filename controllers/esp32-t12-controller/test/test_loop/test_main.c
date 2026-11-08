@@ -1,6 +1,8 @@
 #include <math.h>
 #include <unity.h>
 
+#include "t12_cycle.h"
+#include "t12_hw.h"
 #include "t12_io_sim.h"
 #include "t12_loop.h"
 
@@ -95,6 +97,76 @@ static void test_stop_returns_to_zero_duty(void)
   TEST_ASSERT_EQUAL_FLOAT(0.0f, r.loop.duty);
 }
 
+/* The simulated board behind a wrapper: from tick `lost_from` on every reading is T12_ADC_NONE
+ * (what src/io_hil.c reads once the HIL link is gone); on tick `open_at` the thermocouple reads
+ * full scale once (an open input for one sample). */
+static struct {
+  t12_io_t real;
+  long tick, lost_from, open_at;
+} w;
+
+static bool gone(void) { return w.lost_from >= 0 && w.tick >= w.lost_from; }
+static void w_heater(void *c, bool on) { (void)c, w.real.heater_set(w.real.ctx, on); }
+static uint16_t w_tc(void *c)
+{
+  (void)c;
+  return gone() ? T12_ADC_NONE : w.tick == w.open_at ? T12_ADC_MAX : w.real.tc_read(w.real.ctx);
+}
+static uint16_t w_ntc(void *c)
+{
+  (void)c;
+  return gone() ? T12_ADC_NONE : w.real.ntc_read(w.real.ctx);
+}
+static uint16_t w_cur(void *c)
+{
+  (void)c;
+  return gone() ? T12_ADC_NONE : w.real.current_read(w.real.ctx);
+}
+static void w_hb(void *c) { (void)c, w.real.heartbeat_toggle(w.real.ctx); }
+static void w_safe(void *c) { (void)c, w.real.safe_state(w.real.ctx); }
+
+/* Heats to the setpoint, then runs until `until` behind the wrapper; returns the trip tick. */
+static long run_wrapped(rig_t *r, long lost_from, long open_at, long until)
+{
+  rig_init(r);
+  w.real = r->io;
+  w.tick = 0, w.lost_from = lost_from, w.open_at = open_at;
+  const t12_io_t io = {w_heater, w_tc, w_ntc, w_cur, w_hb, w_safe, NULL};
+  t12_loop_start(&r->loop);
+  long trip = -1;
+  for (; w.tick < until; w.tick++) {
+    t12_loop_tick(&r->loop, &io);
+    if (trip < 0 && !t12_safety_ok(&r->loop.safety))
+      trip = w.tick;
+    t12_io_sim_step(&r->sim);
+  }
+  return trip;
+}
+
+/* A lost link reads as a sensor fault at every phase of the heater cycle, never as a tip or heater
+ * fault from readings held over: 5 invalid cycles, so within 0.6 s. */
+static void test_a_lost_link_trips_sensor_timeout_at_any_cycle_phase(void)
+{
+  rig_t r;
+  for (long phase = 0; phase < T12_CYCLE_PERIOD_TICKS; phase++) {
+    const long loss = 8000 + phase;
+    const long trip = run_wrapped(&r, loss, -1, loss + 1000);
+    TEST_ASSERT_EQUAL_STRING("sensor timeout", t12_trip_name(r.loop.safety.latched));
+    TEST_ASSERT_TRUE(trip > loss && trip - loss <= 600);
+  }
+}
+
+/* One thermocouple sample at full scale makes that cycle's temperature invalid, not a bogus hot
+ * average (which tripped over temperature); a single invalid reading is ignored. */
+static void test_one_open_sample_is_an_invalid_reading_not_a_hot_one(void)
+{
+  rig_t r;
+  for (long at = 8000; at < 8000 + T12_CYCLE_PERIOD_TICKS; at++) {
+    TEST_ASSERT_EQUAL(-1, run_wrapped(&r, -1, at, 8300));
+    TEST_ASSERT_TRUE(fabsf(r.loop.temp - 350.0f) < 2.0f);
+  }
+}
+
 int main(void)
 {
   UNITY_BEGIN();
@@ -103,5 +175,7 @@ int main(void)
   RUN_TEST(test_started_loop_heats_to_the_setpoint);
   RUN_TEST(test_a_trip_stops_the_loop_and_blocks_start_until_cleared);
   RUN_TEST(test_stop_returns_to_zero_duty);
+  RUN_TEST(test_a_lost_link_trips_sensor_timeout_at_any_cycle_phase);
+  RUN_TEST(test_one_open_sample_is_an_invalid_reading_not_a_hot_one);
   return UNITY_END();
 }

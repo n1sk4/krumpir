@@ -1,7 +1,8 @@
 {{ banner }}
 # {{ m.name }}_controller_tests: the controller library and its Unity tests on the PC, without
-# PlatformIO (pio test -e native runs the same tests):
+# PlatformIO (pio test -e native runs the same tests), and its PC tools (tools/*.c):
 #   cmake -S test -B <build> && cmake --build <build> && ctest --test-dir <build>
+#   cmake --build <build> --target {{ m.name }}_scenarios && <build>/{{ m.name }}_scenarios ...
 cmake_minimum_required(VERSION 3.25)
 project({{ m.name }}_controller_tests C)
 include(../../../cmake/krumpir.cmake)
@@ -11,3 +12,5 @@ krumpir_add_subdirectory_once({{ m.lib }} ../lib/{{ m.lib }} {{ m.lib }})
 
 enable_testing()
 krumpir_unity_tests("${CMAKE_CURRENT_SOURCE_DIR}" PREFIX {{ m.name }}_ {{ m.lib }})
+
+{% include "tools_targets.cmake.j2" %}

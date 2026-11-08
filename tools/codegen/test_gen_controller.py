@@ -115,6 +115,9 @@ def main():
     assert '#define CTRL_GEN_HIL_CMD {"duty", "brake"}' in hil["gen/ctrl_gen.h"]
     assert "#define CTRL_GEN_HIL_N_CMD 2" in hil["gen/ctrl_gen.h"]
     assert "add_executable(demo_host" in hil["host/CMakeLists.txt"]
+    for f in ("test/CMakeLists.txt", "host/CMakeLists.txt"):  # one tools target per tools/*.c
+        assert "if(NOT TARGET demo_${stem})" in hil[f], f
+    assert "set_target_properties(demo_scenarios" in hil["host/CMakeLists.txt"]
     assert "pio run -e esp32dev-hil" in hil["tools/ci.sh"]
     assert json.loads(hil["gen/ctrl_gen.json"])["hil"]["plant"] == ["speed_rpm"]
     expect_error(GOOD + '[hil]\nplant = []\ncmd = ["duty"]\n', "plant must be 1 to 16")

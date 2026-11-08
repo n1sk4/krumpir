@@ -121,7 +121,7 @@ once per heater cycle, so they appear within about 0.2 s of the cause.
 | `heater short` | 24 V divided by the heating current below 6 ohm |
 | `no tip` | less than 0.3 A while heating |
 | `heater resistance` | 24 V divided by the heating current above 10 ohm |
-| `sensor timeout` | 5 invalid temperature readings in a row; a single one is ignored |
+| `sensor timeout` | 5 invalid temperature readings in a row; a single one is ignored. A reading is invalid when a thermocouple sample of the window is at full scale (open input) or the HIL link is lost |
 | `thermal runaway` | 20 s at 90 % duty or more without a 50 K rise |
 
 Other behavior:
@@ -182,8 +182,9 @@ controller's readings come from the plant FMU and its commands drive it, over a 
 
 Until the first plant frame the controller does not run (it waits for the runner, so its sensor
 checks do not trip at boot). A link that stops reads as a lost sensor: after 10 ticks without a
-frame the thermocouple reads as open, and 5 invalid temperature readings in a row (one per 100 ms
-heater cycle) trip `sensor timeout`, about 0.5 s after the last frame.
+frame every reading is missing, so a cycle's measurement is lost; the current checks skip it (no
+`no tip` or `heater stuck on` from values held over) and it counts as an invalid temperature.
+5 in a row (one per 100 ms heater cycle) trip `sensor timeout`, within 0.6 s of the last frame.
 The runner's BYE (unload, or a fault) stops the controller.
 
 Bring-up:

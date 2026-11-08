@@ -14,20 +14,24 @@ static void heater_set(void *ctx, bool on)
   ((t12_io_hil_t *)ctx)->slots.cmd[HEATER] = on ? 1.0f : 0.0f;
 }
 
+/* Once the link is lost every reading is T12_ADC_NONE: the controller treats the measurement as
+ * lost (a sensor timeout after its invalid readings), not as a tip or heater fault. */
 static uint16_t tc_read(void *ctx)
 {
   const t12_io_hil_t *h = ctx;
-  return lost(h) ? T12_ADC_MAX : t12_tc_counts(h->slots.plant[V_AMP]);
+  return lost(h) ? T12_ADC_NONE : t12_tc_counts(h->slots.plant[V_AMP]);
 }
 
 static uint16_t ntc_read(void *ctx)
 {
-  return t12_ntc_counts(((t12_io_hil_t *)ctx)->slots.plant[T_HANDLE]);
+  const t12_io_hil_t *h = ctx;
+  return lost(h) ? T12_ADC_NONE : t12_ntc_counts(h->slots.plant[T_HANDLE]);
 }
 
 static uint16_t current_read(void *ctx)
 {
-  return t12_current_counts(((t12_io_hil_t *)ctx)->slots.plant[I_HEATER]);
+  const t12_io_hil_t *h = ctx;
+  return lost(h) ? T12_ADC_NONE : t12_current_counts(h->slots.plant[I_HEATER]);
 }
 
 static void heartbeat_toggle(void *ctx) { ((t12_io_hil_t *)ctx)->hb_age = 0; }

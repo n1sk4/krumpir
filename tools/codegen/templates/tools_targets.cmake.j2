@@ -1,0 +1,10 @@
+# The controller's PC tools, one program per tools/*.c ({{ m.name }}_scenarios, ...), against its
+# library and the on-chip plant. test/ and host/ both add them; in one tree the first one does.
+file(GLOB ctrl_tools CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../tools/*.c")
+foreach(src ${ctrl_tools})
+  get_filename_component(stem ${src} NAME_WE)
+  if(NOT TARGET {{ m.name }}_${stem})
+    add_executable({{ m.name }}_${stem} ${src})
+    target_link_libraries({{ m.name }}_${stem} PRIVATE {{ m.lib }} krumpir::warnings)
+  endif()
+endforeach()

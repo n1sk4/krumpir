@@ -16,12 +16,16 @@
 #define T12_SETTLE_TICKS 3
 #define T12_SAMPLE_TICKS 4
 
+/* A thermocouple sample at T12_ADC_MAX or above (an open or saturated input) makes the whole
+ * window read T12_ADC_MAX, so the temperature reads invalid instead of a bogus average. A reading
+ * of T12_ADC_NONE (no reading: a lost HIL link) marks the measurement lost. */
 typedef struct {
-  uint16_t tc;         /* thermocouple counts, averaged */
+  uint16_t tc;         /* thermocouple counts, averaged; T12_ADC_MAX if a sample was */
   uint16_t ntc;        /* handle NTC counts at the end of the window */
   uint16_t current;    /* heater current counts at the last heating tick */
   uint16_t current_off; /* heater current counts at the end of the off window */
   bool current_valid;  /* false when the cycle heated for fewer than two ticks */
+  bool lost;           /* a reading of this cycle was T12_ADC_NONE: none of it can be trusted */
   uint16_t heat_ticks; /* ticks the heater was on in this cycle */
   float duty;          /* heat_ticks as a fraction of the longest possible heating phase */
 } t12_meas_t;
@@ -31,6 +35,8 @@ typedef struct {
   uint32_t tick; /* position in the cycle */
   uint32_t heat; /* heating ticks of the running cycle */
   uint32_t acc, n;
+  bool tc_bad; /* a thermocouple sample of this window was at T12_ADC_MAX or above */
+  bool lost;   /* a reading of this cycle was T12_ADC_NONE */
   uint16_t current;
   float duty; /* 0..1, for the next cycle */
 } t12_cycle_t;

@@ -68,14 +68,14 @@ plant. The measured figures come from `tools/scenarios.c summary`.
 | tip loses more heat than the supply can make up (0.5 W/K) | trip "thermal runaway" 19 to 25 s after the event | 20.3 s |
 
 Plots: `scenario_cold.png`, `scenario_load.png`, `scenario_ambient.png`, `scenario_open.png`,
-`scenario_short.png`, `scenario_stuck.png`, `scenario_runaway.png`. To regenerate them (needs gcc
-and the Python venv):
+`scenario_short.png`, `scenario_stuck.png`, `scenario_runaway.png`. To regenerate them, from the
+controller folder (needs CMake, Ninja, gcc and the Python venv):
 
 ```
-gcc -Ilib/t12ctrl/include -I../../libs/ctrlcore/include -I../../libs/plants/t12/include tools/scenarios.c lib/t12ctrl/src/t12_scenario.c lib/t12ctrl/src/t12_loop.c lib/t12ctrl/src/t12_ctrl.c lib/t12ctrl/src/t12_cycle.c lib/t12ctrl/src/t12_convert.c lib/t12ctrl/src/t12_safety.c lib/t12ctrl/src/t12_io_sim.c ../../libs/ctrlcore/src/pid.c ../../libs/ctrlcore/src/step_metrics.c ../../libs/plants/t12/src/t12_plant.c -lm -o .pio/scenarios.exe
-.pio/scenarios.exe cold > docs/scenario_cold.csv
+cmake -S test -B .pio/tools -G Ninja && cmake --build .pio/tools --target t12_scenarios
+.pio/tools/t12_scenarios cold > docs/scenario_cold.csv
 python tools/plot.py docs/scenario_cold.csv docs/scenario_cold.png
-.pio/scenarios.exe summary
+.pio/tools/t12_scenarios summary
 ```
 
 ## Safety behavior

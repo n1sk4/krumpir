@@ -51,7 +51,7 @@ speed 3000.0 rpm  duty 0.537  log off  telemetry dropped 0
 loop (since last status): period ns min/mean/max 995718/1000000/1004237  exec ns min/mean/max 3081/3100/3993  overruns 0  n=5000
 ```
 
-- State is `running` or `stopped`. Fault is `none`, `overspeed` or `sensor timeout`.
+- State is `running` or `stopped`. Trip is `none`, `overspeed` or `sensor timeout`.
 - `duty` is signed, -1 to +1.
 - The `loop` line appears once the control loop has run since the previous `status`. `n` is the
   number of cycles in that window.
@@ -142,7 +142,9 @@ controller's readings come from the plant FMU and its commands drive it, over a 
 | Runner scenario | `runner/scenarios/dcmotor_hil_board.toml` (`device = "/dev/ttyUSB0"`) |
 
 Until the first plant frame the controller does not run (it waits for the runner, so its sensor
-checks do not trip at boot); a link that stops for 10 ticks reads as a lost sensor and trips it.
+checks do not trip at boot). A link that stops reads as a lost sensor: after 10 ticks without a
+frame the speed reads invalid, and 50 invalid readings in a row trip `sensor timeout`, about 60 ms
+after the last frame.
 The runner's BYE (unload, or a fault) stops the controller.
 
 Bring-up:
@@ -152,7 +154,7 @@ Bring-up:
    Type `sp 3000` and `start`.
 3. `krumpir run scenarios/dcmotor_hil_board.toml` (or Load it in the TUI): the console prints
    `hil: runner connected`; the summary's `late` should stay near 0 (a few at most).
-4. `tools/hil/compare.py motor --board /dev/ttyUSB0 --console /dev/ttyUSB1` (the console port: the
+4. `python3 tools/kb.py compare motor --board /dev/ttyUSB0 --console /dev/ttyUSB1` (the console port: the
    board's USB) runs every case against the board and writes `docs/sil_vs_board.md`.
 5. Pull the adapter's TX during a run: the controller trips `sensor timeout`, the runner holds the
    last commands and counts late steps.

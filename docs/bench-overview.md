@@ -47,8 +47,8 @@ Included:
 - The same FMU run in SIL on a PC with FMPy, and against the controller's on-chip simulation
   (`tools/hil/compare.py`).
 
-Not included: the controller's own analog and PWM I/O path (a later stage: PWM capture and DAC
-outputs, from the Pi or a Pico 2), a GUI model editor, multiple FMUs or a co-simulation master,
+Not included: the controller's own analog and PWM I/O path (the bench drives it over the UART
+only), a GUI model editor, multiple FMUs or a co-simulation master,
 Model Exchange, variable-step solvers, non-real variables, CAN, bipolar ±10 V outputs and signal
 conditioning.
 
@@ -59,7 +59,7 @@ conditioning.
 2. **Run it in SIL.** The FMU on a PC against FMPy, and the controller on its on-chip plant.
 3. **Run it in HIL.** The same FMU runs on the Pi; the ESP32's PID firmware (`esp32dev-hil`) drives
    it over the UART and reads the speed back.
-4. **Compare and measure.** `tools/hil/compare.py motor --board ...` overlays SIL and HIL and reports
+4. **Compare and measure.** `python3 tools/kb.py compare motor --board ...` overlays SIL and HIL and reports
    the error and the loop latency; logic-analyzer captures of the Pi's timing pin, the ESP32's
    (GPIO 23) and the UART lines show the tick and the latency.
 

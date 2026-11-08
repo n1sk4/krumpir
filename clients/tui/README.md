@@ -32,7 +32,7 @@ krumpir-tui --repo ~/krumpir                  # where controllers/ is (default: 
 | Key | |
 |-----|-|
 | F1 / F2 | Load / Monitor tab (or click the tab) |
-| up / down | on the cards: the runner or a controller (the same on both tabs) |
+| up / down | (the cards, both tabs) the runner or a controller |
 | Tab, arrows | move between the cards, fields and lists |
 | Enter | on a file: load it (as edited); in the path: open that file |
 | up / down | (Load, the form) the next or previous field; space ticks a box, Enter opens a list |
@@ -87,5 +87,5 @@ The UI thread (FTXUI) posts commands and reads a snapshot; a worker thread (`src
 the connection, runs the commands in order and polls every 100 ms, so the UI never waits on the
 network. `src/service.*` is the blocking protocol client (a refusal is a `ServiceError`, a broken
 link a `LinkError`); `src/a2l.*`, `src/xcp.*`, `src/ecu_model.*` the same for a controller;
-`src/ui/` one component per tab. `KT_ECU=<a2l> test_core` also checks a running controller (EPK,
+`src/ui/` one component per tab. `KRUMPIR_ECU_A2L=<a2l> test_core` also checks a running controller (EPK,
 a calibration write, DAQ at 1 kHz).

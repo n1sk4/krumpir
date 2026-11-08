@@ -94,7 +94,7 @@ NO_CONNECT = [("U2", "BOUT1"), ("U2", "BOUT2")]
 NOTES = [
     (20.0, 25.0, "ESP32 DC motor speed controller - intended wiring (6 V N20 gearmotor)"),
     (20.0, 31.0, "Pins are proposed. The firmware currently simulates the motor and uses only"),
-    (20.0, 36.0, "GPIO23 (loop timing), the UART0 console and the UART2 HIL link; the others are not driven yet."),
+    (20.0, 36.0, "GPIO23 (loop timing), the UART0 console and the UART2 HIL link; the others are not driven."),
     (20.0, 262.0, "J2 pin order is typical for N20 hall-encoder motors: check yours before wiring."),
     (20.0, 267.0, "J4 is the HIL link (UART2, GPIO17 TX / GPIO16 RX) to the Pi; the console stays on UART0 (USB)."),
     (20.0, 272.0, "ESP32 and Raspberry Pi are 3.3 V logic. The 6 V supply must share GND with both."),

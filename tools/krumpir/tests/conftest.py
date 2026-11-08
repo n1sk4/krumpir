@@ -1,8 +1,9 @@
 """Fixtures: a running service and a model-access port on it.
 
 By default the tests start `krumpir serve` on a free local port, in runner/ (where fmus/ is), from
-KRUMPIR_EXE (default: kb.py's dev build, e.g. ~/build/krumpir/dev/runner/krumpir on WSL). With KRUMPIR_SERVICE=host:port they use a service
-that is already running instead (e.g. on the Pi, started in its runner/ directory).
+KRUMPIR_EXE (default: kb.py's dev build, e.g. ~/build/krumpir/dev/runner/krumpir on WSL). With
+KRUMPIR_SERVICE=host:port they use a service that is already running instead (e.g. on the Pi,
+started in its runner/ directory).
 """
 import json
 import os

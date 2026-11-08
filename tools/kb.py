@@ -204,9 +204,8 @@ def cmd_build(a):
     need("cmake")
     need("ninja")
     bdir = build_dir(a.preset)
-    cfg = ["cmake", "--preset", a.preset, "-B", bdir]
-    if a.only:
-        cfg.append(f"-DKRUMPIR_ONLY={a.only}")
+    # always set: a cached --only from an earlier build would otherwise stick
+    cfg = ["cmake", "--preset", a.preset, "-B", bdir, f"-DKRUMPIR_ONLY={a.only or ''}"]
     step(run(cfg) == 0, "configure")
     step(run(["cmake", "--build", bdir]) == 0, "build")
     return 0

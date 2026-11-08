@@ -345,7 +345,7 @@ link; a pty pair from socat is the wire. From the repository root:
 ```sh
 python3 tools/kb.py loop t12           # or motor; --live: own clocks instead of lockstep
 python3 tools/kb.py loop t12-open      # faults: t12-open|-short|-stuck|-runaway, motor-sensor|-link
-tools/hil/pc_loop.sh t12 --check -- -c "sp 300"   # the script itself, more controller commands
+bash tools/hil/pc_loop.sh t12 --check -- -c "sp 300"   # the script itself, more controller commands
 ```
 
 - The values on the link are `[hil]` in `controller.toml` (in frame order): the plant values the
@@ -400,12 +400,12 @@ Each controller has its own port: motor 5555, t12 5556.
 cmake -S controllers/esp32-t12-controller/host -B ~/build/host-t12-xcp -DKRUMPIR_XCP=ON
 cmake --build ~/build/host-t12-xcp
 python3 tools/kb.py a2l t12 --host --elf ~/build/host-t12-xcp/t12_host   # docs/t12_host.a2l
-KRUMPIR_CONTROLLER=~/build/host-t12-xcp/t12_host KRUMPIR_XCP_PORT=5556 tools/hil/pc_loop.sh t12 --live
+KRUMPIR_CONTROLLER=~/build/host-t12-xcp/t12_host KRUMPIR_XCP_PORT=5556 bash tools/hil/pc_loop.sh t12 --live
 ```
 
 - `kb.py a2l --host` runs `tools/hil/fix_host_a2l.py` after xcpclient: on Linux XCPlite keeps the
   EPK in calibration segment 0, which an offline A2L does not know.
 - On Windows, xcpclient and the TUI reach a controller in WSL only with mirrored networking
   (`networkingMode=mirrored` in `%UserProfile%\.wslconfig`); otherwise run the TUI in WSL.
-- `KT_ECU=<a2l> test_core` (the TUI's tests) checks a running controller: EPK, a calibration write
+- `KRUMPIR_ECU_A2L=<a2l> test_core` (the TUI's tests) checks a running controller: EPK, a calibration write
   and DAQ at 1 kHz.

@@ -1,6 +1,6 @@
 # Krumpir bench bill of materials
 
-Low-cost hardware-in-the-loop bench: a Raspberry Pi 4B runs the plant model (FMU) under PREEMPT_RT, and an ESP32 runs the controller under test (DUT) with its own firmware, the two joined by a serial link. A Pico 2 and analog I/O are a later stage ([below](#later-stage-pico-2-and-analog-io)).
+Low-cost hardware-in-the-loop bench: a Raspberry Pi 4B runs the plant model (FMU) under PREEMPT_RT, and an ESP32 runs the controller under test (DUT) with its own firmware, the two joined by a serial link.
 
 > Prices are approximate (EUR, late 2026) and vary by supplier. All logic is 3.3 V — no level shifting needed.
 
@@ -12,8 +12,8 @@ ESP32 (DUT, PID, 1 kHz) --UART2: commands (CMD)----------> Pi 4B (runner: FMU, P
         +--------------- UART2: plant values (PLANT) <-----------+
 ```
 
-The same link runs from a PC (the runner on Linux or WSL) through a USB-serial adapter, before the Pi
-is in the loop ([bench-overview.md](bench-overview.md)).
+The same link also runs from a PC (the runner on Linux or WSL) through a USB-serial adapter
+([bench-overview.md](bench-overview.md)).
 
 ## Core
 
@@ -37,13 +37,13 @@ is in the loop ([bench-overview.md](bench-overview.md)).
 | 6 | USB-serial adapter, 3.3 V (FT232R or CP2102) | 1 | The ESP32's HIL UART to the runner on a PC (`/dev/ttyUSB0`); with an FTDI chip set its latency timer to 1 ms | €3–8 |
 | 7 | 330 Ω resistors | 10+ | Series protection on the UART lines | €1 |
 
-Wiring (UART2, 921600 baud, 8N1):
+Wiring (UART2, 921600 baud, 8N1; on the controllers' schematics the Krumpir header J4 / J5):
 
-| ESP32 | Adapter (runner on a PC) | Pi 4B (runner on the Pi) |
-|-------|--------------------------|--------------------------|
-| GPIO17 (TX) | RX | the UART's RX |
-| GPIO16 (RX) | TX | the UART's TX |
-| GND | GND | GND |
+| ESP32 | Header pin | Adapter (runner on a PC) | Pi 4B (runner on the Pi) |
+|-------|------------|--------------------------|--------------------------|
+| GPIO17 (TX), `HIL_TX` | 2 | RX | the UART's RX |
+| GPIO16 (RX), `HIL_RX` | 3 | TX | the UART's TX |
+| GND | 1 | GND | GND |
 
 The runner's `device` is `/dev/ttyUSB0` for the adapter and `/dev/ttyAMA0` on the Pi; the pins and the
 bring-up checklist are in each controller's `docs/krumpir-interface.md` ("HIL link").
@@ -65,39 +65,9 @@ bring-up checklist are in each controller's `docs/krumpir-interface.md` ("HIL li
 | Bench (items 1–11) | ~€112–158 |
 | Bench without Pi (already owned, items 5–11) | ~€33–53 |
 | + optional proto HAT (item 12) | +€5–10 |
-| + later stage, core (items 13–15) | +€9–13 |
-| + later stage, optional ADC and CAN (items 16–18) | +€8.5–11.5 |
-
-## Later stage: Pico 2 and analog I/O
-
-The controller's own analog and PWM I/O path, per controller: the plant's values as voltages into the
-ESP32's ADC and its PWM measured, instead of the UART link. Not part of the bench above.
-
-```
-ESP32 (DUT, PID) --PWM--> Pico 2 (PIO capture) --SPI--> Pi 4B (FMU, PREEMPT_RT)
-       ^                                                        |
-       |                                                        v
-       +----------ADC <---- MCP4822 DAC <--SPI-- Pico 2 <--SPI--+
-```
-
-| # | Item | Qty | Purpose | Approx. price |
-|---|------|-----|---------|---------------|
-| 13 | Raspberry Pi Pico 2 (RP2350) | 1 | I/O coprocessor: hardware-timed sampling, PWM capture via PIO | €5–7 |
-| 14 | MCP4822 dual 12-bit SPI DAC (DIP-8) | 1 | Plant outputs (e.g. simulated speed) → DUT ADC | €3–5 |
-| 15 | 100 nF ceramic capacitors | 5+ | Decoupling for DAC/ADC | €1 |
-| 16 | MCP3208 8-ch 12-bit SPI ADC (DIP-16) | 1 | *Optional* — upgrade if Pico's internal ADC is too noisy | €4–5 |
-
-Optional CAN extension:
-
-| # | Item | Qty | Purpose | Approx. price |
-|---|------|-----|---------|---------------|
-| 17 | SN65HVD230 CAN transceiver module (3.3 V) | 2 | ESP32 TWAI ↔ Pico (can2040 PIO library) | €4–6 |
-| 18 | 120 Ω resistors | 2 | Bus termination (if not on modules) | €0.5 |
-
-Closed-loop timing on this path: exchange one sample per step (e.g. 1 kHz) between the Pi and the Pico
-rather than buffering blocks — buffering adds latency that destabilizes the loop.
 
 ## Notes
 
 - **Headline measurements:** step jitter (worst case), loop latency (a plant frame out to the command it caused back, at most 2 steps), and SIL (FMPy on PC) vs HIL output match ([bench-overview.md](bench-overview.md), Acceptance).
-- **Grounding:** connect all boards to a common ground; power the ESP32 (and later the Pico) from USB or the Pi's 3.3 V/5 V rails, not separate floating supplies.
+- **Grounding:** connect all boards to a common ground; power the ESP32 from USB or the Pi's 3.3 V/5 V rails, not a separate floating supply.
+- **Not covered:** the controller's own analog and PWM I/O (the bench drives the controller over the UART only).

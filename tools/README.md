@@ -9,6 +9,7 @@
 | `kicad/` | the schematic writer behind each `generate_schematic.py` | [../controllers/README.md](../controllers/README.md#schematics) |
 | `hil/` | the closed loop on the PC (`pc_loop.sh`), its checks, SIL vs PC / board (`compare.py`) | [../controllers/README.md](../controllers/README.md#hil-on-the-pc-and-the-board) |
 | `check_links.py` | every relative link and anchor in the markdown resolves (`kb.py check`) | |
+| `test_kb.py` | `kb.py`'s own test: each command, dry run (`kb.py check`) | |
 
 The Python packages for all of them: `requirements.txt` (installed by `kb.py setup`).
 

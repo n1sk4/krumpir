@@ -1,5 +1,5 @@
 // The load form: fields from a describe reply, its checks, and the scenario text it writes.
-// With KT_RUNNER=host:port (a `krumpir serve` in runner/) it also round-trips every scenario of
+// With KRUMPIR_SERVICE=host:port (a `krumpir serve` in runner/) it also round-trips every scenario of
 // that runner: describe -> form -> text -> describe gives the same scenario.
 #include <cstdlib>
 
@@ -192,9 +192,9 @@ TEST_CASE("form: a reply without a scenario")
   CHECK(f.problem == "missing [io]");
 }
 
-TEST_CASE("form: round trip through a runner (KT_RUNNER)")
+TEST_CASE("form: round trip through a runner (KRUMPIR_SERVICE)")
 {
-  const char *address = std::getenv("KT_RUNNER");
+  const char *address = std::getenv("KRUMPIR_SERVICE");
   if (address == nullptr) {
     return;
   }

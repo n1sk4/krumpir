@@ -136,5 +136,5 @@ file = "runs/motor.csv"
 | --- | --- | --- |
 | `null` | none | SIL; inputs read 0 (signals replace them), discards outputs |
 | `uart` | serial, binary frames (`libs/hil`) | digital link to the device under test |
-| `pwm` | PWM with RC filter | later stage, not built: simple analog output |
-| `spi` | SPI to a DAC/ADC | later stage, not built: MCP4822 / MCP3208 |
+
+There is no analog or PWM backend: the device under test is driven over the UART only.

@@ -42,6 +42,7 @@ def main():
     build = dry("build", "--preset", "dev", "--only", "runner;tui")
     assert build[0].startswith("cmake --preset dev -B ") and "'-DKRUMPIR_ONLY=runner;tui'" in build[0]
     assert build[1].startswith("cmake --build "), build
+    assert "-DKRUMPIR_ONLY=" in dry("build", "--preset", "dev")[0]  # clears a cached --only
 
     assert dry("test", "--preset", "dev", "-R", "hil_")[-1].endswith("--output-on-failure -R hil_")
 

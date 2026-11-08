@@ -25,6 +25,6 @@ Board: ESP32-WROOM-32 DevKit (CH340 USB-serial, COM4), CPU 160 MHz (ESP-IDF defa
   Jitter is unchanged (about +-4.3 us); exec rises to about 4.7 us, the cost of telemetry traffic.
 
 ## Caveats
-- Measured with the CPU cycle counter, which shares a PLL with the timer; a logic-analyzer
-  capture of GPIO 23 would be the independent check (not done).
-- Short runs (seconds). A longer soak test would catch rarer excursions.
+- Measured with the CPU cycle counter, which shares a PLL with the timer; there is no independent
+  check with a logic-analyzer capture of GPIO 23.
+- Short runs (seconds): rarer excursions are not covered.

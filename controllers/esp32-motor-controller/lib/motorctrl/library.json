@@ -1,6 +1,14 @@
 {
   "name": "motorctrl",
   "version": "0.1.0",
+  "dependencies": [
+    {
+      "name": "ctrlcore"
+    },
+    {
+      "name": "dcmotor"
+    }
+  ],
   "build": {
     "srcDir": "src",
     "includeDir": "include",

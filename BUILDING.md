@@ -168,8 +168,10 @@ The files have one shape: a header comment (what it builds, how to build it alon
 `cmake_minimum_required(VERSION 3.25)` in the roots (the controllers' ESP-IDF projects keep IDF's
 own), `set(srcs ...)` one file per line and sorted, and in each library the ESP-IDF branch first
 (`if(ESP_PLATFORM) idf_component_register(...) return()`), then `add_library`, the alias and the
-warnings. Each library thus builds from PlatformIO (`library.json`), any CMake project and ESP-IDF
-(list the folder in `EXTRA_COMPONENT_DIRS`).
+warnings. The portable libraries (ctrlcore, the plants, osal, rte, hil, the controllers'
+libraries) thus build from PlatformIO (`library.json`), any CMake project and ESP-IDF (list the
+folder in `EXTRA_COMPONENT_DIRS`); `libs/esp/*` is PlatformIO only (the firmware), `osal_host`
+PlatformIO and CMake (the PC).
 
 ## Options and environment
 

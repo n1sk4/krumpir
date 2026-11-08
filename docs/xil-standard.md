@@ -105,7 +105,7 @@ flowchart TB
 | MiL | not used; we went straight to C. The numpy plant in `gen_golden.py` checks the plant model, not a controller | `libs/plants/t12/tools/` |
 | SiL | yes: the controller code against the C plant on the PC, plus the plant FMU in the runner with `io = null` | `tools/scenarios.c`, `pio test -e native`, `runner/` |
 | PiL | yes: the controller runs on the ESP32 against the plant model compiled into the same firmware | both controllers' firmware |
-| HiL | designed, not built: the Pi runs the plant FMU at 1 kHz and talks to the ESP32 | `docs/architecture.md`, `runner/` |
+| HiL | built, not yet measured with a board: the runner's `uart` backend closes the loop with the controller's own code on the PC (a pty pair), and the firmware has the same link (`esp32dev-hil`) for the Pi | `runner/`, `tools/hil/pc_loop.sh`, `docs/architecture.md` |
 | real plant | schematic only | `controllers/*/hardware/` |
 
 One part of the design is unusual: the same C plant file feeds SiL, PiL and later the FMU. That is
@@ -116,14 +116,14 @@ what the XiL method asks for (one model at every level), and many commercial set
 | ASAM XIL concept | Krumpir equivalent | Gap |
 |---|---|---|
 | test bench | the runner (Pi) plus the DUT board | none in idea |
-| test automation tool | `timing_check.py`, `capture.py`, CI workflows, the test sequence in `krumpir-interface.md` | no common API; each script talks serial directly |
-| MA port: read/write model variables | `[model] params` and `[io] inputs/outputs` in `scenario.toml`, set before the run | no access while running (the parameter mailbox is designed, not built) and no remote access |
-| MA port: simulation control | `krumpir run`, Ctrl-C, exit codes | no start/stop/step over a link |
+| test automation tool | the Python client (`tools/krumpir`: `Testbench`, `MAPort`, `EcuPort`), `timing_check.py`, `capture.py`, CI workflows, the test sequence in `krumpir-interface.md` | the serial scripts still talk to the console directly |
+| MA port: read/write model variables | `[model] params` and `[io] inputs/outputs` in `scenario.toml`; while running, `read` and `write` over the service (`krumpir serve`, `MAPort`), applied at a step boundary (`core/cmdq`) | names are the FMU's own; no XIL framework layer |
+| MA port: simulation control | `krumpir run`, Ctrl-C, exit codes; `load`, `init`, `start`, `stop`, `wait`, `state` over the service | no single stepping |
 | framework mapping and units | `[io]` names map straight to FMU variables; `capture.py` turns `_permille` and `_ma` into fractions and amps | no mapping layer and no unit metadata; units live in column suffixes |
-| stimulus from signal descriptions | `stimulus` kinds `constant`, `step`, `sine` in TOML | no ramps, tables or replay of recorded signals |
-| capture, triggers, watchers | every step goes to a CSV row | no triggers (for example "start capture when the trip fires") and no watchers |
+| stimulus from signal descriptions | `stimulus` kinds `constant`, `step`, `sine` and `segments` (const, ramp, sine, pulse, idle, a data file) in TOML; signals sent while running (`signal`, `MAPort.signal`) | no XIL signal-description files |
+| capture, triggers, watchers | every step goes to a CSV row; captures of chosen variables between a start and a stop trigger (a condition on a variable, a duration, a buffer size), fetched over the service | conditions compare one variable with a value |
 | MDF recording | CSV | not readable by MDF tools, no channel units |
-| ECU port: measurement and calibration | the ESP32 text console: `sp`, `kp`, `status`, `log on` | text, slow (115200 baud, 10 Hz rows), ad hoc per controller |
+| ECU port: measurement and calibration | XCP (XCPlite) over Wi-Fi on the boards and over UDP on the PC builds, the A2L from the ELF (`EcuPort`, the TUI); the text console (`sp`, `kp`, `status`, `log on`) | the console is text, slow (115200 baud, 10 Hz rows) |
 | Diag port: fault memory | `status` shows the latched trip, `clear` clears it | one trip only, no history |
 | EES port: electrical faults | `fault open/short/stuck` inside the simulated tip | only simulated in the firmware; on a real HiL this needs a fault switch board between the bench and the DUT |
 | Network port | none | CAN is out of scope |
@@ -141,22 +141,23 @@ flowchart TB
   subgraph PI["Raspberry Pi"]
     CS["Linux cores: control service<br/>load scenario, start/stop,<br/>read/write variables, stream the log"]
     RT["isolated RT core: runner loop<br/>FMU step + I/O backend<br/>no XIL here"]
-    CS <-->|parameter mailbox,<br/>telemetry ring| RT
+    CS <-->|command queues,<br/>telemetry ring| RT
   end
   DUT["ESP32, device under test<br/>controller firmware"]
   HC <-->|Ethernet, own protocol| CS
   RT <-->|UART / GPIO| DUT
-  HC <-->|USB serial console,<br/>ECU port role| DUT
+  HC <-->|XCP over Wi-Fi or the USB console,<br/>ECU port role| DUT
 ```
 
 XIL is the test automation side, so the Pi runs none of it. Commercial benches work the same way:
 the XIL implementation runs on the host PC and talks to the real-time target over the vendor's own
-link. What the Pi needs is a control service on its non-real-time cores that the host can call
-(the runner is a command-line program today). That service is needed with or without XIL.
+link. The Pi has that control service on its non-real-time cores: `krumpir serve`, JSON lines
+over TCP (`runner/docs/service-protocol.md`). It is needed with or without XIL.
 
 Summary: Krumpir already has the layers XIL assumes (bench, model access, DUT access, fault
-injection, recording). What it lacks is a single host-side API with stable names over them. Every
-tool reimplements its own serial handling and column conventions.
+injection, recording). The Python client is the host-side API over the runner and XCP; the serial
+console scripts are what still sits outside it, each with its own serial handling and column
+conventions.
 
 ## 4. Adopting ASAM XIL: pros and cons
 

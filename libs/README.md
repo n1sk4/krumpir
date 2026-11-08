@@ -1,9 +1,10 @@
 # Shared libraries
 
 Plain C, no framework, used by the controllers (on the chip and in the PC tests) and by the plant
-FMUs. Each builds with PlatformIO (`library.json`), any CMake project (a target
-`krumpir::<name>`) and ESP-IDF (the same `CMakeLists.txt` registers a component when
-`ESP_PLATFORM` is set). Building: [../BUILDING.md](../BUILDING.md) (part `libs`; `pio test -e
+FMUs. The portable ones (ctrlcore, the plants, osal, rte, hil) build with PlatformIO
+(`library.json`), any CMake project (a target `krumpir::<name>`) and ESP-IDF (the same
+`CMakeLists.txt` registers a component when `ESP_PLATFORM` is set); `esp/*` is PlatformIO only
+(the firmware), `osal_host` PlatformIO and CMake (the PC). Building: [../BUILDING.md](../BUILDING.md) (part `libs`; `pio test -e
 native` here runs the same Unity tests).
 
 | Library | Contents |

@@ -1,6 +1,14 @@
 {
   "name": "t12ctrl",
   "version": "0.1.0",
+  "dependencies": [
+    {
+      "name": "ctrlcore"
+    },
+    {
+      "name": "t12"
+    }
+  ],
   "build": {
     "srcDir": "src",
     "includeDir": "include",

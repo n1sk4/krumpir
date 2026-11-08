@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Independent reference for the T12 plant: writes libs/test/test_t12_plant/golden.h.
 
 The thermal network is solved in closed form with an eigendecomposition (the C code uses a
@@ -9,8 +10,11 @@ Scenario: 10 Hz heating cycles at 1 ms steps (90 ms on, 10 ms off) for 20 s from
 10 s the tip touches a joint (extra 0.3 W/K). Rows are taken at the end of steps 89, 92, 95 and 99
 of every tenth cycle: heater just switched off, settling, and the readable end of the off window.
 
-Usage: python -I gen_golden.py [output.h]
+    python3 -I libs/plants/t12/tools/gen_golden.py [OUT.h]   (default: the test's golden.h)
+
+Exit status: 0 ok, 2 usage.
 """
+import argparse
 import pathlib
 import sys
 
@@ -98,4 +102,7 @@ def main(out):
 
 if __name__ == "__main__":
     default = pathlib.Path(__file__).resolve().parents[3] / "test" / "test_t12_plant" / "golden.h"
-    main(sys.argv[1] if len(sys.argv) > 1 else default)
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("out", nargs="?", default=default, help="the header to write")
+    sys.exit(main(ap.parse_args().out))

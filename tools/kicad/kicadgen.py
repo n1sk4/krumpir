@@ -28,6 +28,7 @@ The .kicad_pro file is only written when it does not exist, so the project setti
 in it are never overwritten. UUIDs are derived from the board's namespace, so the output is
 reproducible. --check prints the nets as the drawn geometry connects them, as KiCad sees them.
 """
+import argparse
 import os
 import re
 import sys
@@ -464,9 +465,17 @@ def generate(board, out_dir, check=False):
 
 
 def run(board, here, argv=None):
-    """Entry point for a board script: handles --check and --out DIR, defaulting to `here`."""
-    argv = sys.argv[1:] if argv is None else argv
-    out = here
-    if "--out" in argv:
-        out = argv[argv.index("--out") + 1]
-    generate(board, out, check="--check" in argv)
+    """Entry point for a board script: --check, --out DIR (default `here`), and --help with the
+    script's docstring. Exit status: 0 ok, 1 a KiCad library or the folder is missing, 2 usage."""
+    import __main__
+    ap = argparse.ArgumentParser(description=__main__.__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--check", action="store_true", help="also print each net with its pins")
+    ap.add_argument("--out", metavar="DIR", default=here, help="write into DIR (default: here)")
+    a = ap.parse_args(argv)
+    try:
+        generate(board, a.out, check=a.check)
+    except FileNotFoundError as e:
+        sys.exit(f"kicadgen: {e.filename} not found (KiCad's libraries: KICAD_SYMBOL_DIR, "
+                 "KICAD_3RD_PARTY_DIR, tools/kicad/kicadgen.py)")
+    return 0

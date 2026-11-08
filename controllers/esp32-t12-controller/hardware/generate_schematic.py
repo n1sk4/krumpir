@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Generate t12-controller.kicad_sch (KiCad 10) from the part and net tables below.
 
 The circuit is the protected T12 / T15 controller described in docs/T12 Controller Design.md: a
@@ -9,7 +10,7 @@ The schematic reads from the 24 V input at the top left, down the heater path, t
 thermocouple amplifier, with the current sense, the NTC and the buck converter beside it and the
 ESP32 on the right. Wires connect the parts inside each block; net labels only link the blocks.
 
-Usage (from this folder):
+Usage (from any folder; the files go next to this script):
   python generate_schematic.py            # write t12-controller.kicad_sch and the library tables
   python generate_schematic.py --check    # also print each net with the pins on it
   python generate_schematic.py --out DIR  # write into DIR instead of this folder
@@ -268,4 +269,4 @@ BOARD = Board(NAME, NS, PARTS, CONNECTIONS, POWER, FOOTPRINTS, NO_CONNECT, NOTES
               wires=WIRES, names=NAMES, power_at=POWER_AT, text_at=TEXT_AT)
 
 if __name__ == "__main__":
-    run(BOARD, here)
+    sys.exit(run(BOARD, here))

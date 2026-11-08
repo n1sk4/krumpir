@@ -1,6 +1,7 @@
+#!/usr/bin/env python3
 """Generate motor-controller.kicad_sch (KiCad 10) from the part and net tables below.
 
-Usage (from this folder):
+Usage (from any folder; the files go next to this script):
   python generate_schematic.py            # write motor-controller.kicad_sch and the library tables
   python generate_schematic.py --check    # also print each net with the pins on it
   python generate_schematic.py --out DIR  # write into DIR instead of this folder
@@ -102,4 +103,4 @@ NOTES = [
 BOARD = Board(NAME, NS, PARTS, CONNECTIONS, POWER, FOOTPRINTS, NO_CONNECT, NOTES)
 
 if __name__ == "__main__":
-    run(BOARD, here)
+    sys.exit(run(BOARD, here))

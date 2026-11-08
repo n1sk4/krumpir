@@ -9,7 +9,8 @@ Self-check (no board needed):
 Sends `log off` and `log on` (the firmware then prints its CSV header), runs each --cmd, records
 for --duration seconds, then sends `log off`. Any controller works: the columns come from the
 header the firmware prints. The first column (t_ms) becomes t_s from zero; a `_permille` column is
-divided by 1000 and loses the suffix; a `_ma` column becomes amps (`_a`). Close the serial monitor
+divided by 1000 and loses the suffix; a `_ma` column becomes amps (`_a`); 99999, the firmware's
+mark for an invalid reading (controller.toml `nan`), becomes `nan`. Close the serial monitor
 first, the port can only be open once. Needs pyserial.
 """
 import argparse
@@ -19,6 +20,7 @@ import time
 
 HEADER_LINE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(,[A-Za-z_][A-Za-z0-9_]*)+$")
 ROW_LINE = re.compile(r"^-?\d+(,-?\d+)+$")
+INVALID = 99999  # the telemetry's mark for an invalid reading (controller.toml `nan`)
 
 
 def convert_header(names):
@@ -42,6 +44,8 @@ def convert_row(names, values, t0):
     for n, v in zip(names, values):
         if n == "t_ms":
             out.append(f"{(v - t0) / 1000:.3f}")
+        elif v == INVALID:
+            out.append("nan")
         elif n.endswith("_permille") or n.endswith("_ma"):
             out.append(f"{v / 1000:.3f}")
         else:
@@ -128,6 +132,7 @@ def selftest():
     assert convert_header(names) == ["t_s", "setpoint_c", "temp_c", "duty", "current_a"]
     assert convert_row(names, rows[1], rows[0][0]) == ["0.099", "350", "31", "1.000", "2.999"]
     assert convert_row(names, rows[2], rows[0][0])[4] == "-0.001"
+    assert convert_row(names, [1000, 350, INVALID, 0, 0], 1000)[2] == "nan"  # invalid reading
     assert convert_header(["t_ms", "speed_rpm", "duty_permille"]) == ["t_s", "speed_rpm", "duty"]
     print("selftest ok")
 

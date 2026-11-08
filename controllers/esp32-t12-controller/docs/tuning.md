@@ -79,23 +79,28 @@ python tools/plot.py docs/scenario_cold.csv docs/scenario_cold.png
 ```
 
 ## Safety behavior
-A trip stops the controller, sets the duty to 0 and stops the heartbeat, so the series switch also
-opens within 100 ms. It stays latched until `clear`; `start` is refused in the meantime. The
-heartbeat runs only while no trip is latched.
+
+A trip stops the controller, sets the duty to 0 and stops the heartbeat that holds the series
+switch on, so on the real board the heater loses power within 100 ms even if the first switch
+fails. It stays latched until `clear`; `start` is refused in the meantime. The trips are checked
+once per heater cycle (100 ms): the temperature and current trips appear within about 0.2 s of the
+cause, `sensor timeout` after 5 cycles (within 0.6 s), `thermal runaway` after 20 s.
 
 | Trip | Condition |
 |---|---|
-| over temperature | a reading above 480 degC |
-| heater stuck on | more than 0.5 A while the heater is commanded off |
-| heater short | 24 V divided by the heating current below 6 ohm |
-| no tip | less than 0.3 A while heating |
-| heater resistance | 24 V divided by the heating current above 10 ohm |
-| sensor timeout | 5 invalid temperature readings in a row (a single one is ignored) |
-| thermal runaway | 20 s at 90 % duty or more without a 50 K rise |
+| `over temperature` | a reading above 480 degC |
+| `heater stuck on` | more than 0.5 A while the heater is commanded off |
+| `heater short` | 24 V divided by the heating current below 6 ohm |
+| `no tip` | less than 0.3 A while heating |
+| `heater resistance` | 24 V divided by the heating current above 10 ohm |
+| `sensor timeout` | 5 invalid temperature readings in a row; a single one is ignored. A reading is invalid when a thermocouple sample of the window is at full scale (open input) or the HIL link is lost |
+| `thermal runaway` | 20 s at 90 % duty or more without a 50 K rise |
 
-A missing tip is only noticed once the heater has run, since the check needs current: it is caught
-within one cycle after `start`, not while the controller is stopped. The task watchdog (1 s)
-resets the board if the control loop hangs.
+| Condition | Result |
+|---|---|
+| `stop` | duty 0, PID reset; the simulated tip cools |
+| missing tip while stopped | not detected: the check needs current, so it trips within one cycle after `start` |
+| the control loop stops running for 1 s | the task watchdog resets the board; it comes back stopped with the defaults |
 
 ## Checks on the board
 ```

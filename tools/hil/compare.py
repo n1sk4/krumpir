@@ -318,8 +318,8 @@ T12_TRIPS = ["none", "over temperature", "heater stuck on", "heater short", "no 
 
 def compare_t12(sil, pc, case):
     """On the measurement cycles (the samples of both sides): the controller's temperature and
-    duty, and the tip temperature of the plant at that tick. Invalid readings (NaN on chip, -1 in
-    the telemetry) are left out; the fault cases compare the trip and its time."""
+    duty, and the tip temperature of the plant at that tick. Invalid readings (NaN on chip, 99999
+    in the telemetry) are left out; the fault cases compare the trip and its time."""
     run, ctrl, (pc_trip, pc_trip_s) = pc
     dt = PLANTS["t12"]["dt"]
     tip_pc = {0: 25.0}
@@ -333,7 +333,7 @@ def compare_t12(sil, pc, case):
         if c is None:
             continue
         t.append(s["t_s"])
-        ok = math.isfinite(s["temp_c"]) and c["temp_c"] >= 0
+        ok = math.isfinite(s["temp_c"]) and c["temp_c"] != 99999  # telemetry's invalid mark
         temp[0].append(s["temp_c"] if ok else math.nan)
         temp[1].append(c["temp_c"] if ok else math.nan)
         duty[0].append(s["duty"])

@@ -51,7 +51,7 @@ static void print_row(const telem_sample_t *s)
 {
   printf("%u,%d,%d,%d,%d\n", (unsigned)s->t_ms,
          telemetry_round(s->v[0]),
-         isfinite(s->v[1]) ? telemetry_round(s->v[1]) : -1,
+         isfinite(s->v[1]) ? telemetry_round(s->v[1]) : 99999,
          telemetry_round(s->v[2] * 1000.0f),
          telemetry_round(s->v[3] * 1000.0f));
 }

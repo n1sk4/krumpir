@@ -98,8 +98,9 @@ def main():
         checks += [("load: settling s", settle, 0.3), ("load: error %", err / 30, 0.5)]
     elif kind == "t12":
         # cold start to 350 degC: overshoot under 2 %, settling under 8 s, final error under 1 K
-        t = [r["t_ms"] / 1000 for r in ctrl]
-        x = [r["temp_c"] for r in ctrl]
+        valid = [r for r in ctrl if r["temp_c"] != 99999]  # telemetry's invalid mark
+        t = [r["t_ms"] / 1000 for r in valid]
+        x = [r["temp_c"] for r in valid]
         over, settle, err = step_figures(t, x, 350, 0, 10, 7)
         checks += [("overshoot %", over, 2), ("settling s", settle, 8), ("final error K", err, 1)]
         over, settle, err = step_figures(t, x, 350, 10, 14, 7)

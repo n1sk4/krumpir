@@ -62,17 +62,22 @@ python tools/plot.py docs/scenario_step.csv docs/scenario_step.png
 ```
 
 ## Safety behavior
-- **Stop:** `stop` forces zero duty and resets the PID; the simulated motor coasts down.
-- **Trips** stop the controller and stay latched until `clear`; `start` is refused while a trip
-  is latched.
-  - overspeed: |speed| above 7000 rpm (the no-load speed is about 5600 rpm).
-  - sensor timeout: 50 consecutive non-finite speed readings (50 ms). A single bad reading is
-    ignored; the PID holds its last output.
-  - no rotation: |duty| 0.5 or more while |speed| reads under 100 rpm, 200 ticks in a row
-    (200 ms): a dead encoder (it reads 0) or a jammed shaft. The motor passes 100 rpm within about
-    a millisecond at half duty, so a start or a reversal does not trip it.
-- **Watchdog:** the control task is registered with the task watchdog and feeds it every 100
-  cycles. The timeout is 1 s and a timeout resets the board.
+
+A trip stops the controller (duty 0, the motor coasts) and stays latched until `clear`; `start` is
+refused in the meantime. The checks run every tick (1 ms).
+
+| Condition | Result |
+|---|---|
+| `stop` | duty 0, PID reset; the simulated motor coasts down |
+| overspeed: \|speed\| above 7000 rpm in either direction (the no-load speed is about 5600 rpm) | trip `overspeed` |
+| sensor timeout: 50 consecutive non-finite speed readings (50 ms); a single bad reading is ignored and the PID holds its last output | trip `sensor timeout` |
+| no rotation: \|duty\| 0.5 or more while \|speed\| reads under 100 rpm, 200 ticks in a row (200 ms): a dead encoder (it reads 0) or a jammed shaft | trip `no rotation` |
+| the control loop stops running for 1 s (the task watchdog is fed every 100 cycles) | the watchdog resets the board; it comes back stopped with the defaults |
+
+At half duty the motor passes 100 rpm within about a millisecond, so a start or a reversal does not
+trip `no rotation`. With the simulated motor the sensor timeout cannot occur, and `no rotation`
+only under a load torque that stalls it. On the HIL link the plant FMU's `fault` input gives both:
+1 the encoder lost (`sensor timeout`), 2 the encoder dead (`no rotation`).
 
 ## Checks on the board
 ```

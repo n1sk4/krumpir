@@ -91,18 +91,9 @@ cycle counter; an external capture of this pin is an independent check.
 
 ## Safety behavior the bench can expect
 
-| Condition | Result |
-|---|---|
-| `stop` | duty 0, PID reset |
-| overspeed: speed beyond 7000 rpm in either direction | trip `overspeed` latched, controller stops, duty 0 |
-| sensor timeout: 50 consecutive non-finite speed readings | trip `sensor timeout` latched, controller stops, duty 0 |
-| no rotation: \|duty\| 0.5 or more and \|speed\| under 100 rpm for 200 ticks in a row (a dead encoder reads 0, or the shaft is jammed) | trip `no rotation` latched, controller stops, duty 0 |
-| control loop stops running for 1 s | task watchdog resets the board; it comes back stopped with defaults |
-
-A latched trip stays until `clear`; `start` is refused in the meantime. A single bad speed reading
-is ignored and the PID holds its last output. The sensor timeout cannot occur with the simulated
-motor; `no rotation` only under a load torque that stalls it. On the HIL link the plant FMU's
-`fault` input gives both: 1 the encoder lost (`sensor timeout`), 2 the encoder dead (`no rotation`).
+A trip (`overspeed`, `sensor timeout`, `no rotation`) stops the controller with duty 0 and stays
+latched until `clear`. The conditions, the stop and the watchdog:
+[tuning.md, Safety behavior](tuning.md#safety-behavior).
 
 ## Typical test sequence
 

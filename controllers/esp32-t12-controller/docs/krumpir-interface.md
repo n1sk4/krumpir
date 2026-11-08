@@ -84,7 +84,7 @@ t_ms,setpoint_c,temp_c,duty_permille,current_ma
 |---|---|---|
 | `t_ms` | ms | control-loop tick count at the end of the measurement (1 tick = 1 ms) |
 | `setpoint_c` | C | setpoint in use after the ramp, rounded to an integer |
-| `temp_c` | C | measured tip temperature, rounded; -1 when the reading is invalid |
+| `temp_c` | C | measured tip temperature, rounded; 99999 when the reading is invalid (thermocouple open, HIL link lost) |
 | `duty_permille` | 1/1000 | heating fraction of the cycle, 0 to 1000 |
 | `current_ma` | mA | heater current while heating, 0 when not heating |
 
@@ -109,28 +109,9 @@ measured with the CPU cycle counter; an external capture of this pin is an indep
 
 ## Safety behavior the bench can expect
 
-A trip stops the controller, sets the duty to 0 and stops the heartbeat that holds the series
-switch on, so on the real board the heater loses power within 100 ms even if the first switch
-fails. It stays latched until `clear`, and `start` is refused in the meantime. Trips are checked
-once per heater cycle, so they appear within about 0.2 s of the cause.
-
-| Trip | Condition |
-|---|---|
-| `over temperature` | a reading above 480 C |
-| `heater stuck on` | more than 0.5 A while the heater is commanded off |
-| `heater short` | 24 V divided by the heating current below 6 ohm |
-| `no tip` | less than 0.3 A while heating |
-| `heater resistance` | 24 V divided by the heating current above 10 ohm |
-| `sensor timeout` | 5 invalid temperature readings in a row; a single one is ignored. A reading is invalid when a thermocouple sample of the window is at full scale (open input) or the HIL link is lost |
-| `thermal runaway` | 20 s at 90 % duty or more without a 50 K rise |
-
-Other behavior:
-
-| Condition | Result |
-|---|---|
-| `stop` | duty 0, PID reset; the simulated tip cools |
-| missing tip while stopped | not detected; the check needs current, so it trips within one cycle after `start` |
-| control loop stops running for 1 s | task watchdog resets the board; it comes back stopped with the defaults |
+A trip stops the controller with duty 0, drops the series switch and stays latched until `clear`.
+The trips, their conditions and timing, the stop and the watchdog:
+[tuning.md, Safety behavior](tuning.md#safety-behavior).
 
 ## Typical test sequence
 

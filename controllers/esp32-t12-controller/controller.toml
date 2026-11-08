@@ -90,7 +90,7 @@ value = "s_loop.ctrl.sp_active"
 [[telemetry.column]]
 name = "temp_c"
 value = "s_loop.temp"
-nan = -1
+nan = 99999 # an invalid reading (thermocouple open, HIL link lost); far outside any real one
 
 [[telemetry.column]]
 name = "duty_permille"

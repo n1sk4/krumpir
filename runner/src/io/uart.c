@@ -10,6 +10,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <poll.h>
 #include <stdarg.h>
 #include <stdatomic.h>
@@ -234,7 +235,7 @@ io_t *uart_io_open(const scenario_t *sc, char *err, size_t errlen)
   }
   u->io.api = &api;
   snprintf(u->device, sizeof u->device, "%s", sc->device);
-  u->timeout_ms = (int)(sc->timeout_ms + 0.5);
+  u->timeout_ms = (int)ceil(sc->timeout_ms); /* up: 0.3 still waits, only 0 is free-running */
   u->late_fault = sc->late_fault;
   u->max_late = sc->max_late;
   hil_parser_init(&u->parser);

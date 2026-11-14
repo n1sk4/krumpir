@@ -56,7 +56,7 @@ Paced ticks are absolute (`start + n * step`), so a late step does not push late
 | `stimulus` | list of tables | One per input at most. A stimulus replaces the backend's value for its input; an input without one gets the backend's value. Also written as `[[io.stimulus]]` tables. |
 | `device` | string | `uart` only, required: the serial device (`/dev/ttyAMA0`, a USB adapter, or a pty). |
 | `baud` | integer | `uart`: default `921600`; a standard rate. Ignored on a pty. |
-| `timeout_ms` | number | `uart`: default `100`. How long a step waits for the controller's answer. `0`: never wait, take the newest answer that has arrived (a controller on its own clock). |
+| `timeout_ms` | number | `uart`: default `100`. How long a step waits for the controller's answer, rounded up to whole ms. `0`: never wait, take the newest answer that has arrived (a controller on its own clock). |
 | `late` | string | `uart`: `"fault"` (default) or `"hold"`. A step without its answer keeps the last commands and counts as late; after `max_late` late steps in a row, `fault` faults the run. |
 | `max_late` | integer | `uart`: default `10`. |
 

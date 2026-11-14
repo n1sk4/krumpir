@@ -39,7 +39,10 @@ void motor_safety_init(motor_safety_t *s, const motor_safety_cfg_t *cfg);
  * tolerate it. */
 motor_trip_t motor_safety_update(motor_safety_t *s, float speed_rpm, float duty);
 void motor_safety_clear(motor_safety_t *s);
-static inline bool motor_safety_ok(const motor_safety_t *s) { return s->latched == MOTOR_TRIP_NONE; }
+static inline bool motor_safety_ok(const motor_safety_t *s)
+{
+  return s->latched == MOTOR_TRIP_NONE;
+}
 const char *motor_trip_name(motor_trip_t t);
 
 #endif

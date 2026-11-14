@@ -7,7 +7,8 @@
  * PC, libs/esp/espglue/src/hil_uart.c on the ESP32).
  *
  *   hil_port_bind(...)        once, before tick_task_start()
- *   every tick: hil_port_tick_begin(); [hil_port_bye() -> stop]; the controller; hil_port_tick_end();
+ *   every tick: hil_port_tick_begin(); [hil_port_bye() -> stop]; the controller;
+ * hil_port_tick_end();
  */
 
 #include <stdbool.h>
@@ -30,8 +31,8 @@ typedef struct {
 #define HIL_MAX_AGE 10
 
 /* The names give the HELLO hash the runner checks (hil_names_hash). */
-void hil_port_bind(hil_slots_t *s, const char *const *plant, size_t n_plant,
-                   const char *const *cmd, size_t n_cmd);
+void hil_port_bind(hil_slots_t *s, const char *const *plant, size_t n_plant, const char *const *cmd,
+                   size_t n_cmd);
 
 void hil_port_tick_begin(void); /* the newest plant values into the slots */
 void hil_port_tick_end(void);   /* the slots' commands out */

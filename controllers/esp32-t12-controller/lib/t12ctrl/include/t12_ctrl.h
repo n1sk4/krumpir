@@ -9,7 +9,7 @@
  * updated once per measurement (once per heater cycle). The setpoint is clamped to the allowed
  * range and, with a ramp rate set, approached no faster than that rate. */
 typedef struct {
-  float kp, ki, kd; /* duty per K, per K*s, per K/s */
+  float kp, ki, kd;     /* duty per K, per K*s, per K/s */
   float sp_min, sp_max; /* [degC] */
   float ramp;           /* [K/s], 0 = jump straight to the setpoint */
 } t12_ctrl_cfg_t;

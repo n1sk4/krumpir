@@ -91,8 +91,7 @@ static int receive(uart_t *u, int type, bool want_seq, uint16_t seq, int64_t dea
     }
     for (ssize_t i = 0; i < r; i++) {
       hil_frame_t f;
-      if (hil_parse_byte(&u->parser, buf[i], &f) && f.type == type &&
-          (!want_seq || f.seq == seq)) {
+      if (hil_parse_byte(&u->parser, buf[i], &f) && f.type == type && (!want_seq || f.seq == seq)) {
         *out = f;
         got = 1;
       }
@@ -132,7 +131,8 @@ static int uart_read(io_t *io, double t, double *in, size_t n)
   } else if (u->sent) {
     atomic_fetch_add_explicit(&io->late, 1, memory_order_relaxed);
     if (++u->run_late >= u->max_late && u->late_fault) {
-      return set_error(u, "no answer from the controller on %s for %d steps in a row "
+      return set_error(u,
+                       "no answer from the controller on %s for %d steps in a row "
                        "(line: %u CRC errors, %u resyncs)",
                        u->device, u->run_late, (unsigned)u->parser.crc_errors,
                        (unsigned)u->parser.resyncs);

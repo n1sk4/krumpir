@@ -28,10 +28,7 @@ static void rig(t12_io_sim_t *s, t12_io_t *io, double t_h, double t_c)
   s->plant.series_on = true;
 }
 
-static void test_ntc_at_25_degrees(void)
-{
-  NEAR(25.0, t12_handle_celsius(2048), 0.1);
-}
+static void test_ntc_at_25_degrees(void) { NEAR(25.0, t12_handle_celsius(2048), 0.1); }
 
 static void test_ntc_round_trip_through_the_front_end(void)
 {

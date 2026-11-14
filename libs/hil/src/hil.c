@@ -95,8 +95,8 @@ bool hil_parse_byte(hil_parser_t *p, uint8_t b, hil_frame_t *out)
   out->n = (uint8_t)n;
   for (size_t i = 0; i < n; i++) {
     const uint8_t *q = p->buf + 6 + 4 * i;
-    const uint32_t u = (uint32_t)q[0] | (uint32_t)q[1] << 8 | (uint32_t)q[2] << 16 |
-                       (uint32_t)q[3] << 24;
+    const uint32_t u =
+        (uint32_t)q[0] | (uint32_t)q[1] << 8 | (uint32_t)q[2] << 16 | (uint32_t)q[3] << 24;
     memcpy(&out->v[i], &u, 4);
   }
   return true;

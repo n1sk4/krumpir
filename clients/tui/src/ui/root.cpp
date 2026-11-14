@@ -8,7 +8,8 @@
 
 #include "ui.hpp"
 
-namespace krumpir::ui {
+namespace krumpir::ui
+{
 
 using namespace ftxui;
 
@@ -72,7 +73,8 @@ bool EscapeCloses(const Event &e, const std::function<void()> &close)
   return true;
 }
 
-namespace {
+namespace
+{
 
 Element StatusBar(const Snapshot &v)
 {
@@ -106,10 +108,9 @@ Component Cards(Model &m, const Controllers &ecus, int *selected)
   opt.selected = selected;
   opt.focused_entry = selected; // shared by the Load and Monitor cards
   opt.entries_option.transform = [names, &m, ecus](const EntryState &e) {
-    const bool up = e.index == 0
-                        ? m.view([](const Snapshot &v) { return v.connected; })
-                        : ecus[static_cast<std::size_t>(e.index - 1)].second->view(
-                              [](const EcuSnapshot &v) { return v.connected; });
+    const bool up = e.index == 0 ? m.view([](const Snapshot &v) { return v.connected; })
+                                 : ecus[static_cast<std::size_t>(e.index - 1)].second->view(
+                                       [](const EcuSnapshot &v) { return v.connected; });
     return text(Fit(e.label, kWidth)) | color(up ? Color::Green : Color::GrayDark) |
            (e.active ? bold : nothing) | (e.focused ? inverted : nothing) |
            size(WIDTH, EQUAL, kWidth) | (e.active ? borderHeavy : borderLight);
@@ -166,9 +167,8 @@ Component Root(Model &m, Controllers ecus, std::string address, std::function<vo
   auto layout = Container::Vertical({bar, tabs}, &s->focus);
 
   auto root = Renderer(layout, [&m, s, bar, tabs] {
-    return vbox({m.view(StatusBar), separator(), bar->Render(), separator(),
-                 tabs->Render() | flex, separator(),
-                 text(s->keys[s->tab][s->target > 0 ? 1 : 0]) | dim});
+    return vbox({m.view(StatusBar), separator(), bar->Render(), separator(), tabs->Render() | flex,
+                 separator(), text(s->keys[s->tab][s->target > 0 ? 1 : 0]) | dim});
   });
   return CatchEvent(root, [s, quit](const Event &e) {
     if (e == Event::F1 || e == Event::F2) {

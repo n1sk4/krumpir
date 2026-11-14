@@ -21,15 +21,15 @@ typedef enum {
 } t12_trip_t;
 
 typedef struct {
-  float max_temp;           /* [degC] */
-  float runaway_duty;       /* duty counted as full power */
-  uint32_t runaway_cycles;  /* cycles of full power allowed without the rise below */
-  float runaway_rise;       /* [K] */
-  uint32_t max_invalid;     /* consecutive invalid readings tolerated minus one */
-  float supply_v;           /* nominal heater supply [V] */
-  float r_min, r_max;       /* healthy heater loop resistance [ohm] */
-  float min_heat_amps;      /* less than this while heating means no tip [A] */
-  float max_off_amps;       /* more than this while commanded off means a stuck switch [A] */
+  float max_temp;          /* [degC] */
+  float runaway_duty;      /* duty counted as full power */
+  uint32_t runaway_cycles; /* cycles of full power allowed without the rise below */
+  float runaway_rise;      /* [K] */
+  uint32_t max_invalid;    /* consecutive invalid readings tolerated minus one */
+  float supply_v;          /* nominal heater supply [V] */
+  float r_min, r_max;      /* healthy heater loop resistance [ohm] */
+  float min_heat_amps;     /* less than this while heating means no tip [A] */
+  float max_off_amps;      /* more than this while commanded off means a stuck switch [A] */
 } t12_safety_cfg_t;
 
 /* From docs/T12 Controller Design.md: 480 degC limit, 20 s at full power without a 50 K rise,

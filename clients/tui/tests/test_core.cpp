@@ -7,21 +7,22 @@
 #include <algorithm>
 #include <asio.hpp>
 #include <atomic>
-#include <mutex>
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <mutex>
 #include <thread>
 
 #include "model.hpp"
 #include "service.hpp"
 
-using krumpir::json;
 using asio::ip::tcp;
+using krumpir::json;
 using namespace std::chrono_literals;
 
 // Answers one connection, line by line, with `reply(request)`; a null reply sends nothing.
-class FakeServer {
+class FakeServer
+{
 public:
   explicit FakeServer(std::function<json(const json &)> reply)
       : acceptor_(io_, tcp::endpoint(asio::ip::make_address("127.0.0.1"), 0)),
@@ -170,8 +171,12 @@ static void watch(bool capture)
       ok["rows"] = json(rows.begin() + static_cast<std::ptrdiff_t>(from), rows.end());
     } else if (op == "variables") {
       ok["variables"] = {
-          {{"name", "x"}, {"type", "Float64"}, {"causality", "output"}, {"tunable", false},
-           {"min", -1.5}, {"max", nullptr}},
+          {{"name", "x"},
+           {"type", "Float64"},
+           {"causality", "output"},
+           {"tunable", false},
+           {"min", -1.5},
+           {"max", nullptr}},
           {{"name", "p"}, {"type", "Float64"}, {"causality", "parameter"}, {"tunable", true}},
           {{"name", "k"}, {"type", "Float64"}, {"causality", "parameter"}, {"tunable", false}},
           {{"name", "u"}, {"type", "Float64"}, {"causality", "input"}, {"tunable", false}},
@@ -217,7 +222,7 @@ static void watch(bool capture)
     CHECK(v.vars[2].kind == "param");
     const auto &h = v.history.at("x");
     for (std::size_t i = 1; i < h.size(); i++) {
-      CHECK(h[i].t > h[i - 1].t); // one sample per new time
+      CHECK(h[i].t > h[i - 1].t);                                    // one sample per new time
       CHECK(h[i].v == doctest::Approx(capture ? -1.0 : 2 * h[i].t)); // capture rows, or polled
     }
     CHECK(v.history.at("u").size() >= 1); // not in the capture: polled either way
@@ -276,8 +281,7 @@ TEST_CASE("model: a service busy with another client says so")
   for (int i = 0; i < 300 && !told; i++) {
     std::this_thread::sleep_for(10ms);
     told = m.view([](const krumpir::Snapshot &v) {
-      return !v.events.empty() &&
-             v.events.back().find("cannot connect to") != std::string::npos &&
+      return !v.events.empty() && v.events.back().find("cannot connect to") != std::string::npos &&
              v.events.back().find("another client is connected") != std::string::npos;
     });
   }
@@ -295,8 +299,12 @@ TEST_CASE("model: a second start frees the first capture; a refusal of that is i
     std::lock_guard<std::mutex> lock(mu);
     seen.push_back(req);
     const std::string op = req["op"];
-    json ok = {{"ok", true}, {"fault", ""}, {"scenarios", json::array()}, {"fmus", json::array()},
-               {"variables", json::array()}, {"values", json::object()}};
+    json ok = {{"ok", true},
+               {"fault", ""},
+               {"scenarios", json::array()},
+               {"fmus", json::array()},
+               {"variables", json::array()},
+               {"values", json::object()}};
     if (op == "start") {
       if (state != "INITIALIZED") {
         return {{"ok", false}, {"code", "bad_state"}, {"error", "cannot start in " + state}};
@@ -316,7 +324,8 @@ TEST_CASE("model: a second start frees the first capture; a refusal of that is i
   });
   auto starts = [&] {
     std::lock_guard<std::mutex> lock(mu);
-    return std::count_if(seen.begin(), seen.end(), [](const json &r) { return r["op"] == "start"; });
+    return std::count_if(seen.begin(), seen.end(),
+                         [](const json &r) { return r["op"] == "start"; });
   };
   {
     krumpir::Model m([] {}, 10ms);
@@ -407,8 +416,12 @@ TEST_CASE("model: start on a stopped run resets it first")
     std::lock_guard<std::mutex> lock(mu);
     const std::string op = req["op"];
     ops.push_back(op);
-    json ok = {{"ok", true}, {"fault", ""}, {"scenarios", json::array()}, {"fmus", json::array()},
-               {"variables", json::array()}, {"values", json::object()}};
+    json ok = {{"ok", true},
+               {"fault", ""},
+               {"scenarios", json::array()},
+               {"fmus", json::array()},
+               {"variables", json::array()},
+               {"values", json::object()}};
     if (op == "reset") {
       if (state != "STOPPED") {
         return {{"ok", false}, {"error", "cannot reset in state " + state}};

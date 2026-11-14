@@ -12,8 +12,8 @@
 
 static void reconfigure(ModelInstance *comp)
 {
-  const plant_params_t p = {(float)M(R),  (float)M(L), (float)M(Kt),  (float)M(Ke),
-                            (float)M(J),  (float)M(b), (float)M(Vbus)};
+  const plant_params_t p = {(float)M(R), (float)M(L), (float)M(Kt),  (float)M(Ke),
+                            (float)M(J), (float)M(b), (float)M(Vbus)};
   plant_sim_set_params(&M(sim), &p, (float)FIXED_SOLVER_STEP); /* keeps the state */
   M(params_changed) = false;
 }
@@ -55,22 +55,48 @@ Status getFloat64(ModelInstance *comp, ValueReference vr, double values[], size_
   calculateValues(comp);
   double v;
   switch (vr) {
-  case vr_time: v = comp->time; break;
-  case vr_duty: v = M(duty); break;
-  case vr_load_torque: v = M(load_torque); break;
-  case vr_speed: v = M(sim).w; break;
+  case vr_time:
+    v = comp->time;
+    break;
+  case vr_duty:
+    v = M(duty);
+    break;
+  case vr_load_torque:
+    v = M(load_torque);
+    break;
+  case vr_speed:
+    v = M(sim).w;
+    break;
   case vr_speed_rpm: /* the encoder: lost (NaN), dead (no pulses: 0) or the shaft's speed */
     v = M(fault) == 1.0 ? NAN : M(fault) == 2.0 ? 0.0 : M(sim).w * RAD_S_TO_RPM;
     break;
-  case vr_current: v = M(sim).i; break;
-  case vr_R: v = M(R); break;
-  case vr_L: v = M(L); break;
-  case vr_Kt: v = M(Kt); break;
-  case vr_Ke: v = M(Ke); break;
-  case vr_J: v = M(J); break;
-  case vr_b: v = M(b); break;
-  case vr_Vbus: v = M(Vbus); break;
-  case vr_fault: v = M(fault); break;
+  case vr_current:
+    v = M(sim).i;
+    break;
+  case vr_R:
+    v = M(R);
+    break;
+  case vr_L:
+    v = M(L);
+    break;
+  case vr_Kt:
+    v = M(Kt);
+    break;
+  case vr_Ke:
+    v = M(Ke);
+    break;
+  case vr_J:
+    v = M(J);
+    break;
+  case vr_b:
+    v = M(b);
+    break;
+  case vr_Vbus:
+    v = M(Vbus);
+    break;
+  case vr_fault:
+    v = M(fault);
+    break;
   default:
     logError(comp, "Get Float64 is not allowed for value reference %u.", vr);
     return Error;
@@ -120,13 +146,20 @@ Status setFloat64(ModelInstance *comp, ValueReference vr, const double values[],
     else
       M(fault) = v;
     return OK;
-  case vr_R: return set_parameter(comp, &M(R), v, true, "R");
-  case vr_L: return set_parameter(comp, &M(L), v, true, "L");
-  case vr_Kt: return set_parameter(comp, &M(Kt), v, false, "Kt");
-  case vr_Ke: return set_parameter(comp, &M(Ke), v, false, "Ke");
-  case vr_J: return set_parameter(comp, &M(J), v, true, "J");
-  case vr_b: return set_parameter(comp, &M(b), v, false, "b");
-  case vr_Vbus: return set_parameter(comp, &M(Vbus), v, false, "Vbus");
+  case vr_R:
+    return set_parameter(comp, &M(R), v, true, "R");
+  case vr_L:
+    return set_parameter(comp, &M(L), v, true, "L");
+  case vr_Kt:
+    return set_parameter(comp, &M(Kt), v, false, "Kt");
+  case vr_Ke:
+    return set_parameter(comp, &M(Ke), v, false, "Ke");
+  case vr_J:
+    return set_parameter(comp, &M(J), v, true, "J");
+  case vr_b:
+    return set_parameter(comp, &M(b), v, false, "b");
+  case vr_Vbus:
+    return set_parameter(comp, &M(Vbus), v, false, "Vbus");
   default:
     logError(comp, "Set Float64 is not allowed for value reference %u.", vr);
     return Error;

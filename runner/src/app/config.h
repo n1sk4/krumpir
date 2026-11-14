@@ -29,7 +29,8 @@ typedef enum {
 
 typedef struct {
   seg_kind_t kind;
-  double duration; /* s; INFINITY: to the end of the run (last segment only); NAN: data file length */
+  double
+      duration; /* s; INFINITY: to the end of the run (last segment only); NAN: data file length */
   double value;
   double from, to;
   bool has_from;

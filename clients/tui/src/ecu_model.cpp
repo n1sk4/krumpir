@@ -6,11 +6,13 @@
 #include <filesystem>
 #include <fstream>
 
-namespace krumpir {
+namespace krumpir
+{
 
 namespace fs = std::filesystem;
 
-namespace {
+namespace
+{
 
 std::string str(const json &j, const char *key)
 {

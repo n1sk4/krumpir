@@ -191,8 +191,8 @@ static void test_signals(void)
   assert(read_ok(s, OUT) == 5.0);
 
   /* A ramp 0 -> 1000 over 1000 s started now: tiny but non-zero, and rising */
-  st.segs[0] = (segment_t){.kind = SEG_RAMP, .from = 0, .has_from = true, .to = 1000,
-                           .duration = 1000};
+  st.segs[0] =
+      (segment_t){.kind = SEG_RAMP, .from = 0, .has_from = true, .to = 1000, .duration = 1000};
   assert(session_set_signal(s, &st, err, sizeof err) == 0);
   sleep_ms(50);
   double a = read_ok(s, OUT);
@@ -307,7 +307,7 @@ static void test_captures(void)
   free(d.rows);
   assert(session_capture_fetch(s, 7, 0, SIZE_MAX, &d, err, sizeof err) == -ERR_NOT_FOUND);
   assert(session_capture_start(s, &a, err, sizeof err) == -ERR_BAD_STATE); /* STOPPED */
-  session_destroy(s); /* frees the captures */
+  session_destroy(s);                                                      /* frees the captures */
   fprintf(stderr, "captures: ok\n");
 }
 

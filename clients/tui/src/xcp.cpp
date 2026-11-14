@@ -10,18 +10,20 @@
 
 #include <asio.hpp>
 
-namespace krumpir {
+namespace krumpir
+{
 
 using asio::ip::udp;
 
-namespace {
+namespace
+{
 
 const std::map<int, const char *> kErrors{
-    {0x10, "CMD_BUSY"},        {0x11, "DAQ_ACTIVE"},        {0x12, "PGM_ACTIVE"},
-    {0x20, "CMD_UNKNOWN"},     {0x21, "CMD_SYNTAX"},        {0x22, "OUT_OF_RANGE"},
-    {0x23, "WRITE_PROTECTED"}, {0x24, "ACCESS_DENIED"},     {0x25, "ACCESS_LOCKED"},
-    {0x26, "PAGE_NOT_VALID"},  {0x27, "MODE_NOT_VALID"},    {0x28, "SEGMENT_NOT_VALID"},
-    {0x29, "SEQUENCE"},        {0x2A, "DAQ_CONFIG"},        {0x30, "MEMORY_OVERFLOW"},
+    {0x10, "CMD_BUSY"},        {0x11, "DAQ_ACTIVE"},     {0x12, "PGM_ACTIVE"},
+    {0x20, "CMD_UNKNOWN"},     {0x21, "CMD_SYNTAX"},     {0x22, "OUT_OF_RANGE"},
+    {0x23, "WRITE_PROTECTED"}, {0x24, "ACCESS_DENIED"},  {0x25, "ACCESS_LOCKED"},
+    {0x26, "PAGE_NOT_VALID"},  {0x27, "MODE_NOT_VALID"}, {0x28, "SEGMENT_NOT_VALID"},
+    {0x29, "SEQUENCE"},        {0x2A, "DAQ_CONFIG"},     {0x30, "MEMORY_OVERFLOW"},
     {0x31, "GENERIC"},         {0x32, "VERIFY"}};
 
 void put32(std::vector<std::uint8_t> &p, std::uint32_t v)
@@ -66,16 +68,36 @@ std::vector<double> decode(const Symbol &s, const std::vector<std::uint8_t> &byt
   for (std::size_t k = 0; k + n <= bytes.size() && out.size() < s.count; k += n) {
     const std::uint8_t *p = bytes.data() + k;
     switch (s.fmt) {
-    case 'B': out.push_back(get<std::uint8_t>(p)); break;
-    case 'b': out.push_back(get<std::int8_t>(p)); break;
-    case 'H': out.push_back(get<std::uint16_t>(p)); break;
-    case 'h': out.push_back(get<std::int16_t>(p)); break;
-    case 'I': out.push_back(get<std::uint32_t>(p)); break;
-    case 'i': out.push_back(get<std::int32_t>(p)); break;
-    case 'Q': out.push_back(get<std::uint64_t>(p)); break;
-    case 'q': out.push_back(get<std::int64_t>(p)); break;
-    case 'f': out.push_back(get<float>(p)); break;
-    default: out.push_back(get<double>(p)); break;
+    case 'B':
+      out.push_back(get<std::uint8_t>(p));
+      break;
+    case 'b':
+      out.push_back(get<std::int8_t>(p));
+      break;
+    case 'H':
+      out.push_back(get<std::uint16_t>(p));
+      break;
+    case 'h':
+      out.push_back(get<std::int16_t>(p));
+      break;
+    case 'I':
+      out.push_back(get<std::uint32_t>(p));
+      break;
+    case 'i':
+      out.push_back(get<std::int32_t>(p));
+      break;
+    case 'Q':
+      out.push_back(get<std::uint64_t>(p));
+      break;
+    case 'q':
+      out.push_back(get<std::int64_t>(p));
+      break;
+    case 'f':
+      out.push_back(get<float>(p));
+      break;
+    default:
+      out.push_back(get<double>(p));
+      break;
     }
   }
   return out;
@@ -89,16 +111,36 @@ std::vector<std::uint8_t> encode(const Symbol &s, const std::vector<double> &v)
   std::vector<std::uint8_t> out;
   for (const double x : v) {
     switch (s.fmt) {
-    case 'B': put<std::uint8_t>(out, x); break;
-    case 'b': put<std::int8_t>(out, x); break;
-    case 'H': put<std::uint16_t>(out, x); break;
-    case 'h': put<std::int16_t>(out, x); break;
-    case 'I': put<std::uint32_t>(out, x); break;
-    case 'i': put<std::int32_t>(out, x); break;
-    case 'Q': put<std::uint64_t>(out, x); break;
-    case 'q': put<std::int64_t>(out, x); break;
-    case 'f': put<float>(out, x); break;
-    default: put<double>(out, x); break;
+    case 'B':
+      put<std::uint8_t>(out, x);
+      break;
+    case 'b':
+      put<std::int8_t>(out, x);
+      break;
+    case 'H':
+      put<std::uint16_t>(out, x);
+      break;
+    case 'h':
+      put<std::int16_t>(out, x);
+      break;
+    case 'I':
+      put<std::uint32_t>(out, x);
+      break;
+    case 'i':
+      put<std::int32_t>(out, x);
+      break;
+    case 'Q':
+      put<std::uint64_t>(out, x);
+      break;
+    case 'q':
+      put<std::int64_t>(out, x);
+      break;
+    case 'f':
+      put<float>(out, x);
+      break;
+    default:
+      put<double>(out, x);
+      break;
     }
   }
   return out;
@@ -276,10 +318,9 @@ std::vector<std::uint8_t> Ecu::cmd(std::vector<std::uint8_t> packet)
   }
   Impl &m = *impl_;
   m.ctr = static_cast<std::uint16_t>(m.ctr + 1);
-  std::vector<std::uint8_t> frame{static_cast<std::uint8_t>(packet.size()),
-                                  static_cast<std::uint8_t>(packet.size() >> 8),
-                                  static_cast<std::uint8_t>(m.ctr),
-                                  static_cast<std::uint8_t>(m.ctr >> 8)};
+  std::vector<std::uint8_t> frame{
+      static_cast<std::uint8_t>(packet.size()), static_cast<std::uint8_t>(packet.size() >> 8),
+      static_cast<std::uint8_t>(m.ctr), static_cast<std::uint8_t>(m.ctr >> 8)};
   frame.insert(frame.end(), packet.begin(), packet.end());
   std::error_code ec;
   m.sock.send(asio::buffer(frame), 0, ec);
@@ -308,12 +349,13 @@ std::vector<std::uint8_t> Ecu::cmd(std::vector<std::uint8_t> packet)
     const auto it = kErrors.find(code);
     char what[64];
     std::snprintf(what, sizeof what, "command 0x%02X refused: ", packet[0]);
-    throw XcpError(what + (it != kErrors.end() ? std::string(it->second)
-                                               : "error " + std::to_string(code)));
+    throw XcpError(
+        what + (it != kErrors.end() ? std::string(it->second) : "error " + std::to_string(code)));
   }
 }
 
-namespace {
+namespace
+{
 
 void put16(std::vector<std::uint8_t> &p, unsigned v)
 {
@@ -362,7 +404,7 @@ void Ecu::daq_start(const std::vector<Symbol> &signals)
     fill[s.event] += s.size();
   }
 
-  cmd({0xD6}); // FREE_DAQ
+  cmd({0xD6});                          // FREE_DAQ
   std::vector<std::uint8_t> p{0xD5, 0}; // ALLOC_DAQ
   put16(p, static_cast<unsigned>(by_event.size()));
   cmd(p);
@@ -543,7 +585,10 @@ void Ecu::download(std::uint32_t addr, std::uint8_t ext, const std::vector<std::
   }
 }
 
-std::vector<double> Ecu::read(const Symbol &s) { return decode(s, upload(s.addr, s.ext, s.size())); }
+std::vector<double> Ecu::read(const Symbol &s)
+{
+  return decode(s, upload(s.addr, s.ext, s.size()));
+}
 
 void Ecu::write(const Symbol &s, const std::vector<double> &v)
 {

@@ -13,22 +13,38 @@ static double *param(ModelInstance *comp, ValueReference vr)
 {
   t12_params_t *p = &M(par);
   switch (vr) {
-  case vr_c_h: return &p->c_h;
-  case vr_c_t: return &p->c_t;
-  case vr_c_c: return &p->c_c;
-  case vr_r_ht: return &p->r_ht;
-  case vr_r_ta: return &p->r_ta;
-  case vr_r_tc: return &p->r_tc;
-  case vr_r_ca: return &p->r_ca;
-  case vr_v_supply: return &p->v_supply;
-  case vr_r_coil: return &p->r_coil;
-  case vr_r_short: return &p->r_short;
-  case vr_seebeck: return &p->seebeck;
-  case vr_amp_gain: return &p->amp_gain;
-  case vr_amp_offset: return &p->amp_offset;
-  case vr_v_clamp: return &p->v_clamp;
-  case vr_tau_sense: return &p->tau_sense;
-  default: return NULL;
+  case vr_c_h:
+    return &p->c_h;
+  case vr_c_t:
+    return &p->c_t;
+  case vr_c_c:
+    return &p->c_c;
+  case vr_r_ht:
+    return &p->r_ht;
+  case vr_r_ta:
+    return &p->r_ta;
+  case vr_r_tc:
+    return &p->r_tc;
+  case vr_r_ca:
+    return &p->r_ca;
+  case vr_v_supply:
+    return &p->v_supply;
+  case vr_r_coil:
+    return &p->r_coil;
+  case vr_r_short:
+    return &p->r_short;
+  case vr_seebeck:
+    return &p->seebeck;
+  case vr_amp_gain:
+    return &p->amp_gain;
+  case vr_amp_offset:
+    return &p->amp_offset;
+  case vr_v_clamp:
+    return &p->v_clamp;
+  case vr_tau_sense:
+    return &p->tau_sense;
+  default:
+    return NULL;
   }
 }
 
@@ -46,8 +62,10 @@ static bool must_be_positive(ValueReference vr)
   case vr_r_ca:
   case vr_r_coil:
   case vr_r_short:
-  case vr_tau_sense: return true;
-  default: return false;
+  case vr_tau_sense:
+    return true;
+  default:
+    return false;
   }
 }
 
@@ -94,17 +112,39 @@ Status getFloat64(ModelInstance *comp, ValueReference vr, double values[], size_
   const double *p = param(comp, vr);
   double v;
   switch (vr) {
-  case vr_time: v = comp->time; break;
-  case vr_heater: v = M(heater); break;
-  case vr_series_on: v = M(series_on); break;
-  case vr_ambient_c: v = M(ambient_c); break;
-  case vr_load_wk: v = M(load_wk); break;
-  case vr_fault: v = M(fault); break;
-  case vr_v_amp: v = M(sim).v_amp; break;
-  case vr_i_heater: v = M(sim).i_heater; break;
-  case vr_t_heater_c: v = M(sim).t_h; break;
-  case vr_t_tip_c: v = M(sim).t_t; break;
-  case vr_t_handle_c: v = M(sim).t_c; break;
+  case vr_time:
+    v = comp->time;
+    break;
+  case vr_heater:
+    v = M(heater);
+    break;
+  case vr_series_on:
+    v = M(series_on);
+    break;
+  case vr_ambient_c:
+    v = M(ambient_c);
+    break;
+  case vr_load_wk:
+    v = M(load_wk);
+    break;
+  case vr_fault:
+    v = M(fault);
+    break;
+  case vr_v_amp:
+    v = M(sim).v_amp;
+    break;
+  case vr_i_heater:
+    v = M(sim).i_heater;
+    break;
+  case vr_t_heater_c:
+    v = M(sim).t_h;
+    break;
+  case vr_t_tip_c:
+    v = M(sim).t_t;
+    break;
+  case vr_t_handle_c:
+    v = M(sim).t_c;
+    break;
   default:
     if (!p) {
       logError(comp, "Get Float64 is not allowed for value reference %u.", vr);
@@ -126,9 +166,15 @@ Status setFloat64(ModelInstance *comp, ValueReference vr, const double values[],
     return Error;
   }
   switch (vr) {
-  case vr_heater: M(heater) = v; return OK;
-  case vr_series_on: M(series_on) = v; return OK;
-  case vr_ambient_c: M(ambient_c) = v; return OK;
+  case vr_heater:
+    M(heater) = v;
+    return OK;
+  case vr_series_on:
+    M(series_on) = v;
+    return OK;
+  case vr_ambient_c:
+    M(ambient_c) = v;
+    return OK;
   case vr_load_wk:
     if (v < 0.0) {
       logError(comp, "load_wk = %g must be >= 0.", v);
@@ -145,7 +191,8 @@ Status setFloat64(ModelInstance *comp, ValueReference vr, const double values[],
     }
     M(fault) = v;
     return OK;
-  default: break;
+  default:
+    break;
   }
 
   double *p = param(comp, vr);

@@ -89,8 +89,8 @@ static void test_scenarios_have_distinct_names(void)
 {
   for (int a = 0; a < T12_SCN_COUNT; a++)
     for (int b = a + 1; b < T12_SCN_COUNT; b++)
-      TEST_ASSERT_TRUE(strcmp(t12_scenario_name((t12_scenario_t)a),
-                              t12_scenario_name((t12_scenario_t)b)) != 0);
+      TEST_ASSERT_TRUE(
+          strcmp(t12_scenario_name((t12_scenario_t)a), t12_scenario_name((t12_scenario_t)b)) != 0);
 }
 
 int main(void)

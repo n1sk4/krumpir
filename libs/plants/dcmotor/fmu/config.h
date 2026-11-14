@@ -39,9 +39,9 @@ typedef enum {
 } ValueReference;
 
 typedef struct {
-  double duty;        /* input, -1..1 (clamped) */
-  double load_torque; /* input [N*m] */
-  double fault;       /* input: 0 none, 1 encoder lost (NaN), 2 encoder dead (0) */
+  double duty;                     /* input, -1..1 (clamped) */
+  double load_torque;              /* input [N*m] */
+  double fault;                    /* input: 0 none, 1 encoder lost (NaN), 2 encoder dead (0) */
   double R, L, Kt, Ke, J, b, Vbus; /* parameters, see plant_params_t */
   bool params_changed;             /* coefficients need recomputing */
   plant_sim_t sim;

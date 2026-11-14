@@ -12,7 +12,7 @@
 #include "nvs_flash.h"
 #include "xcplib.h"
 
-#include "wlan.h"    /* WIFI_SSID, WIFI_PASSWORD: copy wlan.h.example to wlan.h (gitignored) */
+#include "wlan.h" /* WIFI_SSID, WIFI_PASSWORD: copy wlan.h.example to wlan.h (gitignored) */
 #include "xcp_epk.h" /* XCP_EPK: written for every build by xcp_epk.py, so a stale A2L file is detected */
 
 #define XCP_PORT 5555
@@ -29,7 +29,8 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     esp_wifi_connect(); /* Limitation: retries forever without backoff */
   } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
     const ip_event_got_ip_t *e = data;
-    printf("xcp: wifi connected, ip " IPSTR ", XCP on UDP port %d\n", IP2STR(&e->ip_info.ip), XCP_PORT);
+    printf("xcp: wifi connected, ip " IPSTR ", XCP on UDP port %d\n", IP2STR(&e->ip_info.ip),
+           XCP_PORT);
     xEventGroupSetBits(s_wifi, CONNECTED_BIT);
   }
 }
@@ -80,7 +81,8 @@ bool xcp_glue_start(const char *name)
 
   XcpSetLogLevel(3);
   XcpCreateEpk(XCP_EPK);
-  /* Always initialize: without Wi-Fi XCP stays passive, so the event triggers in the loop are safe. */
+  /* Always initialize: without Wi-Fi XCP stays passive, so the event triggers in the loop are safe.
+   */
   if (!XcpInit(name, XCP_EPK, wifi ? XCP_MODE_LOCAL : XCP_MODE_DEACTIVATE)) {
     printf("xcp: XcpInit failed\n");
     return false;

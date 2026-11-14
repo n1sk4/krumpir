@@ -8,7 +8,8 @@
 
 #include <nlohmann/json.hpp>
 
-namespace krumpir {
+namespace krumpir
+{
 
 using json = nlohmann::json;
 
@@ -30,7 +31,8 @@ struct LinkError : std::runtime_error {
 
 // A blocking client of `krumpir serve`: one JSON object per line each way, one request at a
 // time (runner/docs/service-protocol.md). Every call is bounded by the timeout.
-class Service {
+class Service
+{
 public:
   explicit Service(std::chrono::milliseconds timeout = std::chrono::seconds(5));
   ~Service();

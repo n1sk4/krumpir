@@ -95,8 +95,8 @@ static void test_segments(void)
       {"high = 1, period = 0.1, duty = 0.5, duration = 0.3", 0},
       {"high = 1, period = 1, duty = 0.5, duration = 1.25", 1}, /* ends in a high phase */
       {"high = 1, period = 1, duty = 0.5, duration = 1.75", 0},
-      {"high = 1, period = 1, duty = 1, duration = 2", 1},      /* always high */
-      {"high = 1, period = 1, duty = 0, duration = 1.5", 0},    /* always low */
+      {"high = 1, period = 1, duty = 1, duration = 2", 1},   /* always high */
+      {"high = 1, period = 1, duty = 0, duration = 1.5", 0}, /* always low */
       {"high = 1, low = -1, period = 1, duty = 0.5, duration = 3", -1},
   };
   for (size_t i = 0; i < sizeof pulses / sizeof pulses[0]; i++) {

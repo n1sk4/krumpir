@@ -41,10 +41,14 @@ int cmd_ambient(int argc, char **argv)
 static const char *fault_label(t12_fault_t f)
 {
   switch (f) {
-  case T12_FAULT_NONE: return "none";
-  case T12_FAULT_OPEN: return "open";
-  case T12_FAULT_SHORT: return "short";
-  case T12_FAULT_STUCK_ON: return "stuck";
+  case T12_FAULT_NONE:
+    return "none";
+  case T12_FAULT_OPEN:
+    return "open";
+  case T12_FAULT_SHORT:
+    return "short";
+  case T12_FAULT_STUCK_ON:
+    return "stuck";
   }
   return "?";
 }

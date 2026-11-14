@@ -27,10 +27,7 @@
 
 /* From the tick (commands) and the reader (HELLO answers): into the driver's TX ring buffer,
  * which does not wait while there is room. */
-void hil_port_write(const uint8_t *buf, size_t n)
-{
-  uart_write_bytes(KRUMPIR_HIL_UART, buf, n);
-}
+void hil_port_write(const uint8_t *buf, size_t n) { uart_write_bytes(KRUMPIR_HIL_UART, buf, n); }
 
 static void reader(void *arg)
 {

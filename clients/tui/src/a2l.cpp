@@ -9,14 +9,16 @@
 #include <variant>
 #include <vector>
 
-namespace krumpir {
+namespace krumpir
+{
 
-namespace {
+namespace
+{
 
 const std::map<std::string, char> kTypes{
-    {"UBYTE", 'B'}, {"SBYTE", 'b'}, {"UWORD", 'H'}, {"SWORD", 'h'}, {"ULONG", 'I'},
-    {"SLONG", 'i'}, {"A_UINT64", 'Q'}, {"A_INT64", 'q'}, {"FLOAT32_IEEE", 'f'},
-    {"FLOAT64_IEEE", 'd'}};
+    {"UBYTE", 'B'},        {"SBYTE", 'b'},       {"UWORD", 'H'},    {"SWORD", 'h'},
+    {"ULONG", 'I'},        {"SLONG", 'i'},       {"A_UINT64", 'Q'}, {"A_INT64", 'q'},
+    {"FLOAT32_IEEE", 'f'}, {"FLOAT64_IEEE", 'd'}};
 
 struct Block {
   std::string kind;
@@ -264,8 +266,8 @@ A2l parse_a2l(const std::string &text)
       std::vector<Component> comps;
       for (const auto &c : b->children) {
         if (c.kind == "STRUCTURE_COMPONENT" && c.args.size() > 2) {
-          comps.push_back({c.args[0], c.args[1], static_cast<std::uint32_t>(to_int(c.args[2])),
-                           dims(c.args)});
+          comps.push_back(
+              {c.args[0], c.args[1], static_cast<std::uint32_t>(to_int(c.args[2])), dims(c.args)});
         }
       }
       types[g[0]] = std::move(comps);

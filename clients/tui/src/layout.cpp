@@ -2,7 +2,8 @@
 
 #include <algorithm>
 
-namespace krumpir {
+namespace krumpir
+{
 
 int ClampSplit(int wanted, int total, int min_left, int min_right)
 {

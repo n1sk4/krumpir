@@ -13,7 +13,8 @@
 #define TICK_HZ 1000
 #define TICK_DT_S (1.0f / TICK_HZ)
 #define DEFAULT_AMBIENT_C 25.0
-#define CONTROL_STACK_BYTES 6144 /* the on-chip heater plant runs in double precision on this task */
+#define CONTROL_STACK_BYTES                                                                        \
+  6144 /* the on-chip heater plant runs in double precision on this task */
 
 /* Generated from controller.toml: the XCP calibration page. */
 #include "gen/ctrl_gen_task.inc"

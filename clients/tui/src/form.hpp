@@ -6,7 +6,8 @@
 
 #include <nlohmann/json.hpp>
 
-namespace krumpir {
+namespace krumpir
+{
 
 using json = nlohmann::json;
 

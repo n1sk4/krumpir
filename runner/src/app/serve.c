@@ -49,9 +49,9 @@ static void on_signal(int sig)
 
 static const char *code_name(int code)
 {
-  static const char *const names[] = {
-      "internal", "bad_request", "bad_state", "not_found", "not_writable", "bad_scenario",
-      "exists",   "limit",       "timeout",   "fault",     "busy"};
+  static const char *const names[] = {"internal",     "bad_request",  "bad_state", "not_found",
+                                      "not_writable", "bad_scenario", "exists",    "limit",
+                                      "timeout",      "fault",        "busy"};
   return code >= ERR_INTERNAL && code <= ERR_BUSY ? names[code - ERR_INTERNAL] : "internal";
 }
 
@@ -548,9 +548,9 @@ static cJSON *scenario_json(const scenario_t *sc)
   cJSON_AddItemToObject(rt, "cpu", sc->cpu >= 0 ? cJSON_CreateNumber(sc->cpu) : cJSON_CreateNull());
   cJSON_AddItemToObject(rt, "priority",
                         sc->priority >= 0 ? cJSON_CreateNumber(sc->priority) : cJSON_CreateNull());
-  cJSON_AddItemToObject(rt, "timing_gpio", sc->timing_gpio >= 0
-                                               ? cJSON_CreateNumber(sc->timing_gpio)
-                                               : cJSON_CreateNull());
+  cJSON_AddItemToObject(rt, "timing_gpio",
+                        sc->timing_gpio >= 0 ? cJSON_CreateNumber(sc->timing_gpio)
+                                             : cJSON_CreateNull());
   cJSON *io = cJSON_AddObjectToObject(j, "io");
   cJSON_AddStringToObject(io, "backend", sc->backend);
   cJSON_AddStringToObject(io, "device", sc->device);
@@ -683,9 +683,8 @@ static int op_load(session_t *s, const cJSON *req, cJSON *r, char *err, size_t e
   }
   char perr[400];
   char *owned = NULL;
-  if (path != NULL &&
-      (text = owned = plat_read_file(path, CONFIG_MAX_FILE_BYTES, NULL, perr, sizeof perr)) ==
-          NULL) {
+  if (path != NULL && (text = owned = plat_read_file(path, CONFIG_MAX_FILE_BYTES, NULL, perr,
+                                                     sizeof perr)) == NULL) {
     snprintf(err, errlen, "scenario: %s", perr);
     return read_failed();
   }
@@ -842,8 +841,7 @@ static int op_signal(session_t *s, const cJSON *req, char *err, size_t errlen)
   return rc == 0 ? session_set_signal(s, &st, err, errlen) : rc;
 }
 
-static int get_cond(const cJSON *req, const char *key, capture_cond_t *c, char *err,
-                    size_t errlen)
+static int get_cond(const cJSON *req, const char *key, capture_cond_t *c, char *err, size_t errlen)
 {
   static const char *const ops[] = {">", ">=", "<", "<="};
   static const cond_op_t codes[] = {COND_GT, COND_GE, COND_LT, COND_LE};

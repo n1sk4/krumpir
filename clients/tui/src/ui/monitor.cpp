@@ -9,19 +9,21 @@
 #include "split.hpp"
 #include "ui.hpp"
 
-namespace krumpir::ui {
+namespace krumpir::ui
+{
 
 using namespace ftxui;
 
-namespace {
+namespace
+{
 
 Element Header(const Snapshot &v)
 {
   if (v.state.empty() || v.state == "IDLE") {
     return text(" nothing loaded: pick a scenario or an FMU on F1") | dim;
   }
-  const std::string t = v.duration > 0 ? Format("%.3f / %g s", v.t, v.duration)
-                                       : Format("%.3f s", v.t);
+  const std::string t =
+      v.duration > 0 ? Format("%.3f / %g s", v.t, v.duration) : Format("%.3f s", v.t);
   Elements e{text(" " + v.state + " ") | bold | color(StateColor(v.state)),
              text("  t " + t),
              text(Format("  steps %.0f", v.steps)),
@@ -45,12 +47,12 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     int selected = 0;
     std::set<std::string> checked; // plotted; none: the selected one
     bool single = false;           // checked ones in one graph instead of one graph each
-    Variable sel;     // the selected row, as last rendered
-    std::string hint; // one-line feedback under the header
+    Variable sel;                  // the selected row, as last rendered
+    std::string hint;              // one-line feedback under the header
 
-    std::string head;   // the column titles of the variables pane
-    std::string filter; // narrows the list to the names that contain it
-    int row = 1;        // focus in the pane: starts on the list, so the keys work
+    std::string head;               // the column titles of the variables pane
+    std::string filter;             // narrows the list to the names that contain it
+    int row = 1;                    // focus in the pane: starts on the list, so the keys work
     std::vector<std::size_t> shown; // the list rows, as indexes into the snapshot's variables
 
     bool show_write = false, show_signal = false;
@@ -60,7 +62,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     int kind = 0;
     std::string fields[4];
     std::string error;
-    int write_row = 0, signal_row = 0; // focus in the dialogs: reset when one opens
+    int write_row = 0, signal_row = 0;          // focus in the dialogs: reset when one opens
     int value_cursor = 0, field_cursor[4] = {}; // at the end of the filled-in text
   };
   auto s = std::make_shared<State>();
@@ -164,11 +166,11 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
         }
         s->shown.push_back(i);
         s->rows.push_back(Format("%s %-*s %-6s %12s", s->checked.count(x.name) ? "[x]" : "[ ]", nw,
-                                 Fit(x.name, nw).c_str(), x.kind.c_str(),
-                                 Number(x.value).c_str()));
+                                 Fit(x.name, nw).c_str(), x.kind.c_str(), Number(x.value).c_str()));
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
-      s->sel = s->shown.empty() ? Variable{} : v.vars[s->shown[static_cast<std::size_t>(s->selected)]];
+      s->sel =
+          s->shown.empty() ? Variable{} : v.vars[s->shown[static_cast<std::size_t>(s->selected)]];
       if (plotted.empty() && !s->sel.name.empty()) {
         plotted.push_back(s->sel.name);
       }
@@ -183,8 +185,8 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
 
     s->head = Format("      %-*s %-6s %12s", nw, "name", "kind", "value");
     return vbox({
-        hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
-              reset->Render(), text(" "), unload->Render(), text(" ")}),
+        hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "), reset->Render(),
+              text(" "), unload->Render(), text(" ")}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
         split->render(PlotPane(plotted, samples, s->single)),
         events | size(HEIGHT, EQUAL, kEventsRows),
@@ -237,9 +239,9 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     const Preset &p = presets()[static_cast<std::size_t>(s->kind)];
     Elements rows{kind->Render(), text("")};
     for (std::size_t i = 0; i < p.fields.size(); i++) {
-      rows.push_back(hbox({text(Format("%-11s", p.fields[i])),
-                           fields[i + 1]->Render() | underlined |
-                               size(WIDTH, GREATER_THAN, kNumberBoxWidth)}));
+      rows.push_back(hbox(
+          {text(Format("%-11s", p.fields[i])),
+           fields[i + 1]->Render() | underlined | size(WIDTH, GREATER_THAN, kNumberBoxWidth)}));
     }
     rows.push_back(text(s->error) | color(Color::Red));
     rows.push_back(text("starts at the next step, replaces its signal") | dim);
@@ -260,8 +262,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     if (e.is_character()) {
       s->hint.clear();
     }
-    if (!split->shown() && (e == Event::Character('w') ||
-                            e == Event::Character(' '))) {
+    if (!split->shown() && (e == Event::Character('w') || e == Event::Character(' '))) {
       s->hint = "the variables are hidden: v shows them";
       return true;
     }

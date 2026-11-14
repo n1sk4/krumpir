@@ -26,7 +26,7 @@ typedef struct {
 /* The component's side, called on the tick task except trip(). */
 typedef struct {
   void (*set_param)(void *ctx, int id, float value); /* a parameter changed; all on the 1st tick */
-  bool (*start)(void *ctx);       /* returns false when the start is refused */
+  bool (*start)(void *ctx);                          /* returns false when the start is refused */
   void (*stop)(void *ctx);
   void (*clear)(void *ctx);       /* clears a latched trip */
   const char *(*trip)(void *ctx); /* name of the latched trip, NULL when none; called by any task */
@@ -50,7 +50,8 @@ typedef struct {
 void rte_init(rte_t *r, const rte_param_t *params, int n, const rte_hooks_t *hooks);
 int rte_find(const rte_t *r, const char *name); /* parameter id, or -1 */
 
-/* Any task. rte_set returns false (and changes nothing) for an unknown id or a value out of range. */
+/* Any task. rte_set returns false (and changes nothing) for an unknown id or a value out of range.
+ */
 bool rte_set(rte_t *r, int id, float value);
 float rte_get(rte_t *r, int id); /* the requested value */
 void rte_set_run(rte_t *r, bool run);

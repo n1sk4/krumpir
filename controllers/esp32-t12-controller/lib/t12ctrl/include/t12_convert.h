@@ -11,9 +11,9 @@
  * coefficient and the amplifier offset all shift the reading. Calibrate these against a reference
  * thermometer; the defaults are the design values. */
 typedef struct {
-  float amp_gain;  /* 1 + Rf/Rg */
-  float seebeck;   /* [V/K] of the thermocouple */
-  float offset_v;  /* amplifier offset, input referred [V] */
+  float amp_gain; /* 1 + Rf/Rg */
+  float seebeck;  /* [V/K] of the thermocouple */
+  float offset_v; /* amplifier offset, input referred [V] */
 } t12_cal_t;
 
 #define T12_CAL_DEFAULT {250.0f, 21e-6f, 0.0f}

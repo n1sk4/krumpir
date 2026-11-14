@@ -4,9 +4,11 @@
 #include <cstdio>
 #include <ctime>
 
-namespace krumpir {
+namespace krumpir
+{
 
-namespace {
+namespace
+{
 
 double num(const json &j, const char *key)
 {
@@ -54,12 +56,13 @@ json preset(const std::string &input, std::size_t kind, const std::vector<double
       return {{"input", input}, {"kind", "constant"}, {"value", f.at(2)}};
     }
     return {{"input", input},
-            {"segments", {{{"kind", "const"}, {"value", f.at(0)}, {"duration", f.at(1)}},
-                          {{"kind", "const"}, {"value", f.at(2)}}}}};
+            {"segments",
+             {{{"kind", "const"}, {"value", f.at(0)}, {"duration", f.at(1)}},
+              {{"kind", "const"}, {"value", f.at(2)}}}}};
   case 2: // then holds `to`
     return {{"input", input},
-            {"segments", {{{"kind", "ramp"}, {"from", f.at(0)}, {"to", f.at(1)},
-                           {"duration", f.at(2)}}}}};
+            {"segments",
+             {{{"kind", "ramp"}, {"from", f.at(0)}, {"to", f.at(1)}, {"duration", f.at(2)}}}}};
   case 3:
     return {{"input", input},
             {"kind", "sine"},
@@ -69,7 +72,10 @@ json preset(const std::string &input, std::size_t kind, const std::vector<double
   case 4:
     return {{"input", input},
             {"segments",
-             {{{"kind", "pulse"}, {"low", f.at(0)}, {"high", f.at(1)}, {"period", f.at(2)},
+             {{{"kind", "pulse"},
+               {"low", f.at(0)},
+               {"high", f.at(1)},
+               {"period", f.at(2)},
                {"duty", f.at(3)}}}}};
   default:
     throw std::out_of_range("no preset " + std::to_string(kind));
@@ -225,8 +231,8 @@ void Model::poll()
   for (auto &v : snap_.vars) {
     const auto it = values.find(v.name);
     v.value = it != values.end() && it->is_number() ? it->get<double>() : NAN;
-    const bool captured = cap_id_ >= 0 && std::find(captured_.begin(), captured_.end(), v.name) !=
-                                              captured_.end();
+    const bool captured =
+        cap_id_ >= 0 && std::find(captured_.begin(), captured_.end(), v.name) != captured_.end();
     if (state == "RUNNING" && !captured) {
       add_sample(v.name, snap_.t, v.value);
     }
@@ -486,9 +492,7 @@ void Model::start()
 
 void Model::stop()
 {
-  post([this] {
-    event("stop: " + str(svc_.call("stop"), "state"));
-  });
+  post([this] { event("stop: " + str(svc_.call("stop"), "state")); });
 }
 
 void Model::write(std::string name, double value)

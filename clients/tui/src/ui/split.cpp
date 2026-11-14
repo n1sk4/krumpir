@@ -7,7 +7,8 @@
 
 #include "ui.hpp"
 
-namespace krumpir::ui {
+namespace krumpir::ui
+{
 
 using namespace ftxui;
 
@@ -60,10 +61,7 @@ bool PaneSplit::on_key(const Event &e)
   return false;
 }
 
-Component FilterInput(std::string *text)
-{
-  return Input(text, "filter", OneLine());
-}
+Component FilterInput(std::string *text) { return Input(text, "filter", OneLine()); }
 
 Element FilterRow(const Component &input)
 {

@@ -8,11 +8,13 @@
 #include "split.hpp"
 #include "ui.hpp"
 
-namespace krumpir::ui {
+namespace krumpir::ui
+{
 
 using namespace ftxui;
 
-namespace {
+namespace
+{
 
 // The text of an edit box: blank while there is no value to start from.
 std::string EditText(double v) { return std::isfinite(v) ? Format("%.6g", v) : std::string(); }
@@ -147,7 +149,7 @@ Component ControllerSetup(EcuModel &ecu)
         const bool ok =
             s->edit[i] == s->base[i] || CheckValue(s->edit[i], p.min, p.max, &v).empty();
         field = grid->ChildAt(static_cast<std::size_t>(s->input_of[i]))->Render() | underlined |
-                (!ok                       ? color(Color::Red)
+                (!ok                        ? color(Color::Red)
                  : s->edit[i] != s->base[i] ? color(Color::Yellow)
                                             : nothing);
       }
@@ -157,8 +159,9 @@ Component ControllerSetup(EcuModel &ecu)
                       text(Format("%-10s", Number(p.value).c_str())), text(" " + p.help) | dim});
     }
     return vbox({
-        hbox({text(" " + name + " ") | bold, addr->Render() | size(WIDTH, EQUAL, kAddressWidth) | underlined,
-              text(" "), connect_btn->Render(), text(" "), disconnect_btn->Render(), link}),
+        hbox({text(" " + name + " ") | bold,
+              addr->Render() | size(WIDTH, EQUAL, kAddressWidth) | underlined, text(" "),
+              connect_btn->Render(), text(" "), disconnect_btn->Render(), link}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
         window(text(" Calibration (Enter or Write sends the changed ones) "),
                vbox({gridbox(std::move(rows)), a2l_error,
@@ -184,9 +187,9 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
 
     // The write dialog: pick a calibration parameter, type a value, the limits are checked
     bool show_write = false;
-    std::vector<CalParam> writable;       // the parameters that have a calibration value
-    std::vector<std::string> param_rows;  // their rows in the dialog
-    int param = 0;                        // the row picked
+    std::vector<CalParam> writable;      // the parameters that have a calibration value
+    std::vector<std::string> param_rows; // their rows in the dialog
+    int param = 0;                       // the row picked
     std::string value, error;
     int value_cursor = 0, write_row = 0;
   };
@@ -307,9 +310,9 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
       const std::string run = v.running ? "RUNNING" : "STOPPED";
       const Element state = !v.connected ? text(" not connected: connect on F1 ") | dim
                                          : text(" " + run + " ") | bold | color(StateColor(run));
-      const Element trip = v.trip != 0 ? text("  trip: " + v.trip_name + " (c clears) ") | bold |
-                                             color(Color::Red)
-                                       : text(v.connected ? "  no trip" : "") | dim;
+      const Element trip =
+          v.trip != 0 ? text("  trip: " + v.trip_name + " (c clears) ") | bold | color(Color::Red)
+                      : text(v.connected ? "  no trip" : "") | dim;
       const std::size_t polled = v.watched.size() - static_cast<std::size_t>(v.daq_signals);
       const Element daq =
           !v.connected || v.watched.empty() ? text("")
@@ -333,8 +336,8 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
     }
 
     return vbox({
-        hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "),
-              clear->Render(), text(" ")}),
+        hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "), clear->Render(),
+              text(" ")}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
         split->render(PlotPane(plotted, samples, s->single)),
         events | size(HEIGHT, EQUAL, kEventsRows),
@@ -354,59 +357,60 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
   auto value = Input(&s->value, "number", value_opt);
   auto write_buttons = Container::Horizontal({Button("Write", apply_write, ButtonOption::Ascii()),
                                               Button("Cancel", close, ButtonOption::Ascii())});
-  auto write_dialog = Renderer(Container::Vertical({params, value, write_buttons}, &s->write_row),
-                               [=] {
-    const bool picked = s->param >= 0 && s->param < static_cast<int>(s->writable.size());
-    const CalParam none;
-    const CalParam &p = picked ? s->writable[static_cast<std::size_t>(s->param)] : none;
-    return window(text(" Write a parameter "),
-                  vbox({params->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 8),
-                        hbox({text("value "), value->Render() | underlined |
-                                                  size(WIDTH, GREATER_THAN, kNumberBoxWidth)}),
-                        text(picked ? Format("%s  limits %g..%g", p.unit.empty() ? "-" : p.unit.c_str(),
-                                             p.min, p.max)
-                                    : std::string()) |
-                            dim,
-                        text(s->error) | color(Color::Red),
-                        write_buttons->Render() | align_right})) |
-           size(WIDTH, GREATER_THAN, kDialogWidth);
-  });
+  auto write_dialog =
+      Renderer(Container::Vertical({params, value, write_buttons}, &s->write_row), [=] {
+        const bool picked = s->param >= 0 && s->param < static_cast<int>(s->writable.size());
+        const CalParam none;
+        const CalParam &p = picked ? s->writable[static_cast<std::size_t>(s->param)] : none;
+        return window(
+                   text(" Write a parameter "),
+                   vbox({params->Render() | vscroll_indicator | frame | size(HEIGHT, LESS_THAN, 8),
+                         hbox({text("value "), value->Render() | underlined |
+                                                   size(WIDTH, GREATER_THAN, kNumberBoxWidth)}),
+                         text(picked ? Format("%s  limits %g..%g",
+                                              p.unit.empty() ? "-" : p.unit.c_str(), p.min, p.max)
+                                     : std::string()) |
+                             dim,
+                         text(s->error) | color(Color::Red),
+                         write_buttons->Render() | align_right})) |
+               size(WIDTH, GREATER_THAN, kDialogWidth);
+      });
 
   return CatchEvent(Modal(view, write_dialog, &s->show_write),
                     [&ecu, s, split, filter, toggle, open_write, close](const Event &e) {
-    if (s->show_write) { // the dialog gets the keys
-      return EscapeCloses(e, close);
-    }
-    if (filter->Focused()) {
-      return false; // typing
-    }
-    if (e.is_character()) {
-      s->hint.clear();
-    }
-    if (!split->shown() && e == Event::Character(' ')) {
-      s->hint = "the signals are hidden: v shows them";
-      return true;
-    }
-    if (split->on_key(e)) {
-      return true;
-    }
-    if (e == Event::Character('w')) {
-      open_write();
-    } else if (e == Event::Character('s')) {
-      ecu.request("start");
-    } else if (e == Event::Character('x')) {
-      ecu.request("stop");
-    } else if (e == Event::Character('c')) {
-      ecu.request("clear");
-    } else if (e == Event::Character(' ')) {
-      toggle();
-    } else if (e == Event::Character('m')) {
-      s->single = !s->single;
-    } else {
-      return false;
-    }
-    return true;
-  });
+                      if (s->show_write) { // the dialog gets the keys
+                        return EscapeCloses(e, close);
+                      }
+                      if (filter->Focused()) {
+                        return false; // typing
+                      }
+                      if (e.is_character()) {
+                        s->hint.clear();
+                      }
+                      if (!split->shown() && e == Event::Character(' ')) {
+                        s->hint = "the signals are hidden: v shows them";
+                        return true;
+                      }
+                      if (split->on_key(e)) {
+                        return true;
+                      }
+                      if (e == Event::Character('w')) {
+                        open_write();
+                      } else if (e == Event::Character('s')) {
+                        ecu.request("start");
+                      } else if (e == Event::Character('x')) {
+                        ecu.request("stop");
+                      } else if (e == Event::Character('c')) {
+                        ecu.request("clear");
+                      } else if (e == Event::Character(' ')) {
+                        toggle();
+                      } else if (e == Event::Character('m')) {
+                        s->single = !s->single;
+                      } else {
+                        return false;
+                      }
+                      return true;
+                    });
 }
 
 } // namespace krumpir::ui

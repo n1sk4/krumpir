@@ -1,6 +1,6 @@
 // The load form: fields from a describe reply, its checks, and the scenario text it writes.
-// With KRUMPIR_SERVICE=host:port (a `krumpir serve` in runner/) it also round-trips every scenario of
-// that runner: describe -> form -> text -> describe gives the same scenario.
+// With KRUMPIR_SERVICE=host:port (a `krumpir serve` in runner/) it also round-trips every scenario
+// of that runner: describe -> form -> text -> describe gives the same scenario.
 #include <cstdlib>
 
 #include <doctest/doctest.h>
@@ -10,7 +10,8 @@
 
 using namespace krumpir;
 
-namespace {
+namespace
+{
 
 const json kReply = json::parse(R"({
   "ok": true, "text": "...",
@@ -77,13 +78,14 @@ TEST_CASE("form: fields from a describe reply")
   CHECK(f.find("stim:duty:value")->unit == "1");
 
   // Unchanged: the same scenario back; FMU parameters at their start values are left out
-  CHECK(f.to_toml() == "[model]\nfmu = \"fmus/dcmotor.fmu\"\nstep = 0.001\n"
-                       "\n[model.params]\nVbus = 6\n"
-                       "\n[rt]\nwait = \"sleep\"\nmax_overruns = 1000000\n"
-                       "\n[io]\nbackend = \"null\"\ninputs = [\"duty\"]\noutputs = [\"speed_rpm\"]\n"
-                       "stimulus = [\n  { input = \"duty\", loops = 1, segments = [{ duration = 1, "
-                       "kind = \"const\", value = 0.5 }] },\n]\n"
-                       "\n[log]\nfile = \"runs/x.csv\"\n");
+  CHECK(f.to_toml() ==
+        "[model]\nfmu = \"fmus/dcmotor.fmu\"\nstep = 0.001\n"
+        "\n[model.params]\nVbus = 6\n"
+        "\n[rt]\nwait = \"sleep\"\nmax_overruns = 1000000\n"
+        "\n[io]\nbackend = \"null\"\ninputs = [\"duty\"]\noutputs = [\"speed_rpm\"]\n"
+        "stimulus = [\n  { input = \"duty\", loops = 1, segments = [{ duration = 1, "
+        "kind = \"const\", value = 0.5 }] },\n]\n"
+        "\n[log]\nfile = \"runs/x.csv\"\n");
 }
 
 TEST_CASE("form: edits and what they write")
@@ -155,10 +157,12 @@ TEST_CASE("form: at most 16 inputs and parameters")
 {
   json reply = kReply;
   for (int i = 0; i < 17; i++) {
-    reply["variables"].push_back({{"name", "u" + std::to_string(i)}, {"type", "Float64"},
-                                  {"causality", "input"}});
-    reply["variables"].push_back({{"name", "p" + std::to_string(i)}, {"type", "Float64"},
-                                  {"causality", "parameter"}, {"start", "1"}});
+    reply["variables"].push_back(
+        {{"name", "u" + std::to_string(i)}, {"type", "Float64"}, {"causality", "input"}});
+    reply["variables"].push_back({{"name", "p" + std::to_string(i)},
+                                  {"type", "Float64"},
+                                  {"causality", "parameter"},
+                                  {"start", "1"}});
   }
   Form f = Form::from_describe(reply, {});
   CHECK(f.ok()); // parameters at their start values are not written
@@ -166,7 +170,7 @@ TEST_CASE("form: at most 16 inputs and parameters")
     set(f, "in:u" + std::to_string(i), "true");
     set(f, "param:p" + std::to_string(i), "2");
   }
-  CHECK(error(f, "in:u15") == "more than 16 inputs"); // duty + 15
+  CHECK(error(f, "in:u15") == "more than 16 inputs");        // duty + 15
   CHECK(error(f, "param:p15") == "more than 16 parameters"); // Vbus + 15
 }
 

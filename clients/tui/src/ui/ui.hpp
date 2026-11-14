@@ -15,7 +15,8 @@
 
 // The screens. Each tab is a component that reads the model's snapshot when it renders and
 // posts commands to it; none of them talks to the network.
-namespace krumpir::ui {
+namespace krumpir::ui
+{
 
 // The controllers of the repo, by name, one model each.
 using Controllers = std::vector<std::pair<std::string, EcuModel *>>;
@@ -29,7 +30,8 @@ ftxui::Component Root(Model &m, Controllers ecus, std::string address, std::func
 ftxui::Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded);
 
 // F2: run state and controls, live variables, plot of the selected one, events. The variables pane
-// can be hidden (v) and resized (drag the divider, [ and ]); layout is shared by every Monitor page.
+// can be hidden (v) and resized (drag the divider, [ and ]); layout is shared by every Monitor
+// page.
 ftxui::Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> layout);
 
 // A controller's card on Load: address, connect, calibration grid.
@@ -64,14 +66,14 @@ std::string CheckValue(const std::string &text, double min, double max, double *
 ftxui::Element PlotPane(const std::vector<std::string> &names,
                         const std::vector<std::vector<Sample>> &samples, bool single);
 ftxui::Element EventsPane(const std::deque<std::string> &events);
-constexpr int kEventsRows = 8;    // the height of the events pane, the same on every page
-constexpr int kAddressWidth = 24; // the address box of a Load tab, the same for every target
-constexpr int kFilesWidth = 36;   // the file list of the runner's Load tab
-constexpr int kLabelWidth = 32;   // the widest label column of the Load form
-constexpr int kFormFieldWidth = 24; // a widget of the Load form
-constexpr int kCalFieldWidth = 14;  // a value box of the calibration grid
-constexpr int kNumberBoxWidth = 14; // at least, for a number typed in a dialog
-constexpr int kDialogWidth = 50;    // at least, for a dialog
+constexpr int kEventsRows = 8;       // the height of the events pane, the same on every page
+constexpr int kAddressWidth = 24;    // the address box of a Load tab, the same for every target
+constexpr int kFilesWidth = 36;      // the file list of the runner's Load tab
+constexpr int kLabelWidth = 32;      // the widest label column of the Load form
+constexpr int kFormFieldWidth = 24;  // a widget of the Load form
+constexpr int kCalFieldWidth = 14;   // a value box of the calibration grid
+constexpr int kNumberBoxWidth = 14;  // at least, for a number typed in a dialog
+constexpr int kDialogWidth = 50;     // at least, for a dialog
 constexpr int kWideDialogWidth = 56; // at least, for a dialog with a path to type
 
 } // namespace krumpir::ui

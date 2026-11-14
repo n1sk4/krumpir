@@ -70,7 +70,8 @@ int main(int argc, char **argv)
   for (int id = 0; id < T12_SCN_COUNT; id++) {
     if (!strcmp(argv[1], t12_scenario_name((t12_scenario_t)id))) {
       const t12_ctrl_cfg_t cfg = T12_CTRL_CFG_DEFAULT;
-      printf("t_s,setpoint_c,temp_c,tip_c,sensor_c,handle_c,duty,current_a,load_wk,ambient_c,trip\n");
+      printf(
+          "t_s,setpoint_c,temp_c,tip_c,sensor_c,handle_c,duty,current_a,load_wk,ambient_c,trip\n");
       t12_scenario_run((t12_scenario_t)id, &cfg, print_sample, NULL);
       return 0;
     }

@@ -4,7 +4,8 @@
 #include <pthread.h>
 #include <stddef.h>
 
-#define RT_STACK_PREFAULT (256 * 1024) /* bytes of the loop thread's stack touched before the loop */
+#define RT_STACK_PREFAULT                                                                          \
+  (256 * 1024) /* bytes of the loop thread's stack touched before the loop */
 
 /* Real-time setup of the loop thread and the process (Linux).
  *

@@ -1,7 +1,8 @@
 /* A controller on a PC, on the HIL link: the same control task, console and generated tables as
  * the board, with hil_host.c as the platform. Commands on stdin, CSV telemetry on stdout.
  *
- *   <name>_host --device /dev/pts/N [--lockstep | --hz 1000] [--log] [-c "sp 300"]... [--xcp 5555] */
+ *   <name>_host --device /dev/pts/N [--lockstep | --hz 1000] [--log] [-c "sp 300"]... [--xcp 5555]
+ */
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -61,17 +62,18 @@ static void *console_thread(void *arg)
 
 static int usage(const char *prog)
 {
-  fprintf(stderr,
-          "usage: %s --device DEV [--lockstep | --hz N] [--log] [-c COMMAND]...\n"
-          "  --device DEV  the serial line to the runner (a pty pair from socat, or a UART)\n"
-          "  --lockstep    one tick per plant frame (default); --hz N: own clock, N ticks/s\n"
-          "  --log         CSV telemetry on stdout from the start (else: `log on` on stdin)\n"
-          "  -c COMMAND    a console command at boot, e.g. -c \"sp 300\" -c start\n"
-          "  --at S COMMAND  a console command at plant time S seconds (tick S * N; lockstep: the\n"
-          "                runner's step at 1 kHz), e.g. --at 0.1 \"sp 3000\"\n"
-          "  --mute-at S   stop answering at plant time S (keeps ticking): a broken link, for tests\n"
-          "  --xcp PORT    XCP on UDP on this port (a build with -DKRUMPIR_XCP=ON)\n",
-          prog);
+  fprintf(
+      stderr,
+      "usage: %s --device DEV [--lockstep | --hz N] [--log] [-c COMMAND]...\n"
+      "  --device DEV  the serial line to the runner (a pty pair from socat, or a UART)\n"
+      "  --lockstep    one tick per plant frame (default); --hz N: own clock, N ticks/s\n"
+      "  --log         CSV telemetry on stdout from the start (else: `log on` on stdin)\n"
+      "  -c COMMAND    a console command at boot, e.g. -c \"sp 300\" -c start\n"
+      "  --at S COMMAND  a console command at plant time S seconds (tick S * N; lockstep: the\n"
+      "                runner's step at 1 kHz), e.g. --at 0.1 \"sp 3000\"\n"
+      "  --mute-at S   stop answering at plant time S (keeps ticking): a broken link, for tests\n"
+      "  --xcp PORT    XCP on UDP on this port (a build with -DKRUMPIR_XCP=ON)\n",
+      prog);
   return 2;
 }
 

@@ -11,11 +11,13 @@
 #include "split.hpp"
 #include "ui.hpp"
 
-namespace krumpir::ui {
+namespace krumpir::ui
+{
 
 using namespace ftxui;
 
-namespace {
+namespace
+{
 
 // scenarios/<name>.toml for a picked file: the same name for a scenario, the FMU's for an FMU.
 std::string save_as_default(const std::string &path)
@@ -27,7 +29,8 @@ std::string save_as_default(const std::string &path)
 }
 
 // A one-line input that leaves up and down to the grid, so the arrows walk the rows.
-class RowInput : public ComponentBase {
+class RowInput : public ComponentBase
+{
 public:
   explicit RowInput(Component input) { Add(std::move(input)); }
   bool OnEvent(Event e) override
@@ -41,7 +44,7 @@ public:
 Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded)
 {
   struct State {
-    std::string address, path; // path: the file picked
+    std::string address, path;        // path: the file picked
     std::vector<std::string> files;   // the runner's scenarios, then its FMUs
     std::vector<std::string> visible; // of those, the ones the filter lets through: the list rows
     std::string filter, seen_filter;  // seen: the text the cursor was last placed for
@@ -177,35 +180,44 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
   // A focusable stand-in: the renderer below draws the text, this only takes the keys.
   auto text_view = CatchEvent(Renderer([](bool) { return text(""); }), [s](Event e) {
     int d = 0;
-    if (e == Event::ArrowDown) d = 1;
-    if (e == Event::ArrowUp) d = -1;
-    if (e == Event::PageDown) d = 10;
-    if (e == Event::PageUp) d = -10;
+    if (e == Event::ArrowDown)
+      d = 1;
+    if (e == Event::ArrowUp)
+      d = -1;
+    if (e == Event::PageDown)
+      d = 10;
+    if (e == Event::PageUp)
+      d = -10;
     if (e.is_mouse() && s->text_box.Contain(e.mouse().x, e.mouse().y)) {
-      if (e.mouse().button == Mouse::WheelDown) d = 3;
-      if (e.mouse().button == Mouse::WheelUp) d = -3;
+      if (e.mouse().button == Mouse::WheelDown)
+        d = 3;
+      if (e.mouse().button == Mouse::WheelUp)
+        d = -3;
     }
     s->scroll = std::max(0, s->scroll + d);
     return d != 0;
   });
 
   auto grid = Container::Vertical({}); // one widget per editable field, built per description
-  auto buttons = Container::Horizontal({
-      Button("Check", check, ButtonOption::Ascii()), Button("Load", load, ButtonOption::Ascii()),
-      Button("Save", save, ButtonOption::Ascii()), Button("Save as", save_as, ButtonOption::Ascii()),
-      Button("Revert", revert, ButtonOption::Ascii()),
-      Button("Text", [s] { s->raw = !s->raw; }, ButtonOption::Ascii())});
+  auto buttons = Container::Horizontal(
+      {Button("Check", check, ButtonOption::Ascii()), Button("Load", load, ButtonOption::Ascii()),
+       Button("Save", save, ButtonOption::Ascii()),
+       Button("Save as", save_as, ButtonOption::Ascii()),
+       Button("Revert", revert, ButtonOption::Ascii()),
+       Button("Text", [s] { s->raw = !s->raw; }, ButtonOption::Ascii())});
   auto form_view = Container::Vertical({grid, buttons});
 
   auto path_opt = one_line;
   path_opt.on_enter = [s, describe] { describe(s->path); };
   auto path = Input(&s->path, "path on the runner, e.g. scenarios/dcmotor.toml", path_opt);
 
-  auto layout = Container::Vertical({
-      Container::Horizontal({addr, connect, disconnect, refresh}),
-      Container::Horizontal({file_list, Container::Tab({form_view, text_view}, &s->view)}),
-      path,
-  }, &s->row);
+  auto layout = Container::Vertical(
+      {
+          Container::Horizontal({addr, connect, disconnect, refresh}),
+          Container::Horizontal({file_list, Container::Tab({form_view, text_view}, &s->view)}),
+          path,
+      },
+      &s->row);
 
   // The widgets of a new description. Pointers into the form's fields stay valid: the field
   // list is not resized until the next build.
@@ -277,7 +289,8 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
         }
       }
       // The menu sets -1 while the list is empty: clamp from both sides.
-      s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->visible.size()) - 1));
+      s->selected =
+          std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->visible.size()) - 1));
       if (s->path.empty() && !s->visible.empty()) {
         pick();
       }
@@ -305,9 +318,8 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
       Field &f = form.fields[i];
       const int slot = s->slot_of[i];
       if (slot >= 0 && f.kind == Field::Choice && !f.choices.empty()) {
-        f.value = f.choices[static_cast<std::size_t>(
-            std::clamp(s->picks[static_cast<std::size_t>(slot)], 0,
-                       static_cast<int>(f.choices.size()) - 1))];
+        f.value = f.choices[static_cast<std::size_t>(std::clamp(
+            s->picks[static_cast<std::size_t>(slot)], 0, static_cast<int>(f.choices.size()) - 1))];
       } else if (slot >= 0 && f.kind == Field::Flag) {
         f.value = s->ticks[static_cast<std::size_t>(slot)] ? "true" : "false";
       }
@@ -335,12 +347,12 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
         }
         if (f.section != section) {
           section = f.section;
-          rows.push_back({text("[" + section + "]") | bold | color(Color::Cyan), text(""),
-                          text(""), text("") | xflex_shrink}); // a column shrinks if all its cells do
+          rows.push_back({text("[" + section + "]") | bold | color(Color::Cyan), text(""), text(""),
+                          text("") | xflex_shrink}); // a column shrinks if all its cells do
         }
         const bool changed = f.value != f.original;
-        const bool named = !note_ok && !note.empty() &&
-                           note.find("'" + f.label + "'") != std::string::npos;
+        const bool named =
+            !note_ok && !note.empty() && note.find("'" + f.label + "'") != std::string::npos;
         Element label = text(" " + f.label + " ") | (changed ? bold : nothing) |
                         (f.from_fmu && !changed ? dim : nothing) |
                         (named || !f.error.empty() ? color(Color::Red) : nothing) |
@@ -362,13 +374,13 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
           }
         }
         widget = widget | size(WIDTH, EQUAL, kFormFieldWidth);
-        rows.push_back({label, widget,
-                        text(f.unit.empty() ? "" : " " + f.unit + " ") | dim |
-                            size(WIDTH, EQUAL, unit_width),
-                        // the hints give way first when the pane is narrow
-                        (f.error.empty() ? text(" " + f.hint) | dim
-                                         : text(" " + f.error) | color(Color::Red)) |
-                            xflex_shrink});
+        rows.push_back(
+            {label, widget,
+             text(f.unit.empty() ? "" : " " + f.unit + " ") | dim | size(WIDTH, EQUAL, unit_width),
+             // the hints give way first when the pane is narrow
+             (f.error.empty() ? text(" " + f.hint) | dim
+                              : text(" " + f.error) | color(Color::Red)) |
+                 xflex_shrink});
       }
       // Keep the focused field in view when the focus moves; the wheel scrolls freely.
       const int n = static_cast<int>(rows.size());
@@ -383,10 +395,9 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
       }
       s->form_scroll = std::clamp(s->form_scroll, 0, std::max(0, n - visible));
       s->form_rows = n;
-      const std::string where =
-          n > visible ? Format(" rows %d-%d of %d ", s->form_scroll + 1,
-                               std::min(n, s->form_scroll + visible), n)
-                      : std::string();
+      const std::string where = n > visible ? Format(" rows %d-%d of %d ", s->form_scroll + 1,
+                                                     std::min(n, s->form_scroll + visible), n)
+                                            : std::string();
       // Only the rows that fit: a focused input would make the frame scroll on its own.
       rows = std::vector<Elements>(rows.begin() + s->form_scroll,
                                    rows.begin() + std::min(n, s->form_scroll + visible));
@@ -402,9 +413,9 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
         }
         bar = vbox(std::move(cells));
       }
-      body = vbox({hbox({gridbox(std::move(rows)) | yframe | flex | reflect(s->form_box), bar}) |
-                       flex,
-                   separatorLight(), hbox({buttons->Render(), filler(), text(where) | dim})});
+      body =
+          vbox({hbox({gridbox(std::move(rows)) | yframe | flex | reflect(s->form_box), bar}) | flex,
+                separatorLight(), hbox({buttons->Render(), filler(), text(where) | dim})});
     } else {
       // The text: as edited when there are edits, else as the runner described it
       Elements lines;
@@ -412,8 +423,9 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
         lines.push_back(paragraph(form.problem) | color(Color::Red));
       }
       const std::string shown = form.dirty() ? form.to_toml() : form.text;
-      s->scroll = std::min(s->scroll, std::max(0, static_cast<int>(std::count(
-                                                      shown.begin(), shown.end(), '\n')) - 1));
+      s->scroll =
+          std::min(s->scroll,
+                   std::max(0, static_cast<int>(std::count(shown.begin(), shown.end(), '\n')) - 1));
       std::istringstream in(shown);
       std::string line;
       for (int n = 0; std::getline(in, line); n++) {
@@ -441,17 +453,17 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
     } else if (!note.empty()) {
       notes = text(" " + note) | color(note_ok ? Color::Green : Color::Red);
     }
-    auto files_pane = window(text(" Files on the runner "),
-                             vbox({FilterRow(filter),
-                                   files->Render() | vscroll_indicator | frame | flex})) |
-                      size(WIDTH, EQUAL, kFilesWidth);
+    auto files_pane =
+        window(text(" Files on the runner "),
+               vbox({FilterRow(filter), files->Render() | vscroll_indicator | frame | flex})) |
+        size(WIDTH, EQUAL, kFilesWidth);
     auto form_pane = window(text(title) | (text_view->Focused() ? inverted : nothing),
                             vbox({notes, body | flex})) |
                      flex;
     return vbox({
         hbox({text(" Runner "), addr->Render() | size(WIDTH, EQUAL, kAddressWidth) | underlined,
-              text(" "),
-              connect->Render(), text(" "), disconnect->Render(), text(" "), refresh->Render()}),
+              text(" "), connect->Render(), text(" "), disconnect->Render(), text(" "),
+              refresh->Render()}),
         text(""),
         hbox({files_pane, form_pane}) | flex,
         hbox({text(" Path "), path->Render() | underlined | flex}),
@@ -461,14 +473,17 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
 
   // Dialogs
   auto close = [s] { s->ask_discard = s->ask_save = s->ask_save_as = false; };
-  auto discard_buttons = Container::Horizontal(
-      {Button("Discard", [s, pick] {
-         s->ask_discard = false;
-         s->selected = s->pending;
-         pick();
-       }, ButtonOption::Ascii()),
-       Button("Keep editing", close, ButtonOption::Ascii())},
-      &s->discard_row);
+  auto discard_buttons =
+      Container::Horizontal({Button(
+                                 "Discard",
+                                 [s, pick] {
+                                   s->ask_discard = false;
+                                   s->selected = s->pending;
+                                   pick();
+                                 },
+                                 ButtonOption::Ascii()),
+                             Button("Keep editing", close, ButtonOption::Ascii())},
+                            &s->discard_row);
   auto discard_dialog = Renderer(discard_buttons, [=] {
     return window(text(" Unsaved edits "),
                   vbox({text("The edits to " + s->path + " are not saved."),
@@ -477,19 +492,22 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
            size(WIDTH, GREATER_THAN, kDialogWidth);
   });
 
-  auto save_buttons = Container::Horizontal(
-      {Button("Save", [&m, s, toml] {
-         s->ask_save = false;
-         s->saving = s->path;
-         m.save(s->path, toml(), true);
-       }, ButtonOption::Ascii()),
-       Button("Cancel", close, ButtonOption::Ascii())},
-      &s->save_row);
+  auto save_buttons = Container::Horizontal({Button(
+                                                 "Save",
+                                                 [&m, s, toml] {
+                                                   s->ask_save = false;
+                                                   s->saving = s->path;
+                                                   m.save(s->path, toml(), true);
+                                                 },
+                                                 ButtonOption::Ascii()),
+                                             Button("Cancel", close, ButtonOption::Ascii())},
+                                            &s->save_row);
   auto save_dialog = Renderer(save_buttons, [=] {
     return window(text(" Save "),
                   vbox({text("Write the form to " + s->path + " on the runner?"),
                         text("The file is written from the form: its comments and layout are "
-                             "not kept.") | dim,
+                             "not kept.") |
+                            dim,
                         save_buttons->Render() | align_right})) |
            size(WIDTH, GREATER_THAN, kDialogWidth);
   });
@@ -514,9 +532,9 @@ Component LoadTab(Model &m, std::string address, std::function<void()> on_loaded
                size(WIDTH, GREATER_THAN, kWideDialogWidth);
       });
 
-  auto with_dialogs = Modal(Modal(Modal(view, discard_dialog, &s->ask_discard), save_dialog,
-                                  &s->ask_save),
-                            save_as_dialog, &s->ask_save_as);
+  auto with_dialogs =
+      Modal(Modal(Modal(view, discard_dialog, &s->ask_discard), save_dialog, &s->ask_save),
+            save_as_dialog, &s->ask_save_as);
   return CatchEvent(with_dialogs, [s, files, text_view, close](const Event &e) {
     if (s->ask_discard || s->ask_save || s->ask_save_as) {
       return EscapeCloses(e, close);

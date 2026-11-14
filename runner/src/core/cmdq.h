@@ -17,15 +17,15 @@ typedef enum {
 /* The arrays belong to the sender, which leaves them alone until the reply. */
 typedef struct {
   cmd_kind_t kind;
-  uint32_t seq;    /* echoed in the reply */
+  uint32_t seq; /* echoed in the reply */
   uint32_t n;
   uint32_t inputs; /* CMD_WRITE: bit i for input slot i */
   const uint32_t *vrs;
   double *values;
-  void *srcs;      /* CMD_WRITE: input_src_t[TELEM_MAX_CH]; after the reply it holds the sources
-                    * replaced, for the sender to free their signals */
-  double t;        /* reply of CMD_READ: the time of the step boundary it was sampled at */
-  int status;      /* reply: 0 ok, otherwise the fmu_result_t of the failed call */
+  void *srcs; /* CMD_WRITE: input_src_t[TELEM_MAX_CH]; after the reply it holds the sources
+               * replaced, for the sender to free their signals */
+  double t;   /* reply of CMD_READ: the time of the step boundary it was sampled at */
+  int status; /* reply: 0 ok, otherwise the fmu_result_t of the failed call */
 } cmd_t;
 
 #define CMDQ_CAPACITY 64 /* power of two */

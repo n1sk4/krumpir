@@ -2,7 +2,8 @@
 
 #include <asio.hpp>
 
-namespace krumpir {
+namespace krumpir
+{
 
 using asio::ip::tcp;
 
@@ -83,7 +84,8 @@ json Service::call(const std::string &op, json args)
   args["op"] = op;
   const std::string line = args.dump() + "\n";
   std::error_code ec;
-  asio::async_write(impl_->sock, asio::buffer(line), [&](std::error_code e, std::size_t) { ec = e; });
+  asio::async_write(impl_->sock, asio::buffer(line),
+                    [&](std::error_code e, std::size_t) { ec = e; });
   if (!impl_->run()) {
     impl_->fail(op + ": timed out");
   }

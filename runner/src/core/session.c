@@ -37,8 +37,8 @@ struct session {
 
   pthread_t thread;
   bool thread_started;
-  bool mem_locked; /* rt_lock_memory() was called for this load */
-  int timing_fd;   /* rt.timing_gpio's line (timing_pin), 0 when none */
+  bool mem_locked;  /* rt_lock_memory() was called for this load */
+  int timing_fd;    /* rt.timing_gpio's line (timing_pin), 0 when none */
   atomic_bool done; /* the loop thread has returned */
   atomic_int stop;
   loop_counters_t ls;
@@ -74,10 +74,7 @@ atomic_int *session_stop_flag(session_t *s) { return &s->stop; }
 
 const char *session_fault(const session_t *s) { return s->fault; }
 
-const modeldesc_t *session_model(const session_t *s)
-{
-  return s->pkg_open ? &s->pkg.md : NULL;
-}
+const modeldesc_t *session_model(const session_t *s) { return s->pkg_open ? &s->pkg.md : NULL; }
 
 const scenario_t *session_scenario(const session_t *s)
 {
@@ -346,8 +343,8 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
     goto fail;
   }
   s->cap_lock_ok = true;
-  s->writer = writer_start(&s->ring, s->sc.log_file, s->append_log ? &s->log_cont : NULL,
-                           in_names, sc->n_inputs, out_names, sc->n_outputs, feed_captures, s);
+  s->writer = writer_start(&s->ring, s->sc.log_file, s->append_log ? &s->log_cont : NULL, in_names,
+                           sc->n_inputs, out_names, sc->n_outputs, feed_captures, s);
   if (s->writer == NULL) {
     snprintf(err, errlen, "cannot create log file '%s'", sc->log_file);
     goto fail;
@@ -681,8 +678,7 @@ static int stage(session_t *s, const char *name, double value, size_t *np, uint3
     s->cmd_vr[*np] = v->vr;
     s->cmd_value[(*np)++] = value;
   } else if (v->causality == CAUS_PARAMETER) {
-    snprintf(err, errlen, "'%s' is a fixed parameter: set it in the scenario (model.params)",
-             name);
+    snprintf(err, errlen, "'%s' is a fixed parameter: set it in the scenario (model.params)", name);
     return -ERR_NOT_WRITABLE;
   } else {
     snprintf(err, errlen,
@@ -693,8 +689,8 @@ static int stage(session_t *s, const char *name, double value, size_t *np, uint3
   return 0;
 }
 
-int session_write(session_t *s, const char *const *names, const double *values, size_t n,
-                  char *err, size_t errlen)
+int session_write(session_t *s, const char *const *names, const double *values, size_t n, char *err,
+                  size_t errlen)
 {
   reap(s);
   if (n == 0) {
@@ -777,7 +773,8 @@ static int channel(const session_t *s, const char *name)
 
 static const char *channel_name(const session_t *s, int ch)
 {
-  return (size_t)ch < s->sc.n_inputs ? s->sc.inputs[ch] : s->sc.outputs[(size_t)ch - s->sc.n_inputs];
+  return (size_t)ch < s->sc.n_inputs ? s->sc.inputs[ch]
+                                     : s->sc.outputs[(size_t)ch - s->sc.n_inputs];
 }
 
 static int resolve_cond(const session_t *s, const capture_cond_t *in, cond_t *out, char *err,

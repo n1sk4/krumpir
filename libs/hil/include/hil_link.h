@@ -35,8 +35,8 @@ typedef struct {
   _Atomic uint32_t latest[HIL_MAX_VALUES]; /* float bit patterns */
   _Atomic uint32_t latest_seq;             /* its frame seq */
   _Atomic uint32_t frames;                 /* PLANT frames so far */
-  atomic_bool bye;      /* for hil_link_take_bye */
-  atomic_bool bye_seen; /* since the last plant frame */
+  atomic_bool bye;                         /* for hil_link_take_bye */
+  atomic_bool bye_seen;                    /* since the last plant frame */
 
   /* tick side */
   uint32_t taken;   /* `frames` at the last take */

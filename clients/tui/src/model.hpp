@@ -13,7 +13,8 @@
 
 #include "service.hpp"
 
-namespace krumpir {
+namespace krumpir
+{
 
 struct Variable {
   std::string name;
@@ -43,20 +44,21 @@ struct Snapshot {
   std::string state, fault, fmu;
   double t = 0, step = 0, duration = 0; // duration 0: runs until stopped
   double steps = 0, overruns = 0, max_step_ns = 0, max_wake_ns = 0;
-  double late = 0; // steps the uart controller did not answer in time
+  double late = 0;    // steps the uart controller did not answer in time
   std::string loaded; // what this client loaded ("" when it found the run already loaded)
 
-  std::vector<Variable> vars;                    // inputs, outputs, tunable parameters
+  std::vector<Variable> vars; // inputs, outputs, tunable parameters
   // Per variable. Inputs and outputs come from a capture armed at start (every step, also for
   // unpaced runs); parameters, and runs started elsewhere, from the polled values.
   std::map<std::string, std::deque<Sample>> history;
-  std::deque<std::string> events;                // oldest first
+  std::deque<std::string> events; // oldest first
 };
 
 // The runner as the UI sees it. A worker thread owns the connection: it runs the commands the UI
 // posts, in order, and polls the session every `period` (state, then the variables). The UI never
 // waits on the network; it reads the snapshot and is told when it changed.
-class Model {
+class Model
+{
 public:
   static constexpr std::size_t kHistory = 200000; // samples per variable, oldest dropped
   static constexpr std::size_t kEvents = 200;
@@ -77,7 +79,7 @@ public:
   void disconnect(); // closes the link and clears what was shown; a run goes on in the runner
   void refresh_files();
   void describe(std::string path); // a .toml, or an .fmu as its `init` starter scenario
-  void load(std::string path); // a .toml as it is, an .fmu as its `init` starter scenario
+  void load(std::string path);     // a .toml as it is, an .fmu as its `init` starter scenario
   void load_text(std::string label, std::string toml); // an edited scenario; label: its file
   void check(std::string toml);                        // against the FMU, without loading
   void save(std::string path, std::string toml, bool overwrite); // scenarios/<name>.toml
@@ -95,18 +97,19 @@ private:
   void poll();
   void fetch_vars();
   void fetch_capture();
-  void free_capture(); // worker thread
+  void free_capture();                                          // worker thread
   void add_sample(const std::string &name, double t, double v); // caller holds mu_
-  void do_reset(); // worker thread
-  void event(const std::string &text); // takes the lock
+  void do_reset();                                              // worker thread
+  void event(const std::string &text);                          // takes the lock
   void note(const std::string &text, bool ok); // the form's note and an event (takes the lock)
   void do_load(const std::string &label, const json &args); // worker thread
 
   Service svc_;
-  std::map<std::string, std::pair<bool, json>> setpoints_; // per name: (is a signal, its value or
-                                                           // stimulus); replayed after a reset (worker thread only)
-  int cap_id_ = -1;           // the capture armed at start, -1: none (worker thread only)
-  std::size_t cap_from_ = 0;  // rows of it fetched so far
+  std::map<std::string, std::pair<bool, json>>
+      setpoints_;                     // per name: (is a signal, its value or
+                                      // stimulus); replayed after a reset (worker thread only)
+  int cap_id_ = -1;                   // the capture armed at start, -1: none (worker thread only)
+  std::size_t cap_from_ = 0;          // rows of it fetched so far
   std::vector<std::string> captured_; // its variables; the others are polled
   std::function<void()> on_change_;
   std::chrono::milliseconds period_;

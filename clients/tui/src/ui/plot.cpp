@@ -7,14 +7,16 @@
 
 #include "ui.hpp"
 
-namespace krumpir::ui {
+namespace krumpir::ui
+{
 
 using namespace ftxui;
 
-namespace {
+namespace
+{
 
-const Color kColors[] = {Color::Cyan, Color::Yellow, Color::Magenta, Color::Green, Color::Blue,
-                         Color::Red};
+const Color kColors[] = {Color::Cyan,  Color::Yellow, Color::Magenta,
+                         Color::Green, Color::Blue,   Color::Red};
 
 // One variable's samples over [t0, t1] (shared by the stacked plots), scaled to the box.
 Element Plot(const std::string &name, const std::vector<Sample> &h, double t0, double t1,
@@ -67,12 +69,11 @@ Element Overlay(const std::vector<std::string> &names, const std::vector<std::ve
     }
     const Color c = kColors[k % std::size(kColors)];
     legend.push_back(text("-- " + names[k]) | bold | color(c));
-    legend.push_back(text(lo[k] <= hi[k] ? Format(" %.4g..%.4g   ", lo[k], hi[k]) : " -   ") |
-                     dim);
+    legend.push_back(text(lo[k] <= hi[k] ? Format(" %.4g..%.4g   ", lo[k], hi[k]) : " -   ") | dim);
   }
   if (!(t1 > t0)) {
-    return vbox({hbox(std::move(legend)), text("samples come in while it runs") | dim | center |
-                                              flex});
+    return vbox(
+        {hbox(std::move(legend)), text("samples come in while it runs") | dim | center | flex});
   }
   auto plot = canvas([hs, lo, hi, t0, t1](Canvas &c) {
     const double w = c.width() - 1, ht = c.height() - 1;
@@ -173,8 +174,7 @@ Element EventsPane(const std::deque<std::string> &events)
 {
   Elements lines;
   for (const auto &e : events) {
-    const bool bad = e.find("error") != std::string::npos ||
-                     e.find("fault") != std::string::npos ||
+    const bool bad = e.find("error") != std::string::npos || e.find("fault") != std::string::npos ||
                      e.find("tripped") != std::string::npos ||
                      e.find("disconnected") != std::string::npos;
     lines.push_back(text(e) | (bad ? color(Color::Red) : nothing));

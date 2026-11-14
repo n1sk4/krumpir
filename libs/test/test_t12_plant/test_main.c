@@ -5,7 +5,7 @@
 #include "t12_plant.h"
 
 #define AMB 25.0
-#define NEAR(expected, actual, tol) \
+#define NEAR(expected, actual, tol)                                                                \
   TEST_ASSERT_TRUE_MESSAGE(fabs((expected) - (actual)) <= (tol), #actual " out of tolerance")
 
 static const t12_params_t P = T12_PARAMS_DEFAULT;

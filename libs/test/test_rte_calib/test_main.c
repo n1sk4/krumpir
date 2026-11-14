@@ -28,7 +28,7 @@ static void test_first_page_only_records(void)
   const float v[] = {300.0f, 1.0f, 0.0f};
   TEST_ASSERT_FALSE(rte_calib_update(&c, &r, v));
   TEST_ASSERT_EQUAL_FLOAT(350.0f, rte_get(&r, 0)); /* the console's values stand */
-  TEST_ASSERT_FALSE(rte_calib_update(&c, &r, v)); /* unchanged */
+  TEST_ASSERT_FALSE(rte_calib_update(&c, &r, v));  /* unchanged */
 }
 
 static void test_change_writes_values_in_range(void)

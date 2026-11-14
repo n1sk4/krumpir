@@ -14,15 +14,17 @@
 #include "model.hpp" // Sample
 #include "xcp.hpp"
 
-namespace krumpir {
+namespace krumpir
+{
 
 // A controller of the repo: controllers/<dir>/src/gen/ctrl_gen.json (written by
 // tools/codegen/gen_controller.py) and the A2L file it names.
 struct Controller {
   std::string dir;  // controllers/<dir>
   std::string name; // e.g. "t12"
-  std::string a2l;  // path of its A2L file (exists only after an XCP build, see controllers/README.md, XCP)
-  json desc;        // ctrl_gen.json
+  std::string
+      a2l; // path of its A2L file (exists only after an XCP build, see controllers/README.md, XCP)
+  json desc; // ctrl_gen.json
 };
 
 // Every controller under root/controllers, sorted by folder.
@@ -36,7 +38,7 @@ struct CalParam {
 
 struct EcuSnapshot {
   std::vector<Controller> controllers;
-  std::string selected; // dir of the opened controller ("" when none)
+  std::string selected;  // dir of the opened controller ("" when none)
   std::string a2l_error; // why its A2L could not be read
   std::string epk;       // of the opened A2L
 
@@ -51,11 +53,11 @@ struct EcuSnapshot {
   std::vector<CalParam> params;
   std::vector<std::string> measurements; // readable scalar names of the A2L, sorted
   std::vector<std::string> monitor;      // the description's default signals
-  std::vector<std::string> watched;      // measured now: by DAQ when they have an event, else polled
-  int daq_signals = 0;                   // of them by DAQ (0: DAQ off)
-  double daq_rate = 0;                   // samples per second and signal, recently
-  std::uint64_t daq_lost = 0;            // DAQ packets lost since it started
-  std::map<std::string, double> values;  // last values of the watched names
+  std::vector<std::string> watched;     // measured now: by DAQ when they have an event, else polled
+  int daq_signals = 0;                  // of them by DAQ (0: DAQ off)
+  double daq_rate = 0;                  // samples per second and signal, recently
+  std::uint64_t daq_lost = 0;           // DAQ packets lost since it started
+  std::map<std::string, double> values; // last values of the watched names
   std::map<std::string, std::deque<Sample>> history; // t: s since connecting
   std::deque<std::string> events;
 };
@@ -63,7 +65,8 @@ struct EcuSnapshot {
 // A controller as the UI sees it, like Model for the runner: a worker thread owns the XCP link,
 // runs the commands the UI posts in order and polls the status, the calibration values and the
 // watched signals every `period`.
-class EcuModel {
+class EcuModel
+{
 public:
   static constexpr std::size_t kHistory = 300000; // 5 min at 1 kHz
   static constexpr std::size_t kEvents = 200;
@@ -81,8 +84,8 @@ public:
     return f(static_cast<const EcuSnapshot &>(snap_));
   }
 
-  void scan(std::string root);   // find the controllers
-  void open(std::string dir);    // a controller of the scan: its description and A2L
+  void scan(std::string root);       // find the controllers
+  void open(std::string dir);        // a controller of the scan: its description and A2L
   void connect(std::string address); // "" : the A2L's address
   void disconnect();
   void write(std::string param, double value); // by parameter name, checked against its limits

@@ -19,7 +19,8 @@
 using namespace ftxui;
 using namespace std::chrono_literals;
 
-namespace {
+namespace
+{
 
 // Draws twice: the second frame sees the sizes the first one measured.
 Screen draw(const Component &c, int w, int h)
@@ -75,12 +76,11 @@ struct Page {
     split = std::make_shared<krumpir::ui::PaneSplit>(
         lay, Renderer([] { return window(text(" Pane "), text("rows") | flex); }));
     auto rest = Renderer([] { return text("buttons"); });
-    auto body = Renderer(Container::Vertical({split->component(), rest}, split->focus()),
-                         [s = split] {
-                           s->frame();
-                           return vbox({s->render(window(text(" Plot "), text("curve") | flex)),
-                                        text("buttons")});
-                         });
+    auto body =
+        Renderer(Container::Vertical({split->component(), rest}, split->focus()), [s = split] {
+          s->frame();
+          return vbox({s->render(window(text(" Plot "), text("curve") | flex)), text("buttons")});
+        });
     page = CatchEvent(body, [s = split](const Event &e) { return s->on_key(e); });
   }
 };
@@ -182,7 +182,8 @@ TEST_CASE("ui split: dragging the divider moves it, within the limits")
   CHECK(p.lay->vars_width == 120 - 1 - krumpir::kMinPlotWidth);
 }
 
-namespace {
+namespace
+{
 
 // The whole frame with a runner and one controller, none of them connected.
 struct Rig {
@@ -190,7 +191,10 @@ struct Rig {
   krumpir::EcuModel ecu{[] {}, 10ms, 300ms};
   Component root;
 
-  Rig() { root = krumpir::ui::Root(m, {{"Motor", &ecu}}, "127.0.0.1:1", [] {}); }
+  Rig()
+  {
+    root = krumpir::ui::Root(m, {{"Motor", &ecu}}, "127.0.0.1:1", [] {});
+  }
 };
 
 } // namespace
@@ -323,7 +327,8 @@ TEST_CASE("ui root: the runner and the controller pages both have the filter box
   CHECK(has(s, "filter "));
 }
 
-TEST_CASE("ui root: the Load tab of the runner and of a controller both have Connect and Disconnect")
+TEST_CASE(
+    "ui root: the Load tab of the runner and of a controller both have Connect and Disconnect")
 {
   Rig r;
   Screen s = draw(r.root, 130, 36);

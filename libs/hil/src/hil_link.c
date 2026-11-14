@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-
 void hil_link_init(hil_link_t *l, hil_slots_t *slots, const char *const *plant, size_t n_plant,
                    const char *const *cmd, size_t n_cmd, hil_write_t write, void *write_ctx)
 {

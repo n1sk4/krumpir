@@ -5,7 +5,8 @@
 #include <stdexcept>
 #include <string>
 
-namespace krumpir {
+namespace krumpir
+{
 
 struct A2lError : std::runtime_error {
   using std::runtime_error::runtime_error;
@@ -15,11 +16,11 @@ struct A2lError : std::runtime_error {
 struct Symbol {
   std::uint32_t addr = 0;
   std::uint8_t ext = 0;
-  char fmt = 'B';         // B b H h I i Q q (unsigned/signed 8..64 bit), f (float32), d (float64)
-  std::size_t count = 1;  // array length
-  bool writable = false;  // a characteristic (calibration value)
+  char fmt = 'B';        // B b H h I i Q q (unsigned/signed 8..64 bit), f (float32), d (float64)
+  std::size_t count = 1; // array length
+  bool writable = false; // a characteristic (calibration value)
   std::string unit;
-  double min = 0, max = 0;            // the A2L's limits (both 0: none given)
+  double min = 0, max = 0;                // the A2L's limits (both 0: none given)
   std::map<long long, std::string> names; // enum values (COMPU_VTAB), empty when none
   int event = -1; // the DAQ event it is measured on (DEFAULT_EVENT_LIST), -1: none
 
@@ -37,8 +38,6 @@ struct A2l {
   std::string host;
   unsigned port = 5555;
   std::map<int, std::string> events; // DAQ event channels by number: their names
-
-
 
   const Symbol &at(const std::string &name) const; // throws A2lError
 };

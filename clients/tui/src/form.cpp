@@ -8,9 +8,11 @@
 #include <set>
 #include <sstream>
 
-namespace krumpir {
+namespace krumpir
+{
 
-namespace {
+namespace
+{
 
 constexpr int kMaxNames = 16; // runner: CFG_MAX_PARAMS, TELEM_MAX_CH
 
@@ -185,8 +187,8 @@ Form Form::from_describe(const json &reply, const std::vector<std::string> &fmus
   fs.push_back(step);
   const bool endless = !model.contains("duration") || model["duration"].is_null();
   fs.push_back(flag("model.until_stopped", "model", "run until stopped", endless));
-  Field duration = make("model.duration", "model", "duration", Field::Number,
-                        num(model, "duration", ""));
+  Field duration =
+      make("model.duration", "model", "duration", Field::Number, num(model, "duration", ""));
   duration.unit = "s";
   duration.hint = "a whole number of steps";
   fs.push_back(duration);
@@ -221,8 +223,8 @@ Form Form::from_describe(const json &reply, const std::vector<std::string> &fmus
   wait.choices = {"none", "sleep", "busy"};
   wait.hint = "none: as fast as it goes; sleep, busy: paced to the step";
   fs.push_back(wait);
-  Field overruns = make("rt.max_overruns", "rt", "max overruns", Field::Integer,
-                        num(rt, "max_overruns", "0"));
+  Field overruns =
+      make("rt.max_overruns", "rt", "max overruns", Field::Integer, num(rt, "max_overruns", "0"));
   overruns.lo = 0;
   overruns.hi = 1e9;
   overruns.hint = "late steps before the run faults";
@@ -254,8 +256,8 @@ Form Form::from_describe(const json &reply, const std::vector<std::string> &fmus
   baud.lo = 1200;
   baud.hi = 4000000;
   fs.push_back(baud);
-  Field timeout = make("io.timeout_ms", "io", "timeout", Field::Number,
-                       num(io, "timeout_ms", "100"));
+  Field timeout =
+      make("io.timeout_ms", "io", "timeout", Field::Number, num(io, "timeout_ms", "100"));
   timeout.unit = "ms";
   timeout.lo = 0;
   timeout.hi = 60000;
@@ -265,8 +267,7 @@ Form Form::from_describe(const json &reply, const std::vector<std::string> &fmus
   late.choices = {"fault", "hold"};
   late.hint = "too many late answers in a row: fault the run, or hold the last ones";
   fs.push_back(late);
-  Field max_late = make("io.max_late", "io", "max late", Field::Integer,
-                        num(io, "max_late", "10"));
+  Field max_late = make("io.max_late", "io", "max late", Field::Integer, num(io, "max_late", "10"));
   max_late.lo = 1;
   max_late.hi = 1e9;
   fs.push_back(max_late);
@@ -312,11 +313,11 @@ Form Form::from_describe(const json &reply, const std::vector<std::string> &fmus
     }
     fs.push_back(kind);
     static const std::map<std::string, std::string> defaults = {
-        {"value", "0"}, {"t", "0"}, {"from", "0"}, {"to", "1"},
+        {"value", "0"},  {"t", "0"},         {"from", "0"},   {"to", "1"},
         {"offset", "0"}, {"amplitude", "1"}, {"freq_hz", "1"}};
     for (const char *k : kStimKeys) {
-      Field n = make("stim:" + input + ":" + k, "io.stimulus", std::string("  ") + k,
-                     Field::Number, num(st, k, defaults.at(k)));
+      Field n = make("stim:" + input + ":" + k, "io.stimulus", std::string("  ") + k, Field::Number,
+                     num(st, k, defaults.at(k)));
       n.unit = std::string(k) == "t" ? "s" : std::string(k) == "freq_hz" ? "Hz" : x.unit;
       if (std::string(k) == "t") {
         n.lo = 0;
@@ -343,10 +344,7 @@ Field *Form::find(const std::string &k)
   return nullptr;
 }
 
-const Field *Form::find(const std::string &k) const
-{
-  return const_cast<Form *>(this)->find(k);
-}
+const Field *Form::find(const std::string &k) const { return const_cast<Form *>(this)->find(k); }
 
 void Form::check()
 {

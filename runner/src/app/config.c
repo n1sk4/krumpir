@@ -10,7 +10,6 @@
 #include "platform.h"
 #include "toml.h"
 
-
 typedef struct {
   char *err;
   size_t errlen;
@@ -182,10 +181,9 @@ static bool has_input(const scenario_t *sc, const char *name)
  * the end of the run (last segment only), or the file's length for a data segment. */
 static int parse_segment(ctx_t *c, const toml_table_t *t, segment_t *g, bool last)
 {
-  static const char *const keys[] = {"kind",   "duration", "value",  "from",   "to",
-                                     "offset", "amplitude", "freq_hz", "phase", "low",
-                                     "high",   "period",   "duty",   "file",   "interpolation",
-                                     NULL};
+  static const char *const keys[] = {
+      "kind",  "duration", "value", "from",   "to",   "offset", "amplitude",     "freq_hz",
+      "phase", "low",      "high",  "period", "duty", "file",   "interpolation", NULL};
   const char *w = "io.stimulus.segments";
   char kind[CFG_MAX_NAME];
   *g = (segment_t){0};
@@ -296,7 +294,7 @@ static int parse_segments(ctx_t *c, const toml_table_t *t, stimulus_t *s)
 static int parse_stimulus_entry(ctx_t *c, const toml_table_t *t, const scenario_t *sc,
                                 stimulus_t *s)
 {
-  static const char *const keys[] = {"input",  "kind",      "value",   "t",        "from", "to",
+  static const char *const keys[] = {"input",  "kind",      "value",   "t",        "from",  "to",
                                      "offset", "amplitude", "freq_hz", "segments", "loops", NULL};
   char kind[CFG_MAX_NAME];
   *s = (stimulus_t){0};
@@ -429,8 +427,8 @@ static int parse_model(ctx_t *c, const toml_table_t *model, scenario_t *sc)
 
 static int parse_rt(ctx_t *c, const toml_table_t *rt, scenario_t *sc)
 {
-  static const char *const keys[] = {"wait", "max_overruns", "cpu", "priority", "timing_gpio",
-                                     NULL};
+  static const char *const keys[] = {"wait",     "max_overruns", "cpu",
+                                     "priority", "timing_gpio",  NULL};
   char wait[CFG_MAX_NAME] = "none";
   if (check_keys(c, rt, "[rt]", keys) < 0 ||
       get_string(c, rt, "rt", "wait", wait, sizeof wait, false) < 0 ||

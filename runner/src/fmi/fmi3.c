@@ -121,7 +121,6 @@ void fmu_destroy(fmu_t *f)
   free(f);
 }
 
-
 #define BIND(field, sym)                                                                           \
   do {                                                                                             \
     f->field = (void *)fmu_sym(pkg, sym);                                                          \

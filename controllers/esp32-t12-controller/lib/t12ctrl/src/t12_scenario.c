@@ -12,8 +12,8 @@
 #define BAND_PCT 2.0f
 #define SAMPLE_DT 0.1f
 
-static const char *const NAMES[T12_SCN_COUNT] = {"cold", "load",  "ambient", "open",
-                                                  "short", "stuck", "runaway"};
+static const char *const NAMES[T12_SCN_COUNT] = {"cold",  "load",  "ambient", "open",
+                                                 "short", "stuck", "runaway"};
 
 typedef struct {
   double duration, event; /* [s] */
@@ -26,18 +26,34 @@ static const timing_t TIMING[T12_SCN_COUNT] = {
     [T12_SCN_RUNAWAY] = {80.0, 10.0},
 };
 
-const char *t12_scenario_name(t12_scenario_t id) { return (unsigned)id < T12_SCN_COUNT ? NAMES[id] : ""; }
+const char *t12_scenario_name(t12_scenario_t id)
+{
+  return (unsigned)id < T12_SCN_COUNT ? NAMES[id] : "";
+}
 
 static void apply_event(t12_scenario_t id, t12_io_sim_t *sim, double *load)
 {
   switch (id) {
-  case T12_SCN_LOAD_STEP: *load = 0.1; break;
-  case T12_SCN_RUNAWAY: *load = 0.5; break;
-  case T12_SCN_AMBIENT_STEP: sim->ambient = 10.0; break;
-  case T12_SCN_OPEN_TIP: sim->plant.fault = T12_FAULT_OPEN; break;
-  case T12_SCN_SHORTED_TIP: sim->plant.fault = T12_FAULT_SHORT; break;
-  case T12_SCN_STUCK_SWITCH: sim->plant.fault = T12_FAULT_STUCK_ON; break;
-  default: break;
+  case T12_SCN_LOAD_STEP:
+    *load = 0.1;
+    break;
+  case T12_SCN_RUNAWAY:
+    *load = 0.5;
+    break;
+  case T12_SCN_AMBIENT_STEP:
+    sim->ambient = 10.0;
+    break;
+  case T12_SCN_OPEN_TIP:
+    sim->plant.fault = T12_FAULT_OPEN;
+    break;
+  case T12_SCN_SHORTED_TIP:
+    sim->plant.fault = T12_FAULT_SHORT;
+    break;
+  case T12_SCN_STUCK_SWITCH:
+    sim->plant.fault = T12_FAULT_STUCK_ON;
+    break;
+  default:
+    break;
   }
   t12_params_t p = T12_PARAMS_DEFAULT;
   p.g_load = *load;

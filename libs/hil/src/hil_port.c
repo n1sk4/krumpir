@@ -12,8 +12,8 @@ static void write_line(void *ctx, const uint8_t *buf, size_t n)
   hil_port_write(buf, n);
 }
 
-void hil_port_bind(hil_slots_t *s, const char *const *plant, size_t n_plant,
-                   const char *const *cmd, size_t n_cmd)
+void hil_port_bind(hil_slots_t *s, const char *const *plant, size_t n_plant, const char *const *cmd,
+                   size_t n_cmd)
 {
   hil_link_init(&s_link, s, plant, n_plant, cmd, n_cmd, write_line, NULL);
   s_bound = true;

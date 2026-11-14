@@ -72,14 +72,22 @@ t12_trip_t t12_safety_update(t12_safety_t *s, const t12_meas_t *m, float temp)
 const char *t12_trip_name(t12_trip_t t)
 {
   switch (t) {
-  case T12_TRIP_NONE: return "none";
-  case T12_TRIP_OVER_TEMP: return "over temperature";
-  case T12_TRIP_STUCK_ON: return "heater stuck on";
-  case T12_TRIP_SHORT: return "heater short";
-  case T12_TRIP_NO_TIP: return "no tip";
-  case T12_TRIP_RESISTANCE: return "heater resistance";
-  case T12_TRIP_SENSOR: return "sensor timeout";
-  case T12_TRIP_RUNAWAY: return "thermal runaway";
+  case T12_TRIP_NONE:
+    return "none";
+  case T12_TRIP_OVER_TEMP:
+    return "over temperature";
+  case T12_TRIP_STUCK_ON:
+    return "heater stuck on";
+  case T12_TRIP_SHORT:
+    return "heater short";
+  case T12_TRIP_NO_TIP:
+    return "no tip";
+  case T12_TRIP_RESISTANCE:
+    return "heater resistance";
+  case T12_TRIP_SENSOR:
+    return "sensor timeout";
+  case T12_TRIP_RUNAWAY:
+    return "thermal runaway";
   }
   return "unknown";
 }

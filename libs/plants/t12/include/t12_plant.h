@@ -33,12 +33,24 @@ typedef struct {
 
 /* Placeholder thermal values for a T12 on a 24 V / 8 ohm heater (72 W): about 5 s to 350 degC,
  * about 9 W to hold it in free air. Replace with values fitted to a measured step response. */
-#define T12_PARAMS_DEFAULT                                                                       \
-  {                                                                                              \
-      .c_h = 0.25, .c_t = 0.8, .c_c = 15.0, .r_ht = 0.5, .r_ta = 35.0, .r_tc = 150.0,          \
-      .r_ca = 15.0, .g_load = 0.0, .v_supply = 24.0, .r_coil = 8.0, .r_short = 1.0,            \
-      .seebeck = 21e-6, .amp_gain = 250.0, .amp_offset = 10e-6, .v_clamp = 3.3,                \
-      .tau_sense = 0.5e-3,                                                                       \
+#define T12_PARAMS_DEFAULT                                                                         \
+  {                                                                                                \
+      .c_h = 0.25,                                                                                 \
+      .c_t = 0.8,                                                                                  \
+      .c_c = 15.0,                                                                                 \
+      .r_ht = 0.5,                                                                                 \
+      .r_ta = 35.0,                                                                                \
+      .r_tc = 150.0,                                                                               \
+      .r_ca = 15.0,                                                                                \
+      .g_load = 0.0,                                                                               \
+      .v_supply = 24.0,                                                                            \
+      .r_coil = 8.0,                                                                               \
+      .r_short = 1.0,                                                                              \
+      .seebeck = 21e-6,                                                                            \
+      .amp_gain = 250.0,                                                                           \
+      .amp_offset = 10e-6,                                                                         \
+      .v_clamp = 3.3,                                                                              \
+      .tau_sense = 0.5e-3,                                                                         \
   }
 
 typedef enum {

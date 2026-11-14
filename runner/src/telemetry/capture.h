@@ -23,11 +23,11 @@ typedef struct {
 typedef struct {
   int ch[2 * TELEM_MAX_CH]; /* channels to record, in this order */
   size_t n_ch;
-  size_t n_in;      /* channels below n_in are inputs */
-  cond_t start;     /* recording starts at the first record where it holds; none: at once */
-  cond_t stop;      /* recording ends after the first recorded row where it holds */
-  double duration;  /* s, > 0: rows with t - t_first < duration are recorded; 0: no limit */
-  size_t max_rows;  /* > 0; the capture finishes when its buffer is full */
+  size_t n_in;     /* channels below n_in are inputs */
+  cond_t start;    /* recording starts at the first record where it holds; none: at once */
+  cond_t stop;     /* recording ends after the first recorded row where it holds */
+  double duration; /* s, > 0: rows with t - t_first < duration are recorded; 0: no limit */
+  size_t max_rows; /* > 0; the capture finishes when its buffer is full */
 } capture_def_t;
 
 typedef struct capture capture_t;

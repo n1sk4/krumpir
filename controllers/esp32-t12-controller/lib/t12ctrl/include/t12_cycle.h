@@ -20,14 +20,14 @@
  * window read T12_ADC_MAX, so the temperature reads invalid instead of a bogus average. A reading
  * of T12_ADC_NONE (no reading: a lost HIL link) marks the measurement lost. */
 typedef struct {
-  uint16_t tc;         /* thermocouple counts, averaged; T12_ADC_MAX if a sample was */
-  uint16_t ntc;        /* handle NTC counts at the end of the window */
-  uint16_t current;    /* heater current counts at the last heating tick */
+  uint16_t tc;          /* thermocouple counts, averaged; T12_ADC_MAX if a sample was */
+  uint16_t ntc;         /* handle NTC counts at the end of the window */
+  uint16_t current;     /* heater current counts at the last heating tick */
   uint16_t current_off; /* heater current counts at the end of the off window */
-  bool current_valid;  /* false when the cycle heated for fewer than two ticks */
-  bool lost;           /* a reading of this cycle was T12_ADC_NONE: none of it can be trusted */
-  uint16_t heat_ticks; /* ticks the heater was on in this cycle */
-  float duty;          /* heat_ticks as a fraction of the longest possible heating phase */
+  bool current_valid;   /* false when the cycle heated for fewer than two ticks */
+  bool lost;            /* a reading of this cycle was T12_ADC_NONE: none of it can be trusted */
+  uint16_t heat_ticks;  /* ticks the heater was on in this cycle */
+  float duty;           /* heat_ticks as a fraction of the longest possible heating phase */
 } t12_meas_t;
 
 typedef struct {

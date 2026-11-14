@@ -9,7 +9,8 @@
 #include "a2l.hpp"
 #include "service.hpp" // LinkError
 
-namespace krumpir {
+namespace krumpir
+{
 
 // The ECU refused a command, or does not match its A2L. The link is fine.
 struct XcpError : std::runtime_error {
@@ -29,7 +30,8 @@ struct DaqSample {
 // and closes. Little-endian ECUs only.
 // DAQ: dynamic DAQ lists, one per event, with the ECU's timestamps; the packets are decoded as
 // they come in, also while a command waits for its answer.
-class Ecu {
+class Ecu
+{
 public:
   explicit Ecu(std::chrono::milliseconds timeout = std::chrono::milliseconds(500));
   ~Ecu(); // disconnects
@@ -41,7 +43,7 @@ public:
   void close();
   bool is_open() const;
 
-  std::vector<double> read(const Symbol &s);  // count values
+  std::vector<double> read(const Symbol &s);                 // count values
   void write(const Symbol &s, const std::vector<double> &v); // count values; ints are rounded
 
   std::vector<std::uint8_t> upload(std::uint32_t addr, std::uint8_t ext, std::size_t n);

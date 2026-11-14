@@ -17,7 +17,8 @@
 using namespace krumpir;
 namespace fs = std::filesystem;
 
-namespace {
+namespace
+{
 
 const char *kA2l = R"(
 ASAP2_VERSION 1 71
@@ -67,7 +68,8 @@ EPK "build_x" ADDR_EPK 0xFFFFFF00
 // take several commands; each answer comes after an event packet the master has to skip.
 // silent: never answers. DAQ as XCPlite does it: dynamic lists, ODT + fill + DAQ word headers,
 // 32 bit timestamps in us in the first ODT; trigger() sends one event's packets.
-class FakeEcu {
+class FakeEcu
+{
 public:
   std::map<std::uint32_t, std::uint8_t> mem; // only touched with the io thread idle (see set/get)
   std::atomic<bool> silent{false};
@@ -90,8 +92,8 @@ public:
           continue;
         }
         for (std::size_t o = 0; o < lists_[d].odts.size(); o++) {
-          std::vector<std::uint8_t> p{static_cast<std::uint8_t>(o), 0,
-                                      static_cast<std::uint8_t>(d), 0};
+          std::vector<std::uint8_t> p{static_cast<std::uint8_t>(o), 0, static_cast<std::uint8_t>(d),
+                                      0};
           if (o == 0) {
             for (int k = 0; k < 4; k++) {
               p.push_back(static_cast<std::uint8_t>(ts_us >> (8 * k)));
@@ -433,8 +435,7 @@ TEST_CASE("xcp: connect, read and write a fake ECU")
     ecu.download(0x7000, 0, std::vector<std::uint8_t>(20, 0xAB)); // SET_MTA + DOWNLOAD
     CHECK(fake.get<std::uint8_t>(0x7013) == 0xAB);
     CHECK(ecu.upload(0x7000, 0, 20) == std::vector<std::uint8_t>(20, 0xAB)); // 3 uploads
-    CHECK_THROWS_WITH_AS(ecu.read(a.at("s_trip")), "command 0xF4 refused: OUT_OF_RANGE",
-                         XcpError);
+    CHECK_THROWS_WITH_AS(ecu.read(a.at("s_trip")), "command 0xF4 refused: OUT_OF_RANGE", XcpError);
     CHECK(ecu.is_open()); // a refusal keeps the link
   }
   CHECK(eventually([&] { return fake.disconnects == 1; }));
@@ -562,9 +563,10 @@ TEST_CASE("controllers of the repo")
   }
 }
 
-// With KRUMPIR_ECU_A2L=<a2l> (a controller running with XCP at the A2L's address, e.g. a PC build with
-// --xcp, controllers/README.md "XCP on the PC build") also against it: the EPK at connect, a calibration write read back,
-// and DAQ on the 1 kHz tick.
+// With KRUMPIR_ECU_A2L=<a2l> (a controller running with XCP at the A2L's address, e.g. a PC build
+// with
+// --xcp, controllers/README.md "XCP on the PC build") also against it: the EPK at connect, a
+// calibration write read back, and DAQ on the 1 kHz tick.
 TEST_CASE("xcp: a live controller (KRUMPIR_ECU_A2L)")
 {
   const char *path = std::getenv("KRUMPIR_ECU_A2L");

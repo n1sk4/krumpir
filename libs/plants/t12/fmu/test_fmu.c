@@ -51,8 +51,7 @@ static void logger(fmi3InstanceEnvironment env, fmi3Status status, fmi3String ca
 static fmi3Instance start(void)
 {
   fmi3Instance fmu = fmi3InstantiateCoSimulation("t12tip", TOKEN, NULL, fmi3False, fmi3False,
-                                                 fmi3False, fmi3False, NULL, 0, NULL, logger,
-                                                 NULL);
+                                                 fmi3False, fmi3False, NULL, 0, NULL, logger, NULL);
   CHECK(fmu != NULL, "instantiate");
   return fmu;
 }
@@ -90,8 +89,8 @@ static int same(fmi3Instance fmu, const t12_plant_t *ref, int n)
         ref->t_h);
   CHECK(get(fmu, VR_T_T) == ref->t_t, "step %d t_t", n);
   CHECK(get(fmu, VR_T_C) == ref->t_c, "step %d t_c", n);
-  CHECK(get(fmu, VR_V_AMP) == ref->v_amp, "step %d v_amp %.17g, plant %.17g", n,
-        get(fmu, VR_V_AMP), ref->v_amp);
+  CHECK(get(fmu, VR_V_AMP) == ref->v_amp, "step %d v_amp %.17g, plant %.17g", n, get(fmu, VR_V_AMP),
+        ref->v_amp);
   CHECK(get(fmu, VR_I) == ref->i_heater, "step %d i_heater", n);
   return failures == before;
 }

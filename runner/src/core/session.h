@@ -110,8 +110,8 @@ int session_set_signal(session_t *s, const stimulus_t *st, char *err, size_t err
  * when INITIALIZED for the first step, when RUNNING at the next step boundary (the call returns
  * once the loop has applied them). The parameters go first; if the FMU refuses them, no input
  * changes. Returns 0, or -ERR_* with a message in err. */
-int session_write(session_t *s, const char *const *names, const double *values, size_t n,
-                  char *err, size_t errlen);
+int session_write(session_t *s, const char *const *names, const double *values, size_t n, char *err,
+                  size_t errlen);
 
 /* Reads n Float64 variables of the model, all at one step boundary: when INITIALIZED or STOPPED
  * directly, when RUNNING at the next one. *t gets the run's time of the sample (NAN when n is 0

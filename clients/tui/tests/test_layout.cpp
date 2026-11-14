@@ -27,8 +27,8 @@ TEST_CASE("layout: before the first frame the width is not known")
 
 TEST_CASE("layout: name width follows the pane")
 {
-  CHECK(NameWidth(54, 24) == 26); // runner rows: 3 + 1 + name + 1 + 6 + 1 + 12
-  CHECK(NameWidth(54, 16) == 34); // controller rows: 3 + 1 + name + 1 + 11
+  CHECK(NameWidth(54, 24) == 26);           // runner rows: 3 + 1 + name + 1 + 6 + 1 + 12
+  CHECK(NameWidth(54, 16) == 34);           // controller rows: 3 + 1 + name + 1 + 11
   CHECK(NameWidth(kMinVarsWidth, 24) == 8); // the narrowest pane still shows 8 characters
   CHECK(NameWidth(20, 24) == 8);
   CHECK(NameWidth(200, 16) == 40);

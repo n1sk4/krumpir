@@ -36,8 +36,7 @@ static void logger(fmi3InstanceEnvironment env, fmi3Status status, fmi3String ca
 static fmi3Instance start(void)
 {
   fmi3Instance fmu = fmi3InstantiateCoSimulation("dcmotor", TOKEN, NULL, fmi3False, fmi3False,
-                                                 fmi3False, fmi3False, NULL, 0, NULL, logger,
-                                                 NULL);
+                                                 fmi3False, fmi3False, NULL, 0, NULL, logger, NULL);
   CHECK(fmu != NULL, "instantiate");
   return fmu;
 }
@@ -110,8 +109,8 @@ static void test_long_step(void)
     for (int k = 0; k < 10; k++)
       step(b, (n * 10 + k) * DT, DT);
   }
-  CHECK(get(a, VR_SPEED) == get(b, VR_SPEED), "10 ms step %g, ten 1 ms steps %g",
-        get(a, VR_SPEED), get(b, VR_SPEED));
+  CHECK(get(a, VR_SPEED) == get(b, VR_SPEED), "10 ms step %g, ten 1 ms steps %g", get(a, VR_SPEED),
+        get(b, VR_SPEED));
   fmi3FreeInstance(a);
   fmi3FreeInstance(b);
 }

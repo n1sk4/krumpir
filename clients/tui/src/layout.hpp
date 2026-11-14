@@ -1,7 +1,8 @@
 #pragma once
 
 // The size of the variables pane on the Monitor pages. No UI types here, so it can be tested.
-namespace krumpir {
+namespace krumpir
+{
 
 struct MonitorLayout {
   bool vars_shown = true;

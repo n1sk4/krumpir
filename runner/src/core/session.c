@@ -437,14 +437,16 @@ static void sleep_ms(double ms)
 
 bool session_wait(session_t *s, int timeout_ms)
 {
-  for (double waited = 0.0; timeout_ms < 0 || waited < timeout_ms; waited += 0.5) {
+  for (double waited = 0.0;; waited += 0.5) { /* looks before it times out: 0 is a poll */
     if (!s->thread_started || atomic_load(&s->done)) {
       reap(s);
       return true;
     }
+    if (timeout_ms >= 0 && waited >= timeout_ms) {
+      return false;
+    }
     sleep_ms(0.5);
   }
-  return false;
 }
 
 void session_stop(session_t *s)

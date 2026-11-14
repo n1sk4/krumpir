@@ -6,10 +6,10 @@ run. Examples: `scenarios/` (demos) and `tests/golden/` (short regression runs).
 
 ```toml
 [model]
-fmu      = "fmus/Dahlquist.fmu"
+fmu      = "fmus/dcmotor.fmu"
 step     = 0.001          # s, communication step
-duration = 10             # s, a whole number of steps
-params   = { k = 1.0 }    # set before initialization
+duration = 1              # s, a whole number of steps
+params   = { Vbus = 6.0 } # set before initialization
 
 [rt]
 wait         = "sleep"    # none | sleep | busy
@@ -17,12 +17,12 @@ max_overruns = 0
 
 [io]
 backend  = "null"
-inputs   = ["u"]
-outputs  = ["x"]
-stimulus = [{ input = "u", kind = "step", t = 1.0, from = 0, to = 1 }]
+inputs   = ["duty"]
+outputs  = ["speed_rpm", "current"]
+stimulus = [{ input = "duty", kind = "step", t = 0.1, from = 0, to = 0.5 }]
 
 [log]
-file = "runs/dahlquist.csv"
+file = "runs/dcmotor.csv"
 ```
 
 ## `[model]` (required)

@@ -99,6 +99,7 @@ static void test_drive_running(void)
 
   assert(session_start(s, err, sizeof err) == 0);
   assert(session_state(s) == LC_RUNNING);
+  assert(!session_wait(s, 0)); /* a poll: still running */
   sleep_ms(50);
   assert(read_ok(s, OUT) == 2.0); /* the override replaced the stimulus from the first step */
 
@@ -125,6 +126,7 @@ static void test_drive_running(void)
   assert(session_load(s, &sc, err, sizeof err) == 0);
   assert(session_start(s, err, sizeof err) == 0);
   assert(session_wait(s, 5000));
+  assert(session_wait(s, 0)); /* a poll sees the run has ended */
   assert(session_state(s) == LC_STOPPED);
   assert(read_ok(s, OUT) == 1.0); /* no override in this run: the stimulus */
 

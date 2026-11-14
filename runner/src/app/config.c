@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "platform.h"
 #include "toml.h"
 
-#define MAX_FILE_BYTES (1u << 20)
 
 typedef struct {
   char *err;
@@ -543,24 +543,10 @@ int config_parse(const char *text, scenario_t *sc, char *err, size_t errlen)
 
 int config_load(const char *path, scenario_t *sc, char *err, size_t errlen)
 {
-  ctx_t c = {err, errlen};
-  FILE *fp = fopen(path, "rb");
-  if (fp == NULL) {
-    return fail(&c, "cannot open '%s'", path);
-  }
-  char *buf = malloc(MAX_FILE_BYTES + 1);
+  char *buf = plat_read_file(path, CONFIG_MAX_FILE_BYTES, NULL, err, errlen);
   if (buf == NULL) {
-    fclose(fp);
-    return fail(&c, "out of memory");
+    return -1;
   }
-  size_t n = fread(buf, 1, MAX_FILE_BYTES + 1, fp);
-  bool read_error = ferror(fp) != 0;
-  fclose(fp);
-  if (read_error || n > MAX_FILE_BYTES) {
-    free(buf);
-    return fail(&c, "cannot read '%s' (error or larger than %u bytes)", path, MAX_FILE_BYTES);
-  }
-  buf[n] = '\0';
   int rc = config_parse(buf, sc, err, errlen);
   free(buf);
   return rc;

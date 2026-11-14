@@ -37,7 +37,7 @@ else()
 endif()
 
 # Golden files (tests/golden), the service over TCP, and the closed loops. Regenerate a golden file
-# after an intended change: cd runner && python3 tools/check_golden.py <build>/krumpir
+# after an intended change: cd runner && python3 tools/check_golden.py <build>/runner/krumpir
 #   tests/golden/<name>.toml tests/golden/<name>.csv --update
 find_package(Python3 3.13 COMPONENTS Interpreter)
 if(NOT Python3_Interpreter_FOUND)

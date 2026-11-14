@@ -17,7 +17,7 @@ void runner_request_stop(void)
   }
 }
 
-int runner_run(const scenario_t *sc, runner_result_t *res, char *err, size_t errlen)
+int runner_run(const scenario_t *sc, session_summary_t *res, char *err, size_t errlen)
 {
   memset(res, 0, sizeof *res);
   err[0] = '\0';
@@ -43,20 +43,9 @@ int runner_run(const scenario_t *sc, runner_result_t *res, char *err, size_t err
     }
   }
 
-  session_summary_t sum;
-  session_unload(s, &sum);
+  session_unload(s, res);
   g_stop = NULL;
   session_destroy(s);
-
-  res->state = rc == RUNNER_OK ? LC_STOPPED : LC_FAULT;
-  res->stopped_early = sum.stopped_early;
-  res->steps = sum.steps;
-  res->overruns = sum.overruns;
-  res->dropped = sum.dropped;
-  res->rows = sum.rows;
-  res->late = sum.late;
-  res->max_wake_ns = sum.max_wake_ns;
-  res->max_step_ns = sum.max_step_ns;
-  res->mean_step_ns = sum.mean_step_ns;
+  res->state = rc == RUNNER_OK ? LC_STOPPED : LC_FAULT; /* a setup error leaves it IDLE */
   return rc;
 }

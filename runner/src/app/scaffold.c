@@ -11,7 +11,7 @@
 #define DEFAULT_STEP 0.001
 #define DEFAULT_STOP 1.0
 
-static void put_str(FILE *out, const char *s)
+void scaffold_put_str(FILE *out, const char *s)
 {
   fputc('"', out);
   for (; *s != '\0'; s++) {
@@ -38,7 +38,7 @@ static void put_key(FILE *out, const char *s)
   if (bare) {
     fputs(s, out);
   } else {
-    put_str(out, s);
+    scaffold_put_str(out, s);
   }
 }
 
@@ -126,7 +126,7 @@ static void put_names(FILE *out, const char *key, const mvar_t *const *list, siz
   fprintf(out, "%s = [\n", key);
   for (size_t i = 0; i < n; i++) {
     fputs("  ", out);
-    put_str(out, list[i]->name);
+    scaffold_put_str(out, list[i]->name);
     fputc(',', out);
     put_comment(out, list[i], "");
   }
@@ -157,7 +157,7 @@ int scaffold_scenario(FILE *out, const char *fmu_path, char *err, size_t errlen)
           "# parameters, the stimulus and the duration. All keys: docs/scenario-reference.md\n",
           md->model_identifier, md->fmi_version);
   fputs("[model]\nfmu = ", out);
-  put_str(out, fmu_path);
+  scaffold_put_str(out, fmu_path);
   fputs("\nstep = ", out);
   put_num(out, step);
   fputs(md->step_size > 0 ? "  # DefaultExperiment stepSize\n" : "\n", out);
@@ -203,21 +203,21 @@ int scaffold_scenario(FILE *out, const char *fmu_path, char *err, size_t errlen)
       double v;
       if (number(ins[i]->start, &v) && v != 0) {
         fputs("  { input = ", out);
-        put_str(out, ins[i]->name);
+        scaffold_put_str(out, ins[i]->name);
         fputs(", kind = \"constant\", value = ", out);
         put_num(out, v);
         fputs(" },  # start value\n", out);
       }
     }
     fputs("  # { input = ", out);
-    put_str(out, ins[0]->name);
+    scaffold_put_str(out, ins[0]->name);
     fputs(", kind = \"step\", t = 0.1, from = 0, to = 1 },\n]\n", out);
   }
 
   char log[CFG_MAX_PATH];
   snprintf(log, sizeof log, "runs/%s.csv", md->model_identifier);
   fputs("\n[log]\nfile = ", out);
-  put_str(out, log);
+  scaffold_put_str(out, log);
   fputc('\n', out);
 
   fmu_close(&pkg);

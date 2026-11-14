@@ -10,4 +10,7 @@
  * as written. Returns 0, or -1 with a message in err (FMU not loadable). */
 int scaffold_scenario(FILE *out, const char *fmu_path, char *err, size_t errlen);
 
+/* s as a TOML basic string: quoted, with quotes, backslashes and control characters escaped. */
+void scaffold_put_str(FILE *out, const char *s);
+
 #endif

@@ -29,7 +29,7 @@ static const char *log_path(const char *name)
   return logp;
 }
 
-static int run_text(const char *text, runner_result_t *res, char *err, size_t errlen)
+static int run_text(const char *text, session_summary_t *res, char *err, size_t errlen)
 {
   scenario_t sc;
   char cerr[256];
@@ -95,7 +95,7 @@ static size_t read_csv(const char *path, size_t *ncols)
 static void test_unpaced_feedthrough(void)
 {
   char text[2048], err[256] = "";
-  runner_result_t res;
+  session_summary_t res;
   feed_text(text, sizeof text, "0.001", "1", "wait = \"none\"", log_path("feed.csv"));
   int rc = run_text(text, &res, err, sizeof err);
   if (rc != RUNNER_OK) {
@@ -125,7 +125,7 @@ static void test_unpaced_feedthrough(void)
 static void test_dahlquist_deterministic_and_parametrized(void)
 {
   char text[2048], err[256] = "";
-  runner_result_t res;
+  session_summary_t res;
 
   dahl_text(text, sizeof text, "1.0", log_path("d1.csv"));
   assert(run_text(text, &res, err, sizeof err) == RUNNER_OK);
@@ -158,7 +158,7 @@ static void test_dahlquist_deterministic_and_parametrized(void)
 static void test_paced(const char *mode, const char *duration, size_t steps, int64_t min_ns)
 {
   char text[2048], rt[128], err[256] = "";
-  runner_result_t res;
+  session_summary_t res;
   snprintf(rt, sizeof rt, "wait = \"%s\"\nmax_overruns = 1000", mode);
   feed_text(text, sizeof text, "0.001", duration, rt, log_path("paced.csv"));
 
@@ -190,7 +190,7 @@ static void test_overrun_faults(void)
 {
   /* A 100 ns step cannot be met: the first late step is an overrun and max_overruns is 0. */
   char text[2048], err[256] = "";
-  runner_result_t res;
+  session_summary_t res;
   feed_text(text, sizeof text, "1e-7", "1e-4", "wait = \"sleep\"\nmax_overruns = 0",
             log_path("overrun.csv"));
   int rc = run_text(text, &res, err, sizeof err);
@@ -213,7 +213,7 @@ static void *stopper(void *arg)
 static void test_stop_request(void)
 {
   char text[2048], err[256] = "";
-  runner_result_t res;
+  session_summary_t res;
   feed_text(text, sizeof text, "0.001", "5", "wait = \"sleep\"\nmax_overruns = 1000000",
             log_path("stop.csv"));
   pthread_t th;
@@ -229,7 +229,7 @@ static void test_stop_request(void)
 
 static void expect_setup_error(const char *text, const char *substr)
 {
-  runner_result_t res;
+  session_summary_t res;
   char err[256] = "";
   int rc = run_text(text, &res, err, sizeof err);
   if (rc != RUNNER_SETUP_ERROR || strstr(err, substr) == NULL) {

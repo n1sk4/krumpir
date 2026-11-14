@@ -1,6 +1,38 @@
 #include "platform.h"
 
+#include <errno.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
+
+char *plat_read_file(const char *path, size_t max, size_t *len, char *err, size_t errlen)
+{
+  FILE *f = fopen(path, "rb");
+  if (f == NULL) {
+    snprintf(err, errlen, "cannot open '%s': %s", path, strerror(errno));
+    return NULL;
+  }
+  char *buf = malloc(max + 1);
+  const size_t n = buf != NULL ? fread(buf, 1, max, f) : 0;
+  const bool failed = buf == NULL || ferror(f), more = !failed && fgetc(f) != EOF;
+  fclose(f);
+  if (failed || more) {
+    if (more) {
+      snprintf(err, errlen, "'%s' is larger than %zu bytes", path, max);
+    } else {
+      snprintf(err, errlen, "cannot read '%s'", path);
+    }
+    free(buf);
+    return NULL;
+  }
+  buf[n] = '\0';
+  if (len != NULL) {
+    *len = n;
+  }
+  return buf;
+}
 
 int64_t plat_now_ns(void)
 {

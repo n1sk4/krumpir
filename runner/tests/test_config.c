@@ -224,6 +224,16 @@ static void test_load(void)
   fclose(fp);
   assert(config_load("test_config_tmp.toml", &sc, err, sizeof err) == 0);
   assert(sc.n_steps == 1000);
+
+  fp = fopen("test_config_tmp.toml", "w"); /* one byte over the limit */
+  assert(fp != NULL);
+  fputs(MODEL IO LOG, fp);
+  for (size_t n = strlen(MODEL IO LOG); n <= CONFIG_MAX_FILE_BYTES; n++) {
+    fputc('\n', fp);
+  }
+  fclose(fp);
+  assert(config_load("test_config_tmp.toml", &sc, err, sizeof err) == -1);
+  assert(strstr(err, "is larger than 1048576 bytes") != NULL);
   remove("test_config_tmp.toml");
 }
 

@@ -103,6 +103,8 @@ int config_parse(const char *text, scenario_t *sc, char *err, size_t errlen);
 int config_parse_stimulus(const char *entry, const scenario_t *sc, stimulus_t *s, char *err,
                           size_t errlen);
 
+#define CONFIG_MAX_FILE_BYTES (1u << 20) /* a scenario file, from disk or through the service */
+
 /* Reads the file and calls config_parse. Relative paths in the file are kept as written. */
 int config_load(const char *path, scenario_t *sc, char *err, size_t errlen);
 

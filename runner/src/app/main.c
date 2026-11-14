@@ -60,7 +60,7 @@ static int cmd_run(const char *path)
   sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTERM, &sa, NULL);
 
-  runner_result_t res;
+  session_summary_t res;
   int rc = runner_run(&sc, &res, err, sizeof err);
   if (rc != RUNNER_OK) {
     fprintf(stderr, "krumpir: %s\n", err);

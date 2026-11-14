@@ -6,8 +6,7 @@
 #include "fmi3FunctionTypes.h"
 #include "fmu.h"
 
-typedef struct {
-  fmu_t base; /* must be first */
+struct fmu { /* an FMI 3.0 co-simulation instance */
   fmi3Instance inst;
   bool in_step_mode; /* ExitInitializationMode done and not yet terminated */
 
@@ -20,7 +19,7 @@ typedef struct {
   fmi3DoStepTYPE *do_step;
 
   char msg[256]; /* last warning or error reported by the FMU */
-} fmi3_t;
+};
 
 const char *fmu_result_str(fmu_result_t r)
 {
@@ -63,16 +62,15 @@ static fmu_result_t map_status(fmi3Status s)
 static void log_message(fmi3InstanceEnvironment env, fmi3Status status, fmi3String category,
                         fmi3String message)
 {
-  fmi3_t *f = env;
+  fmu_t *f = env;
   if (status >= fmi3Warning) {
     snprintf(f->msg, sizeof f->msg, "%s: %s", category != NULL ? category : "fmu",
              message != NULL ? message : "");
   }
 }
 
-static fmu_result_t f_init(fmu_t *m, double t0)
+fmu_result_t fmu_init(fmu_t *f, double t0)
 {
-  fmi3_t *f = (fmi3_t *)m;
   fmu_result_t r = map_status(f->enter_init(f->inst, fmi3False, 0.0, t0, fmi3False, 0.0));
   if (r != FMU_OK) {
     return r;
@@ -82,21 +80,18 @@ static fmu_result_t f_init(fmu_t *m, double t0)
   return r;
 }
 
-static fmu_result_t f_set_real(fmu_t *m, const uint32_t *vr, size_t n, const double *v)
+fmu_result_t fmu_set_real(fmu_t *f, const uint32_t *vr, size_t n, const double *v)
 {
-  fmi3_t *f = (fmi3_t *)m;
   return map_status(f->set_float64(f->inst, vr, n, v, n));
 }
 
-static fmu_result_t f_get_real(fmu_t *m, const uint32_t *vr, size_t n, double *v)
+fmu_result_t fmu_get_real(fmu_t *f, const uint32_t *vr, size_t n, double *v)
 {
-  fmi3_t *f = (fmi3_t *)m;
   return map_status(f->get_float64(f->inst, vr, n, v, n));
 }
 
-static fmu_result_t f_step(fmu_t *m, double t, double h)
+fmu_result_t fmu_step(fmu_t *f, double t, double h)
 {
-  fmi3_t *f = (fmi3_t *)m;
   fmi3Boolean event = fmi3False, terminate = fmi3False, early = fmi3False;
   fmi3Float64 last = 0.0;
   fmu_result_t r =
@@ -113,11 +108,10 @@ static fmu_result_t f_step(fmu_t *m, double t, double h)
   return early ? FMU_EARLY_RETURN : FMU_OK;
 }
 
-static const char *f_last_message(const fmu_t *m) { return ((const fmi3_t *)m)->msg; }
+const char *fmu_last_message(const fmu_t *f) { return f->msg; }
 
-static void f_destroy(fmu_t *m)
+void fmu_destroy(fmu_t *f)
 {
-  fmi3_t *f = (fmi3_t *)m;
   if (f->inst != NULL) {
     if (f->in_step_mode) {
       f->terminate(f->inst);
@@ -127,7 +121,6 @@ static void f_destroy(fmu_t *m)
   free(f);
 }
 
-static const fmu_api_t api = {f_init, f_set_real, f_get_real, f_step, f_last_message, f_destroy};
 
 #define BIND(field, sym)                                                                           \
   do {                                                                                             \
@@ -145,12 +138,11 @@ fmu_t *fmi3_create(const fmu_pkg_t *pkg, char *err, size_t errlen)
     snprintf(err, errlen, "modelDescription.xml has no instantiationToken");
     return NULL;
   }
-  fmi3_t *f = calloc(1, sizeof *f);
+  fmu_t *f = calloc(1, sizeof *f);
   if (f == NULL) {
     snprintf(err, errlen, "out of memory");
     return NULL;
   }
-  f->base.api = &api;
 
   fmi3InstantiateCoSimulationTYPE *instantiate =
       (void *)fmu_sym(pkg, "fmi3InstantiateCoSimulation");
@@ -176,5 +168,5 @@ fmu_t *fmi3_create(const fmu_pkg_t *pkg, char *err, size_t errlen)
     free(f);
     return NULL;
   }
-  return &f->base;
+  return f;
 }

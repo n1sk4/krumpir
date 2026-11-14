@@ -124,27 +124,6 @@ static int extract(mz_zip_archive *zip, const char *dir, char *err, size_t errle
   return 0;
 }
 
-static int read_file(const char *path, char **out, size_t *len)
-{
-  FILE *fp = fopen(path, "rb");
-  if (fp == NULL) {
-    return -1;
-  }
-  char *buf = malloc(MAX_XML_BYTES + 1);
-  if (buf == NULL) {
-    fclose(fp);
-    return -1;
-  }
-  *len = fread(buf, 1, MAX_XML_BYTES + 1, fp);
-  fclose(fp);
-  if (*len > MAX_XML_BYTES) {
-    free(buf);
-    return -1;
-  }
-  *out = buf;
-  return 0;
-}
-
 static bool safe_identifier(const char *s)
 {
   for (; *s != '\0'; s++) {
@@ -187,7 +166,7 @@ int fmu_open(const char *path, fmu_pkg_t *pkg, char *err, size_t errlen)
     goto done;
   }
   snprintf(file, sizeof file, "%s/modelDescription.xml", pkg->dir);
-  if (read_file(file, &xml, &xml_len) < 0) {
+  if ((xml = plat_read_file(file, MAX_XML_BYTES, &xml_len, err, errlen)) == NULL) {
     snprintf(err, errlen, "'%s' has no readable modelDescription.xml", path);
     goto done;
   }

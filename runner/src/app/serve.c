@@ -7,7 +7,6 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <signal.h>
-#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -19,6 +18,7 @@
 
 #include "cJSON.h"
 #include "loader.h"
+#include "platform.h"
 #include "scaffold.h"
 #include "session.h"
 
@@ -38,94 +38,52 @@ static void on_signal(int sig)
   }
 }
 
-/* Growable string. */
-typedef struct {
-  char *p;
-  size_t len, cap;
-  bool oom;
-} sb_t;
-
-static void sb_add(sb_t *b, const char *fmt, ...)
-{
-  for (;;) {
-    size_t room = b->cap - b->len;
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vsnprintf(b->p != NULL ? b->p + b->len : NULL, room, fmt, ap);
-    va_end(ap);
-    if (n < 0 || b->oom) {
-      b->oom = true;
-      return;
-    }
-    if ((size_t)n < room) {
-      b->len += (size_t)n;
-      return;
-    }
-    size_t cap = b->cap > 0 ? b->cap : 256;
-    while (cap - b->len <= (size_t)n) {
-      cap *= 2;
-    }
-    char *p = realloc(b->p, cap);
-    if (p == NULL) {
-      b->oom = true;
-      return;
-    }
-    b->p = p;
-    b->cap = cap;
-  }
-}
-
-static void sb_number(sb_t *b, double v)
+static void put_number(FILE *f, double v)
 {
   if (isfinite(v)) {
-    sb_add(b, "%.17g", v);
+    fprintf(f, "%.17g", v);
   } else {
-    sb_add(b, "null");
+    fputs("null", f);
   }
 }
 
-static void toml_string(sb_t *b, const char *s)
+/* Closes a memstream; -1 with "out of memory" in err when a write to it failed. */
+static int close_mem(FILE *f, char *err, size_t errlen)
 {
-  sb_add(b, "\"");
-  for (; *s != '\0'; s++) {
-    unsigned char ch = (unsigned char)*s;
-    if (ch == '"' || ch == '\\') {
-      sb_add(b, "\\%c", ch);
-    } else if (ch < 0x20 || ch == 0x7f) {
-      sb_add(b, "\\u%04X", ch);
-    } else {
-      sb_add(b, "%c", ch);
-    }
+  const bool failed = ferror(f) != 0;
+  if (fclose(f) != 0 || failed) {
+    snprintf(err, errlen, "out of memory");
+    return -1;
   }
-  sb_add(b, "\"");
+  return 0;
 }
 
 /* A JSON value written as TOML (an inline table for an object), so the scenario parser checks
  * a stimulus sent as JSON exactly as it checks one in a scenario file. */
-static int to_toml(sb_t *b, const cJSON *j, char *err, size_t errlen)
+static int to_toml(FILE *f, const cJSON *j, char *err, size_t errlen)
 {
   if (cJSON_IsNumber(j)) {
-    sb_number(b, j->valuedouble);
+    put_number(f, j->valuedouble);
   } else if (cJSON_IsBool(j)) {
-    sb_add(b, cJSON_IsTrue(j) ? "true" : "false");
+    fputs(cJSON_IsTrue(j) ? "true" : "false", f);
   } else if (cJSON_IsString(j)) {
-    toml_string(b, j->valuestring);
+    scaffold_put_str(f, j->valuestring);
   } else if (cJSON_IsArray(j) || cJSON_IsObject(j)) {
     bool obj = cJSON_IsObject(j);
-    sb_add(b, obj ? "{ " : "[");
+    fputs(obj ? "{ " : "[", f);
     const cJSON *e;
     cJSON_ArrayForEach(e, j)
     {
       if (obj) {
-        toml_string(b, e->string);
-        sb_add(b, " = ");
+        scaffold_put_str(f, e->string);
+        fputs(" = ", f);
       }
-      if (to_toml(b, e, err, errlen) < 0) {
+      if (to_toml(f, e, err, errlen) < 0) {
         return -1;
       }
-      sb_add(b, e->next != NULL ? ", " : "");
+      fputs(e->next != NULL ? ", " : "", f);
     }
-    sb_add(b, obj ? " }" : "]");
+    fputs(obj ? " }" : "]", f);
   } else {
     snprintf(err, errlen, "null is not a value");
     return -1;
@@ -240,40 +198,26 @@ static void op_files(cJSON *r)
   add_listing(r, "fmus", "fmus", ".fmu");
 }
 
-/* The text of a .toml file on the server, in a buffer valid until the next call; NULL with a
- * message in err. */
-static const char *read_toml(const char *op, const char *path, char *err, size_t errlen)
+/* The text of a .toml file on the server as malloc'd text; NULL with a message in err. */
+static char *read_toml(const char *op, const char *path, char *err, size_t errlen)
 {
   size_t len = path != NULL ? strlen(path) : 0;
   if (len < 5 || strcmp(path + len - 5, ".toml") != 0) {
     snprintf(err, errlen, "%s takes \"path\" of a .toml file", op);
     return NULL;
   }
-  FILE *f = fopen(path, "rb");
-  if (f == NULL) {
-    snprintf(err, errlen, "cannot open %s: %s", path, strerror(errno));
-    return NULL;
-  }
-  static char buf[1u << 16]; /* Limitation: one request at a time; scenarios are a few kB */
-  size_t n = fread(buf, 1, sizeof buf - 1, f);
-  bool more = fgetc(f) != EOF;
-  fclose(f);
-  if (more) {
-    snprintf(err, errlen, "%s is larger than %u bytes", path, (unsigned)sizeof buf - 1);
-    return NULL;
-  }
-  buf[n] = '\0';
-  return buf;
+  return plat_read_file(path, CONFIG_MAX_FILE_BYTES, NULL, err, errlen);
 }
 
 /* The text of a scenario file on the server (*.toml only), for a client to show before loading. */
 static int op_text(const cJSON *req, cJSON *r, char *err, size_t errlen)
 {
-  const char *text = read_toml("text", get_str(req, "path"), err, errlen);
+  char *text = read_toml("text", get_str(req, "path"), err, errlen);
   if (text == NULL) {
     return -1;
   }
   cJSON_AddStringToObject(r, "text", text);
+  free(text);
   return 0;
 }
 
@@ -443,7 +387,7 @@ static int op_describe(const cJSON *req, cJSON *r, char *err, size_t errlen)
     return -1;
   }
   char *owned = NULL;
-  if (path != NULL && (text = read_toml("describe", path, err, errlen)) == NULL) {
+  if (path != NULL && (text = owned = read_toml("describe", path, err, errlen)) == NULL) {
     return -1;
   }
   if (fmu != NULL && (text = owned = starter(fmu, err, errlen)) == NULL) {
@@ -663,17 +607,22 @@ static int op_signal(session_t *s, const cJSON *req, char *err, size_t errlen)
     snprintf(err, errlen, "no scenario loaded");
     return -1;
   }
-  sb_t b = {0};
-  int rc = to_toml(&b, j, err, errlen);
-  if (rc == 0 && b.oom) {
+  char *text = NULL;
+  size_t len;
+  FILE *f = open_memstream(&text, &len);
+  if (f == NULL) {
     snprintf(err, errlen, "out of memory");
+    return -1;
+  }
+  int rc = to_toml(f, j, err, errlen);
+  if (close_mem(f, err, errlen) < 0) {
     rc = -1;
   }
   stimulus_t st;
   if (rc == 0) {
-    rc = config_parse_stimulus(b.p, sc, &st, err, errlen);
+    rc = config_parse_stimulus(text, sc, &st, err, errlen);
   }
-  free(b.p);
+  free(text);
   return rc == 0 ? session_set_signal(s, &st, err, errlen) : -1;
 }
 
@@ -748,7 +697,7 @@ static int op_capture_start(session_t *s, const cJSON *req, cJSON *r, char *err,
 
 /* The rows go into *rows as JSON text: a cJSON tree of a large capture would cost far more
  * memory than the numbers. */
-static int op_capture_fetch(session_t *s, const cJSON *req, cJSON *r, sb_t *rows, char *err,
+static int op_capture_fetch(session_t *s, const cJSON *req, cJSON *r, char **rows, char *err,
                             size_t errlen)
 {
   int id;
@@ -767,18 +716,25 @@ static int op_capture_fetch(session_t *s, const cJSON *req, cJSON *r, sb_t *rows
   cJSON_AddNumberToObject(r, "n_rows", (double)d.n_rows);
   cJSON_AddNumberToObject(r, "from", (double)first);
   cJSON_AddItemToObject(r, "names", cJSON_CreateStringArray(d.names, (int)d.n_cols));
-  sb_add(rows, "[");
-  for (size_t i = first; i < last; i++) {
-    sb_add(rows, i > first ? ",[" : "[");
-    for (size_t k = 0; k < d.n_cols; k++) {
-      sb_add(rows, k > 0 ? "," : "");
-      sb_number(rows, d.rows[i * d.n_cols + k]);
-    }
-    sb_add(rows, "]");
+  size_t len;
+  FILE *f = open_memstream(rows, &len);
+  if (f == NULL) {
+    free(d.rows);
+    snprintf(err, errlen, "out of memory");
+    return -1;
   }
-  sb_add(rows, "]");
+  fputc('[', f);
+  for (size_t i = first; i < last; i++) {
+    fputs(i > first ? ",[" : "[", f);
+    for (size_t k = 0; k < d.n_cols; k++) {
+      fputs(k > 0 ? "," : "", f);
+      put_number(f, d.rows[i * d.n_cols + k]);
+    }
+    fputc(']', f);
+  }
+  fputc(']', f);
   free(d.rows);
-  return 0;
+  return close_mem(f, err, errlen);
 }
 
 static void add_summary(cJSON *r, const session_summary_t *m)
@@ -796,7 +752,7 @@ static void add_summary(cJSON *r, const session_summary_t *m)
   cJSON_AddNumberToObject(o, "late", (double)m->late);
 }
 
-static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, sb_t *rows,
+static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, char **rows,
                     char *err, size_t errlen)
 {
   if (strcmp(op, "info") == 0) {
@@ -911,7 +867,7 @@ static char *handle(session_t *s, const char *line)
   const cJSON *tag = cJSON_IsObject(req) ? item(req, "tag") : NULL;
   const char *op = cJSON_IsObject(req) ? get_str(req, "op") : NULL;
   cJSON *r = new_reply(tag, true);
-  sb_t rows = {0};
+  char *rows = NULL;
   int rc = -1;
   if (!cJSON_IsObject(req)) {
     snprintf(err, sizeof err, "a request is one JSON object per line");
@@ -919,10 +875,6 @@ static char *handle(session_t *s, const char *line)
     snprintf(err, sizeof err, "missing \"op\"");
   } else {
     rc = dispatch(s, op, req, r, &rows, err, sizeof err);
-  }
-  if (rc == 0 && rows.oom) {
-    snprintf(err, sizeof err, "out of memory");
-    rc = -1;
   }
   if (rc < 0) {
     cJSON_Delete(r);
@@ -932,13 +884,16 @@ static char *handle(session_t *s, const char *line)
   char *out = cJSON_PrintUnformatted(r);
   cJSON_Delete(r);
   cJSON_Delete(req);
-  if (out != NULL && rc == 0 && rows.p != NULL) { /* splice the rows in before the closing } */
-    sb_t b = {0};
-    sb_add(&b, "%.*s,\"rows\":%s}", (int)(strlen(out) - 1), out, rows.p);
+  if (out != NULL && rc == 0 && rows != NULL) { /* splice the rows in before the closing } */
+    const size_t n = strlen(out) + strlen(rows) + sizeof ",\"rows\":";
+    char *p = malloc(n);
+    if (p != NULL) {
+      snprintf(p, n, "%.*s,\"rows\":%s}", (int)(strlen(out) - 1), out, rows);
+    }
     free(out);
-    out = b.oom ? NULL : b.p;
+    out = p;
   }
-  free(rows.p);
+  free(rows);
   return out != NULL ? out : strdup("{\"ok\":false,\"error\":\"out of memory\"}");
 }
 

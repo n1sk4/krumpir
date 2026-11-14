@@ -41,7 +41,7 @@ static void run(const char *name, const char *dir)
     abort();
   }
   snprintf(sc.log_file, sizeof sc.log_file, "%s/%s.csv", dir, name);
-  runner_result_t res;
+  session_summary_t res;
   int rc = runner_run(&sc, &res, err, sizeof err);
   if (rc != RUNNER_OK || res.steps != sc.n_steps) {
     fprintf(stderr, "%s scenario run: rc %d, %llu steps: %s\n%s", name, rc,

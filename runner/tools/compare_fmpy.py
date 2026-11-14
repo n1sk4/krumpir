@@ -77,6 +77,12 @@ def stimulus_signal(s):
         (t0, v0), (t1, v1) = rows[hi - 1], rows[hi]
         return v0 if g.get("interpolation") == "step" else v0 + (v1 - v0) * (u - t0) / (t1 - t0)
 
+    def pulse_end(g):
+        """What the pulse shows just before its end; whole periods end low (siggen.c pulse_end)."""
+        c = g["dur"] / g["period"]
+        p = 1.0 if abs(c - round(c)) < 1e-9 * max(1.0, c) else c - math.floor(c)
+        return float(g["high"] if p <= g["duty"] else g.get("low", 0.0))
+
     resolved, start, prev = [], 0.0, 0.0
     for seg in segs:
         g = {**seg, "start": start, "v0": prev}
@@ -86,7 +92,8 @@ def stimulus_signal(s):
             g["rows"] = read_data(g["file"])
         g["dur"] = float(g.get("duration", g["rows"][-1][0] if g["kind"] == "data" else math.inf))
         g["v1"] = (float(g["to"]) if g["kind"] == "ramp"
-                   else math.nan if math.isinf(g["dur"]) else seg_value(g, g["dur"]))
+                   else math.nan if math.isinf(g["dur"])
+                   else pulse_end(g) if g["kind"] == "pulse" else seg_value(g, g["dur"]))
         prev, start = g["v1"], start + g["dur"]
         resolved.append(g)
     total, last = start, resolved[-1]

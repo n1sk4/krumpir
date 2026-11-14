@@ -109,7 +109,7 @@ the time since the segment started.
 | `const` | `value` | `value` |
 | `ramp` | `to`, `from` (default: the previous segment's end value), `duration` required | `from + (to - from) * u / duration` |
 | `sine` | `amplitude`, `freq_hz`, `offset` (default 0), `phase` (rad, default 0) | `offset + amplitude * sin(2 pi freq_hz u + phase)` |
-| `pulse` | `high`, `period`, `duty` (0..1), `low` (default 0) | `high` while `u mod period < duty * period`, else `low` |
+| `pulse` | `high`, `period`, `duty` (0..1), `low` (default 0) | `high` while `u mod period < duty * period`, else `low`. Its end value (what `idle` and the end of the signal hold) is the value just before the end: `low` after a whole number of periods (unless `duty = 1`) |
 | `idle` | | holds the previous segment's end value (0 for the first) |
 | `data` | `file`, `interpolation` (`"linear"` default, or `"step"`) | rows of `time,value` from the file, time from 0 and rising; holds the first and last value outside them |
 

@@ -68,6 +68,15 @@ static double seg_value(const seg_t *g, double u)
   return 0.0;
 }
 
+/* A pulse's end value: what it shows just before u = dur. A whole number of periods ends in the
+ * low phase (high only with duty = 1), however fmod rounds dur. */
+static double pulse_end(const segment_t *s, double dur)
+{
+  const double c = dur / s->period;
+  const double p = fabs(c - round(c)) < 1e-9 * fmax(1.0, c) ? 1.0 : c - floor(c); /* 0..1 */
+  return p <= s->duty ? s->high : s->low;
+}
+
 double signal_value(const signal_t *g, double t)
 {
   const seg_t *last = &g->seg[g->n - 1];
@@ -224,7 +233,13 @@ signal_t *signal_create(const stimulus_t *s, char *err, size_t errlen)
                i + 1);
       return fail(g);
     }
-    q->v1 = q->s.kind == SEG_RAMP ? q->s.to : isinf(q->dur) ? NAN : seg_value(q, q->dur);
+    if (q->s.kind == SEG_RAMP) {
+      q->v1 = q->s.to;
+    } else if (isinf(q->dur)) {
+      q->v1 = NAN;
+    } else {
+      q->v1 = q->s.kind == SEG_PULSE ? pulse_end(&q->s, q->dur) : seg_value(q, q->dur);
+    }
     prev = q->v1;
     t += q->dur;
   }

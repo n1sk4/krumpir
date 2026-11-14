@@ -84,6 +84,30 @@ static void test_segments(void)
   assert(NEAR(signal_value(g, 5.25), 11.0)); /* the last segment runs to the end */
   signal_free(g);
 
+  /* A pulse ends with what it showed last: whole periods end low however fmod rounds the
+   * duration (fmod(2, 1) = 0 read high, fmod(1, 0.1) = 0.0999... read low) */
+  const struct {
+    const char *keys;
+    double end;
+  } pulses[] = {
+      {"high = 1, period = 1, duty = 0.5, duration = 2", 0},
+      {"high = 1, period = 0.1, duty = 0.5, duration = 1", 0},
+      {"high = 1, period = 0.1, duty = 0.5, duration = 0.3", 0},
+      {"high = 1, period = 1, duty = 0.5, duration = 1.25", 1}, /* ends in a high phase */
+      {"high = 1, period = 1, duty = 0.5, duration = 1.75", 0},
+      {"high = 1, period = 1, duty = 1, duration = 2", 1},      /* always high */
+      {"high = 1, period = 1, duty = 0, duration = 1.5", 0},    /* always low */
+      {"high = 1, low = -1, period = 1, duty = 0.5, duration = 3", -1},
+  };
+  for (size_t i = 0; i < sizeof pulses / sizeof pulses[0]; i++) {
+    char entry[256];
+    snprintf(entry, sizeof entry, "segments = [{ kind = \"pulse\", %s }, { kind = \"idle\" }]",
+             pulses[i].keys);
+    g = make(entry);
+    assert(signal_value(g, 100.0) == pulses[i].end); /* the idle segment holds it */
+    signal_free(g);
+  }
+
   /* A finite signal holds its last value; a ramp with its own from */
   g = make("segments = [{ kind = \"ramp\", from = -1, to = 1, duration = 2 }]");
   assert(signal_value(g, 0.0) == -1.0 && NEAR(signal_value(g, 1.0), 0.0));

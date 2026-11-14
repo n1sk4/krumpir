@@ -16,7 +16,7 @@ The Python packages for all of them: `requirements.txt` (installed by `kb.py set
 ## Python client
 
 `krumpir/`: a client of `krumpir serve` (protocol in
-[../runner/docs/service-protocol.md](../runner/docs/service-protocol.md)), standard library only,
+[../runner/docs/service-protocol.md](../runner/docs/service-protocol.md)), standard library only (the rules a client may rely on: [../docs/api-spec.md](../docs/api-spec.md)),
 its classes after ASAM XIL (`Testbench`, `MAPort`, `Signal` segments, `Capture`); `EcuPort`
 measures and calibrates a controller over XCP. `pip install -e tools/krumpir`.
 
@@ -40,13 +40,14 @@ with EcuPort("controllers/esp32-t12-controller/docs/t12.a2l") as ecu:   # addres
 
 | Class | Methods | XIL |
 |-------|---------|-----|
-| `Testbench(host, port)` | `info()`, `scenario_for(fmu)` (as `krumpir init`), `ma_port()`, `close()` | Testbench |
+| `Testbench(host, port)` | `info()`, `scenario_for(fmu)` (as `krumpir init`), `files()`, `text(path)`, `describe(scenario=, toml= or fmu=)`, `check(toml)`, `save(path, toml, overwrite)`, `ma_port()`, `close()` | Testbench |
 | `MAPort` | `load(path)`, `load_toml(text)`, `variables()`, `variable_names()`, `start()`, `stop()`, `state`, `fault`, `wait(timeout)`, `reset()`, `unload()`, `read(*names)`, `write(dict, **values)`, `signal(input, Signal)`, `capture(vars, start, stop, duration, max_rows)` | MAPort |
 | `Signal` | `const`, `ramp`, `sine`, `pulse`, `idle`, `data`, `loops` | SignalGenerator segments |
-| `Capture` / `CaptureResult` | `state`, `fetch(wait, timeout)`, `stop()` / `res["name"]`, `rows`, `names`, `columns()`, `to_csv(path)` | Capture |
-| `EcuPort(a2l)` | `read(*names)`, `write(dict)`: names as in the A2L, struct members joined by dots | ECUMPort, ECUCPort |
+| `Capture` / `CaptureResult` | `state`, `fetch(wait, timeout)`, `stop()`, `free()` / `res["name"]`, `rows`, `names`, `columns()`, `to_csv(path)` | Capture |
+| `EcuPort(a2l)` | `read(*names)`, `write(dict)`, `request(name, code)` (start, stop, clear through the request word): names as in the A2L, struct members joined by dots | ECUMPort, ECUCPort |
 
-A refused request raises `KrumpirError`, an XCP problem `XcpError` (no answer, a refused command,
+A refused request raises `KrumpirError` (its `code` is the reply's failure class, such as `bad_state`,
+`not_found` or `busy`: [../runner/docs/service-protocol.md](../runner/docs/service-protocol.md)), an XCP problem `XcpError` (no answer, a refused command,
 an EPK mismatch, an unknown name). `EcuPort` polls (about 5 ms per read over Wi-Fi); for recording
 use `xcpclient --mea ... --csv`.
 

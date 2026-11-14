@@ -79,13 +79,14 @@ Both tabs have a card per target on the left: the runner, then each controller o
   ([XCP on the PC build](../../controllers/README.md#xcp-on-the-pc-build)).
 
 The controller takes one XCP master at a time, and the service one client: while the TUI is
-connected, `xcpclient`, `EcuPort` and scripts using `tools/krumpir` wait.
+connected, `xcpclient` and `EcuPort` cannot connect to the controller, and a script using
+`tools/krumpir` is refused with the code `busy`.
 
 ## Design
 
 The UI thread (FTXUI) posts commands and reads a snapshot; a worker thread (`src/model.*`) owns
 the connection, runs the commands in order and polls every 100 ms, so the UI never waits on the
-network. `src/service.*` is the blocking protocol client (a refusal is a `ServiceError`, a broken
-link a `LinkError`); `src/a2l.*`, `src/xcp.*`, `src/ecu_model.*` the same for a controller;
+network. `src/service.*` is the blocking protocol client (a refusal is a `ServiceError` carrying the
+reply's `code`, a broken link a `LinkError`); `src/a2l.*`, `src/xcp.*`, `src/ecu_model.*` the same for a controller;
 `src/ui/` one component per tab. `KRUMPIR_ECU_A2L=<a2l> test_core` also checks a running controller (EPK,
 a calibration write, DAQ at 1 kHz).

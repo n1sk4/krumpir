@@ -252,7 +252,7 @@ void Model::fetch_capture()
   const json &names = r.at("names");
   const json &rows = r.at("rows");
   if (rows.empty() && str(r, "capture_state") == "FINISHED") {
-    cap_id_ = -1;
+    free_capture();
     return;
   }
   cap_from_ += rows.size();
@@ -264,6 +264,21 @@ void Model::fetch_capture()
       add_sample(names[k].get<std::string>(), t, row[k].is_number() ? row[k].get<double>() : NAN);
     }
   }
+}
+
+// Gives the start capture's id back for a later one. A runner without capture_free refuses;
+// its reset and unload free it.
+void Model::free_capture()
+{
+  if (cap_id_ >= 0) {
+    try {
+      svc_.call("capture_free", {{"id", cap_id_}});
+    } catch (const ServiceError &) {
+    }
+  }
+  cap_id_ = -1;
+  cap_from_ = 0;
+  captured_.clear();
 }
 
 // The Float64 variables a run is watched and steered by, inputs first, then outputs, then
@@ -282,7 +297,7 @@ void Model::fetch_vars()
           return it != v.end() && it->is_number() ? it->get<double>() : double(NAN);
         };
         Variable var{str(v, "name"), kind};
-        var.min = limit("min"); // the service does not send these yet
+        var.min = limit("min");
         var.max = limit("max");
         vars.push_back(var);
       }
@@ -308,12 +323,21 @@ void Model::connect(std::string address)
       event(std::string("cannot connect to ") + e.what());
       return;
     }
+    json files;
+    try { // the first request: a service that serves another client says so and closes
+      files = svc_.call("files");
+    } catch (const ServiceError &e) {
+      if (e.code != "busy") {
+        throw;
+      }
+      event("cannot connect to " + address + ": " + e.what());
+      return;
+    }
     {
       std::lock_guard<std::mutex> lock(mu_);
       snap_.connected = true;
     }
     event("connected to " + address);
-    const json files = svc_.call("files");
     std::lock_guard<std::mutex> lock(mu_);
     snap_.scenarios = files.at("scenarios").get<std::vector<std::string>>();
     snap_.fmus = files.at("fmus").get<std::vector<std::string>>();
@@ -450,9 +474,7 @@ void Model::start()
     if (st == "STOPPED" || st == "FAULT") {
       do_reset();
     }
-    cap_id_ = -1;
-    cap_from_ = 0;
-    captured_.clear();
+    free_capture();
     try { // every input and output from step 0; refused once running: then polling only
       cap_id_ = svc_.call("capture_start").at("id").get<int>();
     } catch (const ServiceError &) {

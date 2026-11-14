@@ -11,35 +11,31 @@
 
 int64_t loop_step_ns(double step) { return (int64_t)llround(step * 1e9); }
 
-/* Handles the queued commands at the start of step n. Never allocates or blocks; a full reply
- * queue drops the reply (the control thread then times out). */
+/* Handles the queued commands at the start of step n, at time t. Never allocates or blocks; a full
+ * reply queue drops the reply (the control thread then times out). */
 static void handle_commands(const loop_ctx_t *c, double t)
 {
   cmd_t cmd;
   while (cmdq_pop(c->cmd, &cmd)) {
-    cmd.status = 0;
-    switch (cmd.kind) {
-    case CMD_WRITE_INPUT:
-    case CMD_SET_SIGNAL:
-      if (cmd.index >= 0 && (size_t)cmd.index < c->vm->n_in) {
-        input_src_t *src = &c->src[cmd.index];
-        signal_t *old = src->kind == SRC_SIGNAL ? src->sig : NULL;
-        if (cmd.kind == CMD_WRITE_INPUT) {
-          *src = (input_src_t){.kind = SRC_VALUE, .value = cmd.value};
-        } else {
-          *src = (input_src_t){.kind = SRC_SIGNAL, .sig = cmd.sig, .t0 = t};
-        }
-        cmd.sig = old;
-      } else {
-        cmd.status = FMU_ERROR;
+    cmd.status = FMU_OK;
+    if (cmd.kind == CMD_READ) {
+      if (cmd.n > 0) {
+        cmd.status = (int)fmu_get_real(c->fmu, cmd.vrs, cmd.n, cmd.values);
       }
-      break;
-    case CMD_WRITE_PARAM:
-      cmd.status = (int)fmu_set_real(c->fmu, &cmd.vr, 1, &cmd.value);
-      break;
-    case CMD_READ:
-      cmd.status = (int)fmu_get_real(c->fmu, &cmd.vr, 1, &cmd.value);
-      break;
+      cmd.t = t;
+    } else {
+      if (cmd.n > 0) {
+        cmd.status = (int)fmu_set_real(c->fmu, cmd.vrs, cmd.n, cmd.values);
+      }
+      input_src_t *srcs = cmd.srcs;
+      for (size_t i = 0; cmd.status == FMU_OK && i < c->vm->n_in; i++) {
+        if (cmd.inputs & (1u << i)) {
+          const input_src_t old = c->src[i];
+          c->src[i] = srcs[i];
+          c->src[i].t0 = t; /* a signal starts now */
+          srcs[i] = old;
+        }
+      }
     }
     cmdq_push(c->reply, &cmd);
   }

@@ -3,17 +3,22 @@
 #include <arpa/inet.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <math.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include "cJSON.h"
@@ -24,9 +29,13 @@
 
 #define PROTOCOL_VERSION 1
 #define MAX_LINE (8u << 20) /* bytes per request */
+#define MAX_LISTED 256      /* files per directory in a listing */
+#define BUSY_LINE "{\"ok\":false,\"code\":\"busy\",\"error\":\"another client is connected\"}\n"
 
 static volatile sig_atomic_t g_quit;
 static _Atomic(atomic_int *) g_run_stop;
+static int g_listen = -1; /* the listening socket, so a client that cannot be served is told */
+static char *g_scenario;  /* the path of the scenario loaded, NULL for text */
 
 static void on_signal(int sig)
 {
@@ -35,6 +44,76 @@ static void on_signal(int sig)
   atomic_int *stop = g_run_stop;
   if (stop != NULL) {
     *stop = 1; /* also ends a run, so a blocking wait returns */
+  }
+}
+
+static const char *code_name(int code)
+{
+  static const char *const names[] = {
+      "internal", "bad_request", "bad_state", "not_found", "not_writable", "bad_scenario",
+      "exists",   "limit",       "timeout",   "fault",     "busy"};
+  return code >= ERR_INTERNAL && code <= ERR_BUSY ? names[code - ERR_INTERNAL] : "internal";
+}
+
+static int send_all(int fd, const char *p, size_t n)
+{
+  while (n > 0) {
+    ssize_t k = send(fd, p, n, MSG_NOSIGNAL);
+    if (k < 0 && errno == EINTR) {
+      continue;
+    }
+    if (k <= 0) {
+      return -1;
+    }
+    p += k;
+    n -= (size_t)k;
+  }
+  return 0;
+}
+
+/* Tells a connection it cannot be served, then reads what it sends until it closes, for about a
+ * second at most: a close with unread data resets the connection, and the client could lose the
+ * line. */
+static void *refuse(void *arg)
+{
+  const int fd = (int)(intptr_t)arg;
+  sigset_t sigs; /* the signals stay with the serving thread */
+  sigemptyset(&sigs);
+  sigaddset(&sigs, SIGINT);
+  sigaddset(&sigs, SIGTERM);
+  pthread_sigmask(SIG_BLOCK, &sigs, NULL);
+  send_all(fd, BUSY_LINE, strlen(BUSY_LINE));
+  shutdown(fd, SHUT_WR);
+  const struct timeval tv = {.tv_usec = 200000};
+  setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+  char sink[4096];
+  for (const int64_t end = plat_now_ns() + 1000000000; plat_now_ns() < end;) {
+    const ssize_t k = recv(fd, sink, sizeof sink, 0);
+    if (k == 0 || (k < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
+      break;
+    }
+  }
+  close(fd);
+  return NULL;
+}
+
+/* Refuses every connection waiting on the listening socket, each on a thread of its own, so the
+ * client being served does not wait for it. */
+static void refuse_waiting(void)
+{
+  struct pollfd p = {.fd = g_listen, .events = POLLIN};
+  while (g_listen >= 0 && poll(&p, 1, 0) > 0) {
+    const int fd = accept(g_listen, NULL, NULL);
+    if (fd < 0) {
+      return;
+    }
+    pthread_t t;
+    if (pthread_create(&t, NULL, refuse, (void *)(intptr_t)fd) == 0) {
+      pthread_detach(t);
+    } else {
+      send_all(fd, BUSY_LINE, strlen(BUSY_LINE));
+      close(fd);
+    }
   }
 }
 
@@ -47,13 +126,13 @@ static void put_number(FILE *f, double v)
   }
 }
 
-/* Closes a memstream; -1 with "out of memory" in err when a write to it failed. */
+/* Closes a memstream; -ERR_INTERNAL with "out of memory" in err when a write to it failed. */
 static int close_mem(FILE *f, char *err, size_t errlen)
 {
   const bool failed = ferror(f) != 0;
   if (fclose(f) != 0 || failed) {
     snprintf(err, errlen, "out of memory");
-    return -1;
+    return -ERR_INTERNAL;
   }
   return 0;
 }
@@ -79,14 +158,14 @@ static int to_toml(FILE *f, const cJSON *j, char *err, size_t errlen)
         fputs(" = ", f);
       }
       if (to_toml(f, e, err, errlen) < 0) {
-        return -1;
+        return -ERR_BAD_REQUEST;
       }
       fputs(e->next != NULL ? ", " : "", f);
     }
     fputs(obj ? " }" : "]", f);
   } else {
     snprintf(err, errlen, "null is not a value");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   return 0;
 }
@@ -102,7 +181,7 @@ static const char *get_str(const cJSON *req, const char *key)
   return cJSON_IsString(v) ? v->valuestring : NULL;
 }
 
-/* 1 present, 0 absent, -1 not a number */
+/* 1 present, 0 absent, -ERR_BAD_REQUEST not a number */
 static int get_num(const cJSON *req, const char *key, double *out, char *err, size_t errlen)
 {
   const cJSON *v = item(req, key);
@@ -111,7 +190,7 @@ static int get_num(const cJSON *req, const char *key, double *out, char *err, si
   }
   if (!cJSON_IsNumber(v)) {
     snprintf(err, errlen, "\"%s\" must be a number", key);
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   *out = v->valuedouble;
   return 1;
@@ -122,9 +201,21 @@ static int get_id(const cJSON *req, int *id, char *err, size_t errlen)
   double v = -1;
   if (get_num(req, "id", &v, err, errlen) <= 0 || v != floor(v) || fabs(v) > 1e6) {
     snprintf(err, errlen, "\"id\" must be a capture id");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   *id = (int)v;
+  return 0;
+}
+
+/* "from" and "max" of a paged request as a first item and a count (max absent: all). */
+static int get_page(const cJSON *req, size_t *first, size_t *count, char *err, size_t errlen)
+{
+  double from = 0, max = INFINITY;
+  if (get_num(req, "from", &from, err, errlen) < 0 || get_num(req, "max", &max, err, errlen) < 0) {
+    return -ERR_BAD_REQUEST;
+  }
+  *first = from > 0 ? (size_t)fmin(from, 1e15) : 0;
+  *count = max > 0 ? (size_t)fmin(max, 1e15) : 0;
   return 0;
 }
 
@@ -132,6 +223,11 @@ static void add_state(session_t *s, cJSON *r)
 {
   cJSON_AddStringToObject(r, "state", lifecycle_name(session_state(s)));
   cJSON_AddStringToObject(r, "fault", session_fault(s));
+}
+
+static cJSON *number_or_null(double v)
+{
+  return isfinite(v) ? cJSON_CreateNumber(v) : cJSON_CreateNull();
 }
 
 /* add_state plus the loaded run's progress, for a client that watches it. */
@@ -144,6 +240,8 @@ static void add_status(session_t *s, cJSON *r)
   }
   session_summary_t m;
   session_live(s, &m);
+  cJSON_AddItemToObject(r, "scenario",
+                        g_scenario != NULL ? cJSON_CreateString(g_scenario) : cJSON_CreateNull());
   cJSON_AddStringToObject(r, "fmu", sc->fmu);
   cJSON_AddNumberToObject(r, "step", sc->step);
   if (isfinite(sc->duration)) {
@@ -155,6 +253,26 @@ static void add_status(session_t *s, cJSON *r)
   cJSON_AddNumberToObject(r, "max_wake_ns", (double)m.max_wake_ns);
   cJSON_AddNumberToObject(r, "max_step_ns", (double)m.max_step_ns);
   cJSON_AddNumberToObject(r, "late", (double)m.late);
+}
+
+/* The service's version and the limits a client must keep to. */
+static void add_info(cJSON *r)
+{
+  cJSON_AddStringToObject(r, "version", KRUMPIR_VERSION);
+  cJSON *l = cJSON_AddObjectToObject(r, "limits");
+  cJSON_AddNumberToObject(l, "request_bytes", MAX_LINE);
+  cJSON_AddNumberToObject(l, "scenario_bytes", CONFIG_MAX_FILE_BYTES);
+  cJSON_AddNumberToObject(l, "name_bytes", CFG_MAX_NAME - 1);
+  cJSON_AddNumberToObject(l, "inputs", TELEM_MAX_CH);
+  cJSON_AddNumberToObject(l, "outputs", TELEM_MAX_CH);
+  cJSON_AddNumberToObject(l, "params", CFG_MAX_PARAMS);
+  cJSON_AddNumberToObject(l, "segments", CFG_MAX_SEGMENTS);
+  cJSON_AddNumberToObject(l, "captures", SESSION_MAX_CAPTURES);
+  cJSON_AddNumberToObject(l, "capture_vars", 2 * TELEM_MAX_CH);
+  cJSON_AddNumberToObject(l, "capture_bytes", CAPTURE_MAX_BYTES);
+  cJSON_AddNumberToObject(l, "files", MAX_LISTED);
+  cJSON_AddNumberToObject(l, "reply_ms", SESSION_REPLY_TIMEOUT_MS);
+  cJSON_AddNumberToObject(l, "clients", 1);
 }
 
 static int by_name(const void *a, const void *b)
@@ -171,10 +289,10 @@ static void add_listing(cJSON *r, const char *key, const char *dir, const char *
   if (d == NULL) {
     return;
   }
-  char *names[256]; /* Limitation: first 256 files per directory; a bench has a handful */
+  char *names[MAX_LISTED]; /* Limitation: the first ones per directory; a bench has a handful */
   size_t n = 0, el = strlen(ext);
   struct dirent *e;
-  while ((e = readdir(d)) != NULL && n < 256) {
+  while ((e = readdir(d)) != NULL && n < MAX_LISTED) {
     size_t len = strlen(e->d_name);
     if (len > el && strcmp(e->d_name + len - el, ext) == 0) {
       names[n] = malloc(strlen(dir) + len + 2);
@@ -198,23 +316,104 @@ static void op_files(cJSON *r)
   add_listing(r, "fmus", "fmus", ".fmu");
 }
 
-/* The text of a .toml file on the server as malloc'd text; NULL with a message in err. */
-static char *read_toml(const char *op, const char *path, char *err, size_t errlen)
+/* The code of a failed plat_read_file. */
+static int read_failed(void) { return errno == EFBIG ? -ERR_LIMIT : -ERR_NOT_FOUND; }
+
+/* The text of a .toml file on the server as malloc'd text; NULL with a message in err and the
+ * code in *rc. */
+static char *read_toml(const char *op, const char *path, int *rc, char *err, size_t errlen)
 {
   size_t len = path != NULL ? strlen(path) : 0;
   if (len < 5 || strcmp(path + len - 5, ".toml") != 0) {
     snprintf(err, errlen, "%s takes \"path\" of a .toml file", op);
+    *rc = -ERR_BAD_REQUEST;
     return NULL;
   }
-  return plat_read_file(path, CONFIG_MAX_FILE_BYTES, NULL, err, errlen);
+  char *text = plat_read_file(path, CONFIG_MAX_FILE_BYTES, NULL, err, errlen);
+  *rc = text != NULL ? 0 : read_failed();
+  return text;
 }
 
-/* The text of a scenario file on the server (*.toml only), for a client to show before loading. */
+/* True when path is <dir>/<rest> and rest ends in ext: at most 100 characters, no '\', every
+ * '/' part non-empty and not starting with '.' (so no "..", no hidden names); with subdirs
+ * false, no '/' in rest at all. Limitation: a symlink inside dir is followed. */
+static bool served_path(const char *path, const char *dir, const char *ext, bool subdirs)
+{
+  const size_t dl = strlen(dir), el = strlen(ext);
+  if (path == NULL || strncmp(path, dir, dl) != 0 || path[dl] != '/') {
+    return false;
+  }
+  const char *rest = path + dl + 1;
+  const size_t n = strlen(rest);
+  if (n <= el || n > 100 || strcmp(rest + n - el, ext) != 0 || strchr(rest, '\\') != NULL ||
+      rest[0] == '.' || rest[0] == '/') {
+    return false;
+  }
+  for (const char *s = strchr(rest, '/'); s != NULL; s = strchr(s + 1, '/')) {
+    if (!subdirs || s[1] == '.' || s[1] == '/') {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* Lines of a log under runs/: from line `first` on, at most `count` of them and at most
+ * CONFIG_MAX_FILE_BYTES (but one line at least). A last line without its newline is still being
+ * written and waits for the next page. "more": lines follow the page. */
+static int log_page(const char *path, size_t first, size_t count, cJSON *r, char *err,
+                    size_t errlen)
+{
+  FILE *f = fopen(path, "rb");
+  if (f == NULL) {
+    snprintf(err, errlen, "cannot open '%s': %s", path, strerror(errno));
+    return -ERR_NOT_FOUND;
+  }
+  char *text = NULL, *line = NULL;
+  size_t len = 0, cap = 0, bytes = 0, i = 0, lines = 0;
+  FILE *mem = open_memstream(&text, &len);
+  bool more = false;
+  ssize_t n;
+  while (mem != NULL && (n = getline(&line, &cap, f)) > 0 && line[n - 1] == '\n') {
+    if (i++ < first) {
+      continue;
+    }
+    if (lines == count || (lines > 0 && bytes + (size_t)n > CONFIG_MAX_FILE_BYTES)) {
+      more = true;
+      break;
+    }
+    fwrite(line, 1, (size_t)n, mem);
+    bytes += (size_t)n;
+    lines++;
+  }
+  free(line);
+  fclose(f);
+  int rc = mem != NULL ? close_mem(mem, err, errlen) : -ERR_INTERNAL;
+  if (rc == 0) {
+    cJSON_AddStringToObject(r, "text", text != NULL ? text : "");
+    cJSON_AddNumberToObject(r, "from", (double)first);
+    cJSON_AddNumberToObject(r, "lines", (double)lines);
+    cJSON_AddBoolToObject(r, "more", more);
+  } else {
+    snprintf(err, errlen, "out of memory");
+  }
+  free(text);
+  return rc;
+}
+
+/* The text of a scenario file on the server (*.toml), for a client to show before loading, or a
+ * page of the lines of a log under runs/ (log_page). */
 static int op_text(const cJSON *req, cJSON *r, char *err, size_t errlen)
 {
-  char *text = read_toml("text", get_str(req, "path"), err, errlen);
+  const char *path = get_str(req, "path");
+  if (served_path(path, "runs", ".csv", true)) {
+    size_t first, count;
+    int rc = get_page(req, &first, &count, err, errlen);
+    return rc < 0 ? rc : log_page(path, first, count, r, err, errlen);
+  }
+  int rc;
+  char *text = read_toml("text", path, &rc, err, errlen);
   if (text == NULL) {
-    return -1;
+    return rc;
   }
   cJSON_AddStringToObject(r, "text", text);
   free(text);
@@ -254,13 +453,10 @@ static void add_variables(cJSON *r, const modeldesc_t *md)
     cJSON_AddStringToObject(o, "unit", v->unit);
     cJSON_AddStringToObject(o, "start", v->start);
     cJSON_AddStringToObject(o, "description", v->description);
+    cJSON_AddItemToObject(o, "min", number_or_null(v->min));
+    cJSON_AddItemToObject(o, "max", number_or_null(v->max));
     cJSON_AddItemToArray(arr, o);
   }
-}
-
-static cJSON *number_or_null(double v)
-{
-  return isfinite(v) ? cJSON_CreateNumber(v) : cJSON_CreateNull();
 }
 
 /* One io.stimulus entry with the keys the scenario file and the signal op use. */
@@ -384,18 +580,19 @@ static int op_describe(const cJSON *req, cJSON *r, char *err, size_t errlen)
     snprintf(err, errlen,
              "describe takes \"scenario\" (a path on the server), \"toml\" (the text) or \"fmu\" "
              "(a path on the server: its starter scenario)");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   char *owned = NULL;
-  if (path != NULL && (text = owned = read_toml("describe", path, err, errlen)) == NULL) {
-    return -1;
+  int rc;
+  if (path != NULL && (text = owned = read_toml("describe", path, &rc, err, errlen)) == NULL) {
+    return rc;
   }
   if (fmu != NULL && (text = owned = starter(fmu, err, errlen)) == NULL) {
-    return -1;
+    return -ERR_NOT_FOUND;
   }
   cJSON_AddStringToObject(r, "text", text);
   char problem[400];
-  int rc = config_parse(text, &sc, problem, sizeof problem);
+  rc = config_parse(text, &sc, problem, sizeof problem);
   free(owned);
   if (rc < 0) {
     cJSON_AddStringToObject(r, "problem", problem);
@@ -412,29 +609,6 @@ static int op_describe(const cJSON *req, cJSON *r, char *err, size_t errlen)
   return 0;
 }
 
-/* True when path is <dir>/<rest> and rest ends in ext: at most 100 characters, no '\', every
- * '/' part non-empty and not starting with '.' (so no "..", no hidden names); with subdirs
- * false, no '/' in rest at all. Limitation: a symlink inside dir is followed. */
-static bool served_path(const char *path, const char *dir, const char *ext, bool subdirs)
-{
-  const size_t dl = strlen(dir), el = strlen(ext);
-  if (path == NULL || strncmp(path, dir, dl) != 0 || path[dl] != '/') {
-    return false;
-  }
-  const char *rest = path + dl + 1;
-  const size_t n = strlen(rest);
-  if (n <= el || n > 100 || strcmp(rest + n - el, ext) != 0 || strchr(rest, '\\') != NULL ||
-      rest[0] == '.' || rest[0] == '/') {
-    return false;
-  }
-  for (const char *s = strchr(rest, '/'); s != NULL; s = strchr(s + 1, '/')) {
-    if (!subdirs || s[1] == '.' || s[1] == '/') {
-      return false;
-    }
-  }
-  return true;
-}
-
 /* The service writes logs only under runs/. */
 static int check_log(const scenario_t *sc, char *err, size_t errlen)
 {
@@ -442,7 +616,7 @@ static int check_log(const scenario_t *sc, char *err, size_t errlen)
     return 0;
   }
   snprintf(err, errlen, "log.file '%s' must be under runs/ and end in .csv", sc->log_file);
-  return -1;
+  return -ERR_BAD_SCENARIO;
 }
 
 /* Parses the text and checks it against its FMU as loading would, without loading. */
@@ -452,12 +626,10 @@ static int check_text(const char *text, char *err, size_t errlen)
   char perr[400];
   if (config_parse(text, &sc, perr, sizeof perr) < 0) {
     snprintf(err, errlen, "scenario: %s", perr);
-    return -1;
+    return -ERR_BAD_SCENARIO;
   }
-  if (check_log(&sc, err, errlen) < 0) {
-    return -1;
-  }
-  return scenario_check(&sc, err, errlen);
+  int rc = check_log(&sc, err, errlen);
+  return rc < 0 ? rc : scenario_check(&sc, err, errlen);
 }
 
 static int op_check(const cJSON *req, char *err, size_t errlen)
@@ -465,7 +637,7 @@ static int op_check(const cJSON *req, char *err, size_t errlen)
   const char *text = get_str(req, "toml");
   if (text == NULL) {
     snprintf(err, errlen, "check takes \"toml\" (the scenario text)");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   return check_text(text, err, errlen);
 }
@@ -477,14 +649,15 @@ static int op_save(const cJSON *req, char *err, size_t errlen)
   const char *path = get_str(req, "path"), *text = get_str(req, "toml");
   if (text == NULL || !served_path(path, "scenarios", ".toml", false)) {
     snprintf(err, errlen, "save takes \"path\": scenarios/<name>.toml and \"toml\": the text");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
-  if (check_text(text, err, errlen) < 0) {
-    return -1;
+  int rc = check_text(text, err, errlen);
+  if (rc < 0) {
+    return rc;
   }
   if (!cJSON_IsTrue(item(req, "overwrite")) && access(path, F_OK) == 0) {
     snprintf(err, errlen, "%s exists (\"overwrite\": true replaces it)", path);
-    return -1;
+    return -ERR_EXISTS;
   }
   mkdir("scenarios", 0755); /* fails harmlessly when it exists */
   char tmp[128];
@@ -495,7 +668,7 @@ static int op_save(const cJSON *req, char *err, size_t errlen)
   if (!ok || rename(tmp, path) < 0) {
     snprintf(err, errlen, "cannot write %s: %s", path, strerror(errno));
     remove(tmp);
-    return -1;
+    return -ERR_INTERNAL;
   }
   return 0;
 }
@@ -506,18 +679,28 @@ static int op_load(session_t *s, const cJSON *req, cJSON *r, char *err, size_t e
   const char *path = get_str(req, "scenario"), *text = get_str(req, "toml");
   if ((path == NULL) == (text == NULL)) {
     snprintf(err, errlen, "load takes \"scenario\" (a path on the server) or \"toml\" (the text)");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   char perr[400];
-  if ((path != NULL ? config_load(path, &sc, perr, sizeof perr)
-                    : config_parse(text, &sc, perr, sizeof perr)) < 0 ||
-      check_log(&sc, perr, sizeof perr) < 0) {
+  char *owned = NULL;
+  if (path != NULL &&
+      (text = owned = plat_read_file(path, CONFIG_MAX_FILE_BYTES, NULL, perr, sizeof perr)) ==
+          NULL) {
     snprintf(err, errlen, "scenario: %s", perr);
-    return -1;
+    return read_failed();
   }
-  if (session_load(s, &sc, err, errlen) < 0) {
-    return -1;
+  int rc = config_parse(text, &sc, perr, sizeof perr) < 0 ? -ERR_BAD_SCENARIO
+                                                          : check_log(&sc, perr, sizeof perr);
+  free(owned);
+  if (rc < 0) {
+    snprintf(err, errlen, "scenario: %s", perr);
+    return rc;
   }
+  if ((rc = session_load(s, &sc, err, errlen)) < 0) {
+    return rc;
+  }
+  free(g_scenario);
+  g_scenario = path != NULL ? strdup(path) : NULL;
   add_state(s, r);
   return 0;
 }
@@ -528,11 +711,11 @@ static int op_init(const cJSON *req, cJSON *r, char *err, size_t errlen)
   const char *fmu = get_str(req, "fmu");
   if (fmu == NULL) {
     snprintf(err, errlen, "init takes \"fmu\" (a path on the server)");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   char *text = starter(fmu, err, errlen);
   if (text == NULL) {
-    return -1;
+    return -ERR_NOT_FOUND;
   }
   cJSON_AddStringToObject(r, "toml", text);
   free(text);
@@ -544,55 +727,89 @@ static int op_variables(session_t *s, cJSON *r, char *err, size_t errlen)
   const modeldesc_t *md = session_model(s);
   if (md == NULL) {
     snprintf(err, errlen, "no scenario loaded");
-    return -1;
+    return -ERR_BAD_STATE;
   }
   add_variables(r, md);
   return 0;
 }
 
+/* Every name, sampled at one step boundary; "t" is the run's time there. */
 static int op_read(session_t *s, const cJSON *req, cJSON *r, char *err, size_t errlen)
 {
   const cJSON *names = item(req, "names");
   if (!cJSON_IsArray(names)) {
     snprintf(err, errlen, "read takes \"names\": [ ... ]");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
-  cJSON *values = cJSON_AddObjectToObject(r, "values");
-  const cJSON *n;
-  cJSON_ArrayForEach(n, names)
+  const size_t n = (size_t)cJSON_GetArraySize(names);
+  const char **name = malloc((n + 1) * sizeof *name);
+  double *value = malloc((n + 1) * sizeof *value), t;
+  int rc = 0;
+  if (name == NULL || value == NULL) {
+    snprintf(err, errlen, "out of memory");
+    rc = -ERR_INTERNAL;
+  }
+  size_t i = 0;
+  const cJSON *e;
+  cJSON_ArrayForEach(e, names)
   {
-    double v;
-    if (!cJSON_IsString(n)) {
+    if (rc == 0 && !cJSON_IsString(e)) {
       snprintf(err, errlen, "\"names\" must hold strings");
-      return -1;
+      rc = -ERR_BAD_REQUEST;
     }
-    if (session_read(s, n->valuestring, &v, err, errlen) < 0) {
-      return -1;
+    if (rc == 0) {
+      name[i++] = e->valuestring;
     }
-    cJSON_AddNumberToObject(values, n->valuestring, v);
   }
-  return 0;
+  if (rc == 0 && (rc = session_read(s, name, n, value, &t, err, errlen)) == 0) {
+    cJSON *values = cJSON_AddObjectToObject(r, "values");
+    for (i = 0; i < n; i++) {
+      cJSON_AddNumberToObject(values, name[i], value[i]);
+    }
+    if (isfinite(t)) {
+      cJSON_AddNumberToObject(r, "t", t);
+    }
+  }
+  free(name);
+  free(value);
+  return rc;
 }
 
+/* Every value checked, then all applied at one step boundary, or none. */
 static int op_write(session_t *s, const cJSON *req, char *err, size_t errlen)
 {
   const cJSON *values = item(req, "values");
   if (!cJSON_IsObject(values)) {
     snprintf(err, errlen, "write takes \"values\": { name: number, ... }");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
+  const size_t n = (size_t)cJSON_GetArraySize(values);
+  const char **name = malloc((n + 1) * sizeof *name);
+  double *value = malloc((n + 1) * sizeof *value);
+  int rc = 0;
+  if (name == NULL || value == NULL) {
+    snprintf(err, errlen, "out of memory");
+    rc = -ERR_INTERNAL;
+  }
+  size_t i = 0;
   const cJSON *v;
   cJSON_ArrayForEach(v, values)
   {
-    if (!cJSON_IsNumber(v)) {
+    if (rc == 0 && !cJSON_IsNumber(v)) {
       snprintf(err, errlen, "value of '%s' must be a number", v->string);
-      return -1;
+      rc = -ERR_BAD_REQUEST;
     }
-    if (session_write(s, v->string, v->valuedouble, err, errlen) < 0) {
-      return -1; /* the writes before this one have been applied */
+    if (rc == 0) {
+      name[i] = v->string;
+      value[i++] = v->valuedouble;
     }
   }
-  return 0;
+  if (rc == 0) {
+    rc = session_write(s, name, value, n, err, errlen);
+  }
+  free(name);
+  free(value);
+  return rc;
 }
 
 static int op_signal(session_t *s, const cJSON *req, char *err, size_t errlen)
@@ -601,29 +818,28 @@ static int op_signal(session_t *s, const cJSON *req, char *err, size_t errlen)
   const scenario_t *sc = session_scenario(s);
   if (!cJSON_IsObject(j)) {
     snprintf(err, errlen, "signal takes \"stimulus\": { input, kind or segments, ... }");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   if (sc == NULL) {
     snprintf(err, errlen, "no scenario loaded");
-    return -1;
+    return -ERR_BAD_STATE;
   }
   char *text = NULL;
   size_t len;
   FILE *f = open_memstream(&text, &len);
   if (f == NULL) {
     snprintf(err, errlen, "out of memory");
-    return -1;
+    return -ERR_INTERNAL;
   }
   int rc = to_toml(f, j, err, errlen);
-  if (close_mem(f, err, errlen) < 0) {
-    rc = -1;
-  }
+  const int closed = close_mem(f, err, errlen);
+  rc = rc < 0 ? rc : closed;
   stimulus_t st;
-  if (rc == 0) {
-    rc = config_parse_stimulus(text, sc, &st, err, errlen);
+  if (rc == 0 && config_parse_stimulus(text, sc, &st, err, errlen) < 0) {
+    rc = -ERR_BAD_REQUEST;
   }
   free(text);
-  return rc == 0 ? session_set_signal(s, &st, err, errlen) : -1;
+  return rc == 0 ? session_set_signal(s, &st, err, errlen) : rc;
 }
 
 static int get_cond(const cJSON *req, const char *key, capture_cond_t *c, char *err,
@@ -641,7 +857,7 @@ static int get_cond(const cJSON *req, const char *key, capture_cond_t *c, char *
   if (var == NULL || op == NULL || !cJSON_IsNumber(value) || strlen(var) >= sizeof c->var) {
     snprintf(err, errlen, "\"%s\" must be { \"var\": name, \"op\": \">\", \"value\": number }",
              key);
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   for (size_t i = 0; i < 4; i++) {
     if (strcmp(op, ops[i]) == 0) {
@@ -650,7 +866,7 @@ static int get_cond(const cJSON *req, const char *key, capture_cond_t *c, char *
   }
   if (c->op == COND_NONE) {
     snprintf(err, errlen, "\"%s\".op must be >, >=, < or <=", key);
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   snprintf(c->var, sizeof c->var, "%s", var);
   c->value = value->valuedouble;
@@ -664,14 +880,14 @@ static int op_capture_start(session_t *s, const cJSON *req, cJSON *r, char *err,
   const cJSON *vars = item(req, "vars"), *v;
   if (vars != NULL && !cJSON_IsArray(vars)) {
     snprintf(err, errlen, "\"vars\" must be a list of names");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   cJSON_ArrayForEach(v, vars)
   {
     if (!cJSON_IsString(v) || strlen(v->valuestring) >= CFG_MAX_NAME ||
         spec.n_vars == 2 * TELEM_MAX_CH) {
       snprintf(err, errlen, "\"vars\" must be up to %d names", 2 * TELEM_MAX_CH);
-      return -1;
+      return -ERR_BAD_REQUEST;
     }
     snprintf(spec.vars[spec.n_vars++], CFG_MAX_NAME, "%s", v->valuestring);
   }
@@ -680,52 +896,50 @@ static int op_capture_start(session_t *s, const cJSON *req, cJSON *r, char *err,
       get_cond(req, "stop", &spec.stop, err, errlen) < 0 ||
       get_num(req, "duration", &spec.duration, err, errlen) < 0 ||
       get_num(req, "max_rows", &max_rows, err, errlen) < 0) {
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   if (!(max_rows >= 0 && max_rows <= 1e12)) {
     snprintf(err, errlen, "\"max_rows\" must be >= 0");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   spec.max_rows = (size_t)max_rows;
   int id = session_capture_start(s, &spec, err, errlen);
   if (id < 0) {
-    return -1;
+    return id;
   }
   cJSON_AddNumberToObject(r, "id", id);
   return 0;
 }
 
 /* The rows go into *rows as JSON text: a cJSON tree of a large capture would cost far more
- * memory than the numbers. */
+ * memory than the numbers. Only the rows of the page are copied. */
 static int op_capture_fetch(session_t *s, const cJSON *req, cJSON *r, char **rows, char *err,
                             size_t errlen)
 {
   int id;
-  double from = 0, max = INFINITY;
-  if (get_id(req, &id, err, errlen) < 0 || get_num(req, "from", &from, err, errlen) < 0 ||
-      get_num(req, "max", &max, err, errlen) < 0) {
-    return -1;
+  size_t first, count;
+  int rc = get_id(req, &id, err, errlen);
+  if (rc < 0 || (rc = get_page(req, &first, &count, err, errlen)) < 0) {
+    return rc;
   }
   capture_data_t d;
-  if (session_capture_fetch(s, id, &d, err, errlen) < 0) {
-    return -1;
+  if ((rc = session_capture_fetch(s, id, first, count, &d, err, errlen)) < 0) {
+    return rc;
   }
-  size_t first = from > 0 ? (size_t)fmin(from, (double)d.n_rows) : 0;
-  size_t last = max > 0 ? (size_t)fmin((double)d.n_rows, (double)first + max) : first;
   cJSON_AddStringToObject(r, "capture_state", cap_state_name(d.state));
   cJSON_AddNumberToObject(r, "n_rows", (double)d.n_rows);
-  cJSON_AddNumberToObject(r, "from", (double)first);
+  cJSON_AddNumberToObject(r, "from", (double)d.from);
   cJSON_AddItemToObject(r, "names", cJSON_CreateStringArray(d.names, (int)d.n_cols));
   size_t len;
   FILE *f = open_memstream(rows, &len);
   if (f == NULL) {
     free(d.rows);
     snprintf(err, errlen, "out of memory");
-    return -1;
+    return -ERR_INTERNAL;
   }
   fputc('[', f);
-  for (size_t i = first; i < last; i++) {
-    fputs(i > first ? ",[" : "[", f);
+  for (size_t i = 0; i < d.n; i++) {
+    fputs(i > 0 ? ",[" : "[", f);
     for (size_t k = 0; k < d.n_cols; k++) {
       fputs(k > 0 ? "," : "", f);
       put_number(f, d.rows[i * d.n_cols + k]);
@@ -752,12 +966,30 @@ static void add_summary(cJSON *r, const session_summary_t *m)
   cJSON_AddNumberToObject(o, "late", (double)m->late);
 }
 
+/* session_wait in slices (ms < 0: forever), telling a client that connects meanwhile that it
+ * cannot be served. */
+static bool wait_refusing(session_t *s, double ms)
+{
+  for (;;) {
+    const double slice = ms < 0 ? 50 : fmin(ms, 50);
+    if (session_wait(s, (int)slice)) {
+      return true;
+    }
+    refuse_waiting();
+    if (ms >= 0 && (ms -= slice) <= 0) {
+      return false;
+    }
+  }
+}
+
 static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, char **rows,
                     char *err, size_t errlen)
 {
+  int rc;
   if (strcmp(op, "info") == 0) {
     cJSON_AddNumberToObject(r, "protocol", PROTOCOL_VERSION);
     add_state(s, r);
+    add_info(r);
     return 0;
   }
   if (strcmp(op, "state") == 0) {
@@ -790,8 +1022,8 @@ static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, ch
     return op_save(req, err, errlen);
   }
   if (strcmp(op, "start") == 0) {
-    if (session_start(s, err, errlen) < 0) {
-      return -1;
+    if ((rc = session_start(s, err, errlen)) < 0) {
+      return rc;
     }
     add_state(s, r);
     return 0;
@@ -803,17 +1035,17 @@ static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, ch
   }
   if (strcmp(op, "wait") == 0) {
     double ms = -1;
-    if (get_num(req, "timeout_ms", &ms, err, errlen) < 0) {
-      return -1;
+    if ((rc = get_num(req, "timeout_ms", &ms, err, errlen)) < 0) {
+      return rc;
     }
-    cJSON_AddBoolToObject(r, "done", session_wait(s, ms < 0 ? -1 : (int)fmin(ms, 1e9)));
+    cJSON_AddBoolToObject(r, "done", wait_refusing(s, ms < 0 ? -1 : fmin(ms, 1e9)));
     add_state(s, r);
     return 0;
   }
   if (strcmp(op, "reset") == 0) {
     session_summary_t m;
-    if (session_reset(s, &m, err, errlen) < 0) {
-      return -1;
+    if ((rc = session_reset(s, &m, err, errlen)) < 0) {
+      return rc;
     }
     add_summary(r, &m);
     add_state(s, r);
@@ -841,12 +1073,16 @@ static int dispatch(session_t *s, const char *op, const cJSON *req, cJSON *r, ch
   if (strcmp(op, "capture_fetch") == 0) {
     return op_capture_fetch(s, req, r, rows, err, errlen);
   }
-  if (strcmp(op, "capture_stop") == 0) {
+  if (strcmp(op, "capture_stop") == 0 || strcmp(op, "capture_free") == 0) {
     int id;
-    return get_id(req, &id, err, errlen) < 0 ? -1 : session_capture_stop(s, id, err, errlen);
+    if ((rc = get_id(req, &id, err, errlen)) < 0) {
+      return rc;
+    }
+    return strcmp(op, "capture_stop") == 0 ? session_capture_stop(s, id, err, errlen)
+                                           : session_capture_free(s, id, err, errlen);
   }
   snprintf(err, errlen, "unknown op '%s'", op);
-  return -1;
+  return -ERR_BAD_REQUEST;
 }
 
 static cJSON *new_reply(const cJSON *tag, bool ok)
@@ -868,7 +1104,7 @@ static char *handle(session_t *s, const char *line)
   const char *op = cJSON_IsObject(req) ? get_str(req, "op") : NULL;
   cJSON *r = new_reply(tag, true);
   char *rows = NULL;
-  int rc = -1;
+  int rc = -ERR_BAD_REQUEST;
   if (!cJSON_IsObject(req)) {
     snprintf(err, sizeof err, "a request is one JSON object per line");
   } else if (op == NULL) {
@@ -879,6 +1115,7 @@ static char *handle(session_t *s, const char *line)
   if (rc < 0) {
     cJSON_Delete(r);
     r = new_reply(tag, false);
+    cJSON_AddStringToObject(r, "code", code_name(-rc));
     cJSON_AddStringToObject(r, "error", err[0] != '\0' ? err : "failed");
   }
   char *out = cJSON_PrintUnformatted(r);
@@ -894,23 +1131,8 @@ static char *handle(session_t *s, const char *line)
     out = p;
   }
   free(rows);
-  return out != NULL ? out : strdup("{\"ok\":false,\"error\":\"out of memory\"}");
-}
-
-static int send_all(int fd, const char *p, size_t n)
-{
-  while (n > 0) {
-    ssize_t k = send(fd, p, n, MSG_NOSIGNAL);
-    if (k < 0 && errno == EINTR) {
-      continue;
-    }
-    if (k <= 0) {
-      return -1;
-    }
-    p += k;
-    n -= (size_t)k;
-  }
-  return 0;
+  return out != NULL ? out
+                     : strdup("{\"ok\":false,\"code\":\"internal\",\"error\":\"out of memory\"}");
 }
 
 static void serve_client(session_t *s, int fd)
@@ -920,7 +1142,7 @@ static void serve_client(session_t *s, int fd)
   while (!g_quit) {
     if (cap - len < 4096) {
       if (cap > MAX_LINE) {
-        const char *msg = "{\"ok\":false,\"error\":\"request line too long\"}\n";
+        const char *msg = "{\"ok\":false,\"code\":\"limit\",\"error\":\"request line too long\"}\n";
         send_all(fd, msg, strlen(msg));
         break;
       }
@@ -931,6 +1153,17 @@ static void serve_client(session_t *s, int fd)
       }
       buf = p;
       cap = ncap;
+    }
+    struct pollfd p[2] = {{.fd = fd, .events = POLLIN}, {.fd = g_listen, .events = POLLIN}};
+    if (poll(p, 2, -1) < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+      break;
+    }
+    if (p[0].revents == 0) { /* only a second client, which cannot be served */
+      refuse_waiting();
+      continue;
     }
     ssize_t n = recv(fd, buf + len, cap - len, 0);
     if (n < 0 && errno == EINTR) {
@@ -959,6 +1192,9 @@ static void serve_client(session_t *s, int fd)
     }
     len = (size_t)(buf + len - start);
     memmove(buf, start, len);
+    if (p[1].revents != 0) {
+      refuse_waiting();
+    }
   }
   free(buf);
 }
@@ -967,7 +1203,7 @@ int serve(const char *host, int port)
 {
   struct sigaction sa;
   memset(&sa, 0, sizeof sa);
-  sa.sa_handler = on_signal; /* no SA_RESTART: accept() and recv() return EINTR */
+  sa.sa_handler = on_signal; /* no SA_RESTART: poll() and recv() return EINTR */
   sigemptyset(&sa.sa_mask);
   sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTERM, &sa, NULL);
@@ -982,8 +1218,10 @@ int serve(const char *host, int port)
   }
   int lfd = socket(AF_INET, SOCK_STREAM, 0);
   int one = 1;
+  /* Non-blocking, so an accept after poll never waits for a connection that went away */
   if (lfd < 0 || setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one) < 0 ||
-      bind(lfd, (struct sockaddr *)&addr, sizeof addr) < 0 || listen(lfd, 4) < 0) {
+      fcntl(lfd, F_SETFL, O_NONBLOCK) < 0 || bind(lfd, (struct sockaddr *)&addr, sizeof addr) < 0 ||
+      listen(lfd, 4) < 0) {
     fprintf(stderr, "krumpir: cannot listen on %s:%d: %s\n", host, port, strerror(errno));
     if (lfd >= 0) {
       close(lfd);
@@ -1001,10 +1239,12 @@ int serve(const char *host, int port)
     return 1;
   }
   g_run_stop = session_stop_flag(s);
+  g_listen = lfd;
   while (!g_quit) {
-    int fd = accept(lfd, NULL, NULL);
+    struct pollfd p = {.fd = lfd, .events = POLLIN};
+    int fd = poll(&p, 1, -1) > 0 ? accept(lfd, NULL, NULL) : -1;
     if (fd < 0) {
-      if (errno == EINTR) {
+      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK || errno == ECONNABORTED) {
         continue;
       }
       fprintf(stderr, "krumpir: accept: %s\n", strerror(errno));
@@ -1014,8 +1254,11 @@ int serve(const char *host, int port)
     serve_client(s, fd);
     close(fd);
   }
+  g_listen = -1;
   close(lfd);
   g_run_stop = NULL;
   session_destroy(s); /* stops and unloads a run that is still going */
+  free(g_scenario);
+  g_scenario = NULL;
   return 0;
 }

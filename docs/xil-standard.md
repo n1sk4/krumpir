@@ -116,7 +116,7 @@ what the XiL method asks for (one model at every level), and many commercial set
 |---|---|---|
 | test bench | the runner (Pi) plus the DUT board | none in idea |
 | test automation tool | the Python client (`tools/krumpir`: `Testbench`, `MAPort`, `EcuPort`), `timing_check.py`, `capture.py`, CI workflows, the test sequence in `krumpir-interface.md` | the serial scripts talk to the console directly |
-| MA port: read/write model variables | `[model] params` and `[io] inputs/outputs` in `scenario.toml`; while running, `read` and `write` over the service (`krumpir serve`, `MAPort`), applied at a step boundary (`core/cmdq`) | names are the FMU's own; no XIL framework layer |
+| MA port: read/write model variables | `[model] params` and `[io] inputs/outputs` in `scenario.toml`; while running, `read` and `write` over the service (`krumpir serve`, `MAPort`), applied at a step boundary, all names of one `read` or `write` at the same one (`core/cmdq`) | names are the FMU's own; no XIL framework layer |
 | MA port: simulation control | `krumpir run`, Ctrl-C, exit codes; `load`, `init`, `start`, `stop`, `wait`, `state` over the service | no single stepping |
 | framework mapping and units | `[io]` names map straight to FMU variables; `capture.py` turns `_permille` and `_ma` into fractions and amps | no mapping layer and no unit metadata; units live in column suffixes |
 | stimulus from signal descriptions | `stimulus` kinds `constant`, `step`, `sine` and `segments` (const, ramp, sine, pulse, idle, a data file) in TOML; signals sent while running (`signal`, `MAPort.signal`) | no XIL signal-description files |

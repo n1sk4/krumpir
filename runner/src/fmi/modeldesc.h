@@ -23,6 +23,7 @@ typedef struct {
   char start[32];
   char unit[24];
   char description[96];
+  double min, max; /* NAN when absent or not a number */
 } mvar_t;
 
 typedef struct {

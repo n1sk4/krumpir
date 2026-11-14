@@ -95,6 +95,7 @@ private:
   void poll();
   void fetch_vars();
   void fetch_capture();
+  void free_capture(); // worker thread
   void add_sample(const std::string &name, double t, double v); // caller holds mu_
   void do_reset(); // worker thread
   void event(const std::string &text); // takes the lock

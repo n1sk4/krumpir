@@ -112,7 +112,12 @@ json Service::call(const std::string &op, json args)
     impl_->fail(op + ": not a JSON reply: " + text.substr(0, 80));
   }
   if (!reply.value("ok", false)) {
-    throw ServiceError(reply.value("error", op + " failed"));
+    const auto it = reply.find("code");
+    const std::string code = it != reply.end() && it->is_string() ? it->get<std::string>() : "";
+    if (code == "busy") {
+      impl_->drop();
+    }
+    throw ServiceError(reply.value("error", op + " failed"), code);
   }
   return reply;
 }

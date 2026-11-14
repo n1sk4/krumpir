@@ -69,6 +69,17 @@ static causality_t map_causality(const char *s)
   return CAUS_OTHER;
 }
 
+/* The number s, or NAN when it is absent or not one. */
+static double number(const char *s)
+{
+  if (s == NULL) {
+    return NAN;
+  }
+  char *end;
+  const double v = strtod(s, &end);
+  return end != s && *end == '\0' ? v : NAN;
+}
+
 static void add_variable(pctx_t *c, const char *type, const XML_Char **atts)
 {
   modeldesc_t *md = c->md;
@@ -122,18 +133,16 @@ static void add_variable(pctx_t *c, const char *type, const XML_Char **atts)
   if (s != NULL) {
     snprintf(nv->description, sizeof nv->description, "%s", s);
   }
+  nv->min = number(attr(atts, "min"));
+  nv->max = number(attr(atts, "max"));
   md->n_vars++;
 }
 
 /* A positive finite number, or 0 for anything else (absent or invalid). */
 static double positive(const char *s)
 {
-  if (s == NULL) {
-    return 0;
-  }
-  char *end;
-  double v = strtod(s, &end);
-  return end != s && *end == '\0' && isfinite(v) && v > 0 ? v : 0;
+  const double v = number(s);
+  return isfinite(v) && v > 0 ? v : 0;
 }
 
 static void XMLCALL on_start(void *ud, const XML_Char *name, const XML_Char **atts)

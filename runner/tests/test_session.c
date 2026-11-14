@@ -3,6 +3,7 @@
  * second load in the same session. Skipped (exit 77) if the FMU is not installed. */
 #include <assert.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,8 +50,8 @@ static void sleep_ms(int ms)
 static double read_ok(session_t *s, const char *name)
 {
   char err[256];
-  double v = NAN;
-  int rc = session_read(s, name, &v, err, sizeof err);
+  double v = NAN, t;
+  int rc = session_read(s, &name, 1, &v, &t, err, sizeof err);
   if (rc != 0) {
     fprintf(stderr, "read %s: %s\n", name, err);
   }
@@ -61,17 +62,17 @@ static double read_ok(session_t *s, const char *name)
 static void write_ok(session_t *s, const char *name, double v)
 {
   char err[256];
-  int rc = session_write(s, name, v, err, sizeof err);
+  int rc = session_write(s, &name, &v, 1, err, sizeof err);
   if (rc != 0) {
     fprintf(stderr, "write %s: %s\n", name, err);
   }
   assert(rc == 0);
 }
 
-static void write_refused(session_t *s, const char *name, double v, const char *why)
+static void write_refused(session_t *s, const char *name, double v, int code, const char *why)
 {
   char err[256] = "";
-  assert(session_write(s, name, v, err, sizeof err) == -1);
+  assert(session_write(s, &name, &v, 1, err, sizeof err) == -code);
   if (strstr(err, why) == NULL) {
     fprintf(stderr, "write %s: expected '%s', got '%s'\n", name, why, err);
   }
@@ -90,12 +91,14 @@ static void test_drive_running(void)
 
   /* Before the start: input override, refusals, reads */
   write_ok(s, IN, 2.0);
-  write_refused(s, "Float64_fixed_parameter", 1.0, "fixed parameter");
-  write_refused(s, OUT, 1.0, "causality 'output'");
-  write_refused(s, "Float64_discrete_input", 1.0, "not one of the scenario's inputs");
-  write_refused(s, "nope", 1.0, "not a variable");
-  double v;
-  assert(session_read(s, "nope", &v, err, sizeof err) == -1);
+  write_refused(s, "Float64_fixed_parameter", 1.0, ERR_NOT_WRITABLE, "fixed parameter");
+  write_refused(s, OUT, 1.0, ERR_NOT_WRITABLE, "causality 'output'");
+  write_refused(s, "Float64_discrete_input", 1.0, ERR_NOT_WRITABLE,
+                "not one of the scenario's inputs");
+  write_refused(s, "nope", 1.0, ERR_NOT_FOUND, "not a variable");
+  double v, when;
+  const char *nope = "nope";
+  assert(session_read(s, &nope, 1, &v, &when, err, sizeof err) == -ERR_NOT_FOUND);
 
   assert(session_start(s, err, sizeof err) == 0);
   assert(session_state(s) == LC_RUNNING);
@@ -108,12 +111,12 @@ static void test_drive_running(void)
 
   write_ok(s, "Float64_tunable_parameter", 7.5);
   assert(read_ok(s, "Float64_tunable_parameter") == 7.5);
-  write_refused(s, "Float64_fixed_parameter", 1.0, "fixed parameter");
+  write_refused(s, "Float64_fixed_parameter", 1.0, ERR_NOT_WRITABLE, "fixed parameter");
 
   session_stop(s);
   assert(session_state(s) == LC_STOPPED);
   assert(read_ok(s, OUT) == 3.0); /* readable after the stop */
-  write_refused(s, IN, 4.0, "state STOPPED");
+  write_refused(s, IN, 4.0, ERR_BAD_STATE, "state STOPPED");
 
   session_summary_t sum;
   session_unload(s, &sum);
@@ -134,7 +137,7 @@ static void test_drive_running(void)
   assert(session_reset(s, &sum, err, sizeof err) == 0);
   assert(sum.steps == 100 && sum.state == LC_STOPPED);
   assert(session_state(s) == LC_INITIALIZED && session_model(s) != NULL);
-  assert(session_reset(s, NULL, err, sizeof err) == -1 && strstr(err, "INITIALIZED"));
+  assert(session_reset(s, NULL, err, sizeof err) == -ERR_BAD_STATE && strstr(err, "INITIALIZED"));
   assert(session_state(s) == LC_INITIALIZED); /* a refused reset changes nothing */
   assert(session_start(s, err, sizeof err) == 0);
   assert(session_wait(s, 5000));
@@ -164,8 +167,8 @@ static void test_drive_running(void)
   assert(prev_n == 299 && fabs(prev_t - 0.3) < 1e-9);
   fclose(fp);
 
-  assert(session_reset(s, NULL, err, sizeof err) == -1); /* nothing loaded */
-  assert(session_start(s, err, sizeof err) == -1);
+  assert(session_reset(s, NULL, err, sizeof err) < 0); /* nothing loaded */
+  assert(session_start(s, err, sizeof err) == -ERR_BAD_STATE);
   session_destroy(s);
   fprintf(stderr, "drive running: ok\n");
 }
@@ -206,16 +209,18 @@ static void test_signals(void)
   assert(id >= 0);
   sleep_ms(50);
   capture_data_t d;
-  assert(session_capture_fetch(s, id, &d, err, sizeof err) == 0);
+  assert(session_capture_fetch(s, id, 0, SIZE_MAX, &d, err, sizeof err) == 0);
   assert(d.state == CAP_RUNNING && d.n_rows > 10 && d.rows[d.n_cols * (d.n_rows - 1) + 1] == 9.0);
   free(d.rows);
   assert(session_capture_stop(s, id, err, sizeof err) == 0);
-  assert(session_capture_fetch(s, id, &d, err, sizeof err) == 0 && d.state == CAP_FINISHED);
+  assert(session_capture_fetch(s, id, 0, SIZE_MAX, &d, err, sizeof err) == 0 &&
+         d.state == CAP_FINISHED);
   free(d.rows);
 
   stimulus_t bad = st;
   snprintf(bad.input, sizeof bad.input, "%s", OUT);
-  assert(session_set_signal(s, &bad, err, sizeof err) == -1 && strstr(err, "not an input"));
+  assert(session_set_signal(s, &bad, err, sizeof err) == -ERR_NOT_WRITABLE &&
+         strstr(err, "not an input"));
   session_unload(s, NULL); /* frees the signal still in place */
   session_destroy(s);
   fprintf(stderr, "signals: ok\n");
@@ -236,7 +241,7 @@ static capture_data_t fetch_ok(session_t *s, int id)
 {
   char err[256];
   capture_data_t d;
-  int rc = session_capture_fetch(s, id, &d, err, sizeof err);
+  int rc = session_capture_fetch(s, id, 0, SIZE_MAX, &d, err, sizeof err);
   if (rc != 0) {
     fprintf(stderr, "fetch: %s\n", err);
   }
@@ -275,10 +280,12 @@ static void test_captures(void)
 
   capture_spec_t bad = {.n_vars = 1};
   snprintf(bad.vars[0], sizeof bad.vars[0], "Float64_tunable_parameter");
-  assert(session_capture_start(s, &bad, err, sizeof err) == -1 && strstr(err, "only those"));
+  assert(session_capture_start(s, &bad, err, sizeof err) == -ERR_NOT_FOUND &&
+         strstr(err, "only those"));
   bad = never;
   snprintf(bad.start.var, sizeof bad.start.var, "nope");
-  assert(session_capture_start(s, &bad, err, sizeof err) == -1 && strstr(err, "trigger"));
+  assert(session_capture_start(s, &bad, err, sizeof err) == -ERR_NOT_FOUND &&
+         strstr(err, "trigger"));
 
   assert(session_start(s, err, sizeof err) == 0);
   assert(session_wait(s, 5000) && session_state(s) == LC_STOPPED);
@@ -298,10 +305,96 @@ static void test_captures(void)
   d = fetch_ok(s, in);
   assert(d.state == CAP_FINISHED && d.n_rows == 0); /* finished by the end of the run */
   free(d.rows);
-  assert(session_capture_fetch(s, 7, &d, err, sizeof err) == -1);
-  assert(session_capture_start(s, &a, err, sizeof err) == -1); /* STOPPED */
+  assert(session_capture_fetch(s, 7, 0, SIZE_MAX, &d, err, sizeof err) == -ERR_NOT_FOUND);
+  assert(session_capture_start(s, &a, err, sizeof err) == -ERR_BAD_STATE); /* STOPPED */
   session_destroy(s); /* frees the captures */
   fprintf(stderr, "captures: ok\n");
+}
+
+/* Reads and writes of several variables: each at one step boundary, a write all or nothing. */
+static void test_batch(void)
+{
+  session_t *s = session_create();
+  scenario_t sc;
+  char err[256];
+  const char *both[] = {IN, "Float64_tunable_parameter"}, *bad[] = {IN, "Float64_fixed_parameter"};
+  const char *rd[] = {OUT, IN, "Float64_tunable_parameter"};
+  double v[3], t;
+  scenario(&sc, "sleep", "10");
+  assert(session_load(s, &sc, err, sizeof err) == 0);
+  assert(session_write(s, bad, (double[]){2.0, 1.0}, 2, err, sizeof err) == -ERR_NOT_WRITABLE);
+  assert(session_write(s, both + 1, (double[]){4.5}, 1, err, sizeof err) == 0);
+  assert(session_read(s, rd, 3, v, &t, err, sizeof err) == 0 && t == 0.0 && v[2] == 4.5);
+  assert(session_write(s, NULL, NULL, 0, err, sizeof err) == 0); /* nothing to write */
+  assert(session_start(s, err, sizeof err) == 0);
+  sleep_ms(20);
+  assert(read_ok(s, IN) == 1.0); /* the stimulus: the refused write wrote no value */
+
+  /* A ramp on the input: the output follows it within a step, so a read of both at one boundary
+   * sees them equal, while two boundaries would not */
+  stimulus_t st = {.kind = STIM_SEGMENTS, .n_segs = 1, .loops = 1};
+  snprintf(st.input, sizeof st.input, "%s", IN);
+  st.segs[0] = (segment_t){.kind = SEG_RAMP, .has_from = true, .to = 1000, .duration = 1000};
+  assert(session_set_signal(s, &st, err, sizeof err) == 0);
+  sleep_ms(20);
+  double prev_t = 0;
+  for (int i = 0; i < 20; i++) {
+    assert(session_read(s, rd, 3, v, &t, err, sizeof err) == 0);
+    assert(v[0] == v[1] && v[0] > 0 && v[2] == 4.5);
+    assert(t >= prev_t && t > 0 && fabs(t / 0.001 - round(t / 0.001)) < 1e-6); /* a boundary */
+    prev_t = t;
+  }
+  assert(session_write(s, bad, (double[]){-1.0, 1.0}, 2, err, sizeof err) == -ERR_NOT_WRITABLE);
+  assert(read_ok(s, OUT) > 0); /* the ramp still plays */
+  assert(session_write(s, both, (double[]){-3.0, 6.5}, 2, err, sizeof err) == 0);
+  assert(session_read(s, rd, 3, v, &t, err, sizeof err) == 0);
+  assert(v[0] == -3.0 && v[1] == -3.0 && v[2] == 6.5);
+  session_stop(s);
+  assert(session_read(s, rd, 3, v, &t, err, sizeof err) == 0 && t >= prev_t && v[2] == 6.5);
+  assert(session_write(s, both, v, 2, err, sizeof err) == -ERR_BAD_STATE);
+  session_unload(s, NULL);
+  assert(session_read(s, rd, 1, v, &t, err, sizeof err) == -ERR_BAD_STATE);
+  assert(session_read(s, NULL, 0, v, &t, err, sizeof err) == 0 && isnan(t));
+  session_destroy(s);
+  fprintf(stderr, "batch: ok\n");
+}
+
+/* A page of a capture is a copy of those rows only; a freed capture gives its id back. */
+static void test_capture_pages(void)
+{
+  session_t *s = session_create();
+  scenario_t sc;
+  char err[256];
+  scenario(&sc, "none", "0.1");
+  assert(session_load(s, &sc, err, sizeof err) == 0);
+  capture_spec_t all = {0};
+  int id = capture_ok(s, &all);
+  assert(session_start(s, err, sizeof err) == 0);
+  assert(session_wait(s, 5000));
+  capture_data_t d = fetch_ok(s, id), p;
+  assert(d.n_rows == 100 && d.from == 0 && d.n == 100);
+  assert(session_capture_fetch(s, id, 10, 5, &p, err, sizeof err) == 0);
+  assert(p.n_rows == 100 && p.from == 10 && p.n == 5);
+  assert(memcmp(p.rows, d.rows + 10 * d.n_cols, 5 * d.n_cols * sizeof(double)) == 0);
+  free(p.rows);
+  assert(session_capture_fetch(s, id, 98, 5, &p, err, sizeof err) == 0 && p.n == 2);
+  free(p.rows);
+  assert(session_capture_fetch(s, id, 500, 5, &p, err, sizeof err) == 0);
+  assert(p.from == 100 && p.n == 0 && p.n_rows == 100);
+  free(p.rows);
+  free(d.rows);
+  assert(session_capture_free(s, id, err, sizeof err) == 0);
+  assert(session_capture_fetch(s, id, 0, 1, &p, err, sizeof err) == -ERR_NOT_FOUND);
+  assert(session_capture_free(s, id, err, sizeof err) == -ERR_NOT_FOUND);
+  assert(session_reset(s, NULL, err, sizeof err) == 0);
+  for (int i = 0; i < SESSION_MAX_CAPTURES; i++) {
+    assert(capture_ok(s, &all) == i);
+  }
+  assert(session_capture_start(s, &all, err, sizeof err) == -ERR_LIMIT);
+  assert(session_capture_free(s, 3, err, sizeof err) == 0);
+  assert(capture_ok(s, &all) == 3); /* the freed id is used again */
+  session_destroy(s);
+  fprintf(stderr, "capture pages: ok\n");
 }
 
 /* A load that fails leaves the session IDLE and reusable. */
@@ -312,7 +405,7 @@ static void test_failed_load(void)
   char err[256];
   scenario(&sc, "none", "0.1");
   snprintf(sc.fmu, sizeof sc.fmu, "%s/missing.fmu", KRUMPIR_FMU_DIR);
-  assert(session_load(s, &sc, err, sizeof err) == -1);
+  assert(session_load(s, &sc, err, sizeof err) == -ERR_NOT_FOUND);
   assert(session_state(s) == LC_IDLE);
   scenario(&sc, "none", "0.1");
   assert(session_load(s, &sc, err, sizeof err) == 0);
@@ -330,14 +423,14 @@ static void test_check(void)
   assert(scenario_check(&sc, err, sizeof err) == 0);
   assert(access(logp, F_OK) != 0);
   snprintf(sc.outputs[0], sizeof sc.outputs[0], "nope");
-  assert(scenario_check(&sc, err, sizeof err) == -1 && strstr(err, "'nope'") != NULL);
+  assert(scenario_check(&sc, err, sizeof err) == -ERR_BAD_SCENARIO && strstr(err, "'nope'"));
   scenario(&sc, "none", "0.1");
   sc.stimuli[0].kind = STIM_SEGMENTS;
   sc.stimuli[0].n_segs = 1;
   sc.stimuli[0].segs[0] = (segment_t){.kind = SEG_DATA, .duration = NAN, .file = "/nope.csv"};
-  assert(scenario_check(&sc, err, sizeof err) == -1 && strstr(err, "data file") != NULL);
+  assert(scenario_check(&sc, err, sizeof err) == -ERR_BAD_SCENARIO && strstr(err, "data file"));
   snprintf(sc.fmu, sizeof sc.fmu, "%s/missing.fmu", KRUMPIR_FMU_DIR);
-  assert(scenario_check(&sc, err, sizeof err) == -1);
+  assert(scenario_check(&sc, err, sizeof err) == -ERR_NOT_FOUND);
   fprintf(stderr, "check: ok\n");
 }
 
@@ -353,6 +446,8 @@ int main(void)
   test_drive_running();
   test_signals();
   test_captures();
+  test_batch();
+  test_capture_pages();
   test_failed_load();
   test_check();
   remove(logp);

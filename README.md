@@ -35,7 +35,7 @@ The repository contains:
   ([clients/tui/](clients/tui/README.md)).
 - **Tools**: a Python client for scripting tests, controller code generation, serial capture and
   timing scripts, and schematic generation ([tools/](tools/README.md)).
-- **Docs**: ([docs/](docs/)).
+- **Docs**: architecture, standards and the client API ([docs/](docs/), [api-spec.md](docs/api-spec.md)).
 
 ## Quick setup
 

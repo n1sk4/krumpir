@@ -250,6 +250,7 @@ def describe(model, ctrl_rel):
     page = f"{model['name']}_cal_page"
     d = {
         "generated": banner("", ctrl_rel).strip(),
+        "schema": 1,  # raised when a key changes meaning or type; added keys keep it
         "name": model["name"],
         "a2l": f"docs/{model['name']}.a2l",
         "params": [{"name": p["name"], "help": p["help"], "unit": p["unit"], "min": p["min"],

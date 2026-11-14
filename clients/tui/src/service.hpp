@@ -4,6 +4,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -11,9 +12,15 @@ namespace krumpir {
 
 using json = nlohmann::json;
 
-// The service refused a request (its reply had "ok": false). The connection is fine.
+// The service refused a request (its reply had "ok": false). The connection is fine, except
+// for "busy": another client is connected, and the service has closed it. code: the kind of
+// refusal (bad_state, not_found, busy, ...), "" from a service that sends none.
 struct ServiceError : std::runtime_error {
-  using std::runtime_error::runtime_error;
+  explicit ServiceError(const std::string &what, std::string code = {})
+      : std::runtime_error(what), code(std::move(code))
+  {
+  }
+  std::string code;
 };
 
 // The connection failed or timed out. It has been closed.

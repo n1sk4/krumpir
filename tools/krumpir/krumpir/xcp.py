@@ -235,6 +235,13 @@ class EcuPort:
                 v = [int(x) for x in v]
             self._download(s.addr, s.ext, struct.pack(f"<{s.count}{s.fmt}", *v))
 
+    def request(self, name, code):
+        """Sends a command to a controller's request word (ctrl_gen.json: request.name and its
+        codes): the low byte is the command, the upper three a sequence number, so a command can
+        follow itself. Not acknowledged: confirm by reading the status."""
+        old = self.read(name)
+        self.write({name: ((((old >> 8) + 1) << 8) | code) & 0xFFFFFFFF})
+
     def close(self):
         if self._sock.fileno() >= 0:
             try:

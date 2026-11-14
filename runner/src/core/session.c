@@ -21,8 +21,7 @@
 #include "varmap.h"
 #include "writer.h"
 
-#define RING_CAPACITY 16384  /* records; about 16 s of buffer at 1 kHz */
-#define REPLY_TIMEOUT_MS 2000 /* a command must be handled within this time */
+#define RING_CAPACITY 16384 /* records; about 16 s of buffer at 1 kHz */
 
 struct session {
   lifecycle_t state;
@@ -47,6 +46,13 @@ struct session {
   cmdq_t cmd, reply;
   uint32_t seq;
   input_src_t src[TELEM_MAX_CH]; /* the loop owns it while RUNNING; the session owns the signals */
+  /* The arrays of the command in flight, which the loop uses until it answers. `lent`: the seq of
+   * one it did not answer in time, so it may still use them. */
+  uint32_t *cmd_vr;
+  double *cmd_value;
+  size_t cmd_cap;
+  input_src_t cmd_src[TELEM_MAX_CH];
+  uint32_t lent;
 
   /* Captures, fed by the writer thread (tap) and read by the control thread, under cap_lock */
   pthread_mutex_t cap_lock;
@@ -90,6 +96,18 @@ static void ensure_parent_dir(const char *path)
   }
 }
 
+/* Frees the signals left in the command's input sources (the ones a write replaced, or new ones the
+ * loop did not take) and clears them. */
+static void release_srcs(session_t *s)
+{
+  for (size_t i = 0; i < TELEM_MAX_CH; i++) {
+    if (s->cmd_src[i].kind == SRC_SIGNAL) {
+      signal_free(s->cmd_src[i].sig);
+    }
+  }
+  memset(s->cmd_src, 0, sizeof s->cmd_src);
+}
+
 static void describe_failure(session_t *s)
 {
   const loop_counters_t *ls = &s->ls;
@@ -123,6 +141,8 @@ static void reap(session_t *s)
   }
   pthread_join(s->thread, NULL);
   s->thread_started = false;
+  s->lent = 0; /* the loop is gone: the command arrays are free again */
+  release_srcs(s);
   writer_flush(s->writer); /* the captures have seen every record of the run */
   pthread_mutex_lock(&s->cap_lock);
   for (size_t i = 0; i < SESSION_MAX_CAPTURES; i++) {
@@ -151,12 +171,12 @@ int session_reset(session_t *s, session_summary_t *out, char *err, size_t errlen
   const lifecycle_t st = session_state(s);
   if (st != LC_STOPPED && st != LC_FAULT) {
     snprintf(err, errlen, "cannot reset in state %s (only STOPPED or FAULT)", lifecycle_name(st));
-    return -1;
+    return -ERR_BAD_STATE;
   }
   scenario_t *sc = malloc(sizeof *sc); /* large: off the stack */
   if (sc == NULL) {
     snprintf(err, errlen, "out of memory");
-    return -1;
+    return -ERR_INTERNAL;
   }
   *sc = s->sc;
   const writer_cont_t cont = s->log_cont; /* unload clears it */
@@ -231,6 +251,9 @@ void session_unload(session_t *s, session_summary_t *out)
       signal_free(s->src[i].sig);
     }
   }
+  release_srcs(s);
+  free(s->cmd_vr);
+  free(s->cmd_value);
   if (out != NULL) {
     *out = sum;
   }
@@ -267,7 +290,7 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
   err[0] = '\0';
   if (s->state != LC_IDLE) {
     snprintf(err, errlen, "a scenario is already loaded");
-    return -1;
+    return -ERR_BAD_STATE;
   }
   s->fault[0] = '\0';
   if (!s->append_log) { /* a new scenario: a new log */
@@ -279,10 +302,12 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
   cmdq_init(&s->reply);
 
   /* LOADED: everything slow and fallible happens before the loop starts. */
+  int rc = -ERR_NOT_FOUND;
   if (fmu_open(sc->fmu, &s->pkg, err, errlen) < 0) {
     goto fail;
   }
   s->pkg_open = true;
+  rc = -ERR_BAD_SCENARIO;
   if (varmap_build(&s->pkg.md, &s->sc, &s->vm, err, errlen) < 0) {
     goto fail;
   }
@@ -297,10 +322,12 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
       }
     }
   }
+  rc = -ERR_FAULT;
   s->io = io_open(&s->sc, err, errlen);
   if (s->io == NULL) {
     goto fail;
   }
+  rc = -ERR_INTERNAL;
   if (ring_init(&s->ring, RING_CAPACITY) < 0) {
     snprintf(err, errlen, "out of memory");
     goto fail;
@@ -328,6 +355,7 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
   lifecycle_set(&s->state, LC_LOADED);
 
   /* INITIALIZED: instantiate, set parameters, initialize the model. */
+  rc = -ERR_FAULT;
   s->fmu = fmi3_create(&s->pkg, err, errlen);
   if (s->fmu == NULL) {
     goto fail;
@@ -348,6 +376,7 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
   /* A real-time run locks the process's memory, so the loop never waits for a page. */
   if (s->sc.priority >= 0) {
     if (rt_lock_memory(err, errlen) < 0) {
+      rc = -ERR_INTERNAL;
       goto fail;
     }
     s->mem_locked = true;
@@ -364,7 +393,7 @@ int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen)
 
 fail:
   session_unload(s, NULL);
-  return -1;
+  return rc;
 }
 
 int scenario_check(const scenario_t *sc, char *err, size_t errlen)
@@ -372,13 +401,13 @@ int scenario_check(const scenario_t *sc, char *err, size_t errlen)
   varmap_t vm;
   fmu_pkg_t pkg = {0};
   err[0] = '\0';
-  int rc = fmu_open(sc->fmu, &pkg, err, errlen);
-  if (rc == 0) {
-    rc = varmap_build(&pkg.md, sc, &vm, err, errlen);
+  int rc = fmu_open(sc->fmu, &pkg, err, errlen) < 0 ? -ERR_NOT_FOUND : 0;
+  if (rc == 0 && varmap_build(&pkg.md, sc, &vm, err, errlen) < 0) {
+    rc = -ERR_BAD_SCENARIO;
   }
   for (size_t j = 0; rc == 0 && j < sc->n_stimuli; j++) {
     signal_t *g = signal_create(&sc->stimuli[j], err, errlen);
-    rc = g != NULL ? 0 : -1;
+    rc = g != NULL ? 0 : -ERR_BAD_SCENARIO;
     signal_free(g);
   }
   fmu_close(&pkg);
@@ -408,13 +437,13 @@ int session_start(session_t *s, char *err, size_t errlen)
 {
   if (s->state != LC_INITIALIZED) {
     snprintf(err, errlen, "cannot start in state %s", lifecycle_name(s->state));
-    return -1;
+    return -ERR_BAD_STATE;
   }
   /* The loop thread gets rt.cpu and rt.priority from its creation on. If the OS refuses them,
    * nothing has run and the session stays INITIALIZED. */
   pthread_attr_t attr;
   if (rt_thread_attr(&attr, s->sc.cpu, s->sc.priority, err, errlen) < 0) {
-    return -1;
+    return -ERR_BAD_SCENARIO;
   }
   atomic_store(&s->done, false);
   memset(&s->ls, 0, sizeof s->ls); /* before the thread exists: session_live reads it */
@@ -422,7 +451,7 @@ int session_start(session_t *s, char *err, size_t errlen)
   pthread_attr_destroy(&attr);
   if (e != 0) {
     rt_create_error(e, s->sc.cpu, s->sc.priority, err, errlen);
-    return -1;
+    return -ERR_INTERNAL;
   }
   s->thread_started = true;
   lifecycle_set(&s->state, LC_RUNNING); /* only this thread changes the state, so before reap */
@@ -457,49 +486,83 @@ void session_stop(session_t *s)
   }
 }
 
+/* Room for n value references and values in the command arrays. Refused while a command the loop
+ * did not answer in time may still use them. */
+static int reserve(session_t *s, size_t n, char *err, size_t errlen)
+{
+  cmd_t r;
+  while (s->lent != 0 && cmdq_pop(&s->reply, &r)) {
+    if (r.seq == s->lent) {
+      s->lent = 0;
+      release_srcs(s);
+    }
+  }
+  if (s->lent != 0) {
+    snprintf(err, errlen, "no reply from the loop within %d ms", SESSION_REPLY_TIMEOUT_MS);
+    return -ERR_TIMEOUT;
+  }
+  if (n > s->cmd_cap) {
+    uint32_t *vr = realloc(s->cmd_vr, n * sizeof *vr);
+    s->cmd_vr = vr != NULL ? vr : s->cmd_vr;
+    double *value = realloc(s->cmd_value, n * sizeof *value);
+    s->cmd_value = value != NULL ? value : s->cmd_value;
+    if (vr == NULL || value == NULL) {
+      snprintf(err, errlen, "out of memory");
+      return -ERR_INTERNAL;
+    }
+    s->cmd_cap = n;
+  }
+  return 0;
+}
+
 /* Sends a command to the running loop and waits for its reply. */
 static int roundtrip(session_t *s, cmd_t *c, char *err, size_t errlen)
 {
   c->seq = ++s->seq;
   if (!cmdq_push(&s->cmd, c)) {
     snprintf(err, errlen, "command queue full");
-    return -1;
+    return -ERR_INTERNAL;
   }
-  for (double waited = 0.0; waited < REPLY_TIMEOUT_MS; waited += 0.1) {
+  for (double waited = 0.0; waited < SESSION_REPLY_TIMEOUT_MS; waited += 0.1) {
     cmd_t r;
+    /* read before the pop, so a reply sent just before the end is not missed */
+    const bool ended = atomic_load(&s->done);
     while (cmdq_pop(&s->reply, &r)) {
       if (r.seq == c->seq) {
         *c = r;
         return 0;
       }
     }
-    if (atomic_load(&s->done)) {
+    if (ended) {
       snprintf(err, errlen, "the run ended before the command was handled");
-      return -1;
+      return -ERR_BAD_STATE;
     }
     sleep_ms(0.1);
   }
-  snprintf(err, errlen, "no reply from the loop within %d ms", REPLY_TIMEOUT_MS);
-  return -1;
+  s->lent = c->seq;
+  snprintf(err, errlen, "no reply from the loop within %d ms", SESSION_REPLY_TIMEOUT_MS);
+  return -ERR_TIMEOUT;
 }
 
 /* The variable `name`, which must be Float64. */
-static const mvar_t *find_float64(session_t *s, const char *name, char *err, size_t errlen)
+static int find_float64(session_t *s, const char *name, const mvar_t **out, char *err,
+                        size_t errlen)
 {
   if (!s->pkg_open) {
     snprintf(err, errlen, "no scenario loaded");
-    return NULL;
+    return -ERR_BAD_STATE;
   }
   const mvar_t *v = modeldesc_find(&s->pkg.md, name);
   if (v == NULL) {
     snprintf(err, errlen, "'%s' is not a variable of the model", name);
-    return NULL;
+    return -ERR_NOT_FOUND;
   }
   if (!mvar_is_float64(v)) {
     snprintf(err, errlen, "'%s' is %s, only Float64 is supported", name, v->type);
-    return NULL;
+    return -ERR_BAD_REQUEST;
   }
-  return v;
+  *out = v;
+  return 0;
 }
 
 /* Position of input `v` in the scenario's inputs, or -1 with a message in err. */
@@ -523,128 +586,176 @@ static void set_src(session_t *s, int i, input_src_t src)
   s->src[i] = src;
 }
 
+/* Applies a staged write: the tunable parameters cmd_vr/cmd_value[0..np) (pname names them in a
+ * message), then, if the FMU takes them, cmd_src[i] for each input slot i in `inputs`. */
+static int apply(session_t *s, size_t np, uint32_t inputs, const char *pname, char *err,
+                 size_t errlen)
+{
+  if (s->state == LC_INITIALIZED) {
+    const fmu_result_t r = np > 0 ? fmu_set_real(s->fmu, s->cmd_vr, np, s->cmd_value) : FMU_OK;
+    if (r != FMU_OK) {
+      snprintf(err, errlen, "'%s': %s (%s)", pname, fmu_result_str(r), fmu_last_message(s->fmu));
+      release_srcs(s);
+      return -ERR_FAULT;
+    }
+    for (int i = 0; i < TELEM_MAX_CH; i++) {
+      if (inputs & (1u << i)) {
+        set_src(s, i, s->cmd_src[i]);
+        s->cmd_src[i] = (input_src_t){0};
+      }
+    }
+    return 0;
+  }
+  cmd_t c = {.kind = CMD_WRITE,
+             .n = (uint32_t)np,
+             .inputs = inputs,
+             .vrs = s->cmd_vr,
+             .values = s->cmd_value,
+             .srcs = s->cmd_src};
+  int rc = roundtrip(s, &c, err, errlen);
+  if (rc == -ERR_TIMEOUT) {
+    return rc; /* the loop may still take them: cmd_src stays as it is */
+  }
+  if (rc == 0 && c.status != FMU_OK) {
+    snprintf(err, errlen, "'%s': %s", pname, fmu_result_str((fmu_result_t)c.status));
+    rc = -ERR_FAULT;
+  }
+  release_srcs(s); /* the sources replaced, or the new ones the loop did not take */
+  return rc;
+}
+
 int session_set_signal(session_t *s, const stimulus_t *st, char *err, size_t errlen)
 {
   reap(s);
-  const mvar_t *v = find_float64(s, st->input, err, errlen);
-  if (v == NULL) {
-    return -1;
+  const mvar_t *v;
+  int rc = find_float64(s, st->input, &v, err, errlen);
+  if (rc < 0) {
+    return rc;
   }
   if (s->state != LC_INITIALIZED && s->state != LC_RUNNING) {
     snprintf(err, errlen, "cannot set a signal on '%s' in state %s", st->input,
              lifecycle_name(s->state));
-    return -1;
+    return -ERR_BAD_STATE;
   }
   if (v->causality != CAUS_INPUT) {
     snprintf(err, errlen, "'%s' is not an input", st->input);
-    return -1;
+    return -ERR_NOT_WRITABLE;
   }
   int i = input_slot(s, v, err, errlen);
   if (i < 0) {
-    return -1;
+    return -ERR_NOT_WRITABLE;
+  }
+  if ((rc = reserve(s, 0, err, errlen)) < 0) {
+    return rc;
   }
   signal_t *g = signal_create(st, err, errlen);
   if (g == NULL) {
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
-  if (s->state == LC_INITIALIZED) {
-    set_src(s, i, (input_src_t){.kind = SRC_SIGNAL, .sig = g});
-    return 0;
-  }
-  cmd_t c = {.kind = CMD_SET_SIGNAL, .index = i, .sig = g};
-  if (roundtrip(s, &c, err, errlen) < 0) {
-    return -1; /* Limitation: g leaks if the loop never answers; it may still be playing it */
-  }
-  signal_free(c.sig); /* the replaced one */
-  return 0;
+  s->cmd_src[i] = (input_src_t){.kind = SRC_SIGNAL, .sig = g};
+  return apply(s, 0, 1u << i, NULL, err, errlen);
 }
 
-int session_write(session_t *s, const char *name, double value, char *err, size_t errlen)
+/* Checks one value of a write and stages it: an input into cmd_src (bit in *inputs), a tunable
+ * parameter into cmd_vr/cmd_value[*np]. */
+static int stage(session_t *s, const char *name, double value, size_t *np, uint32_t *inputs,
+                 char *err, size_t errlen)
 {
-  reap(s);
-  const mvar_t *v = find_float64(s, name, err, errlen);
-  if (v == NULL) {
-    return -1;
+  const mvar_t *v;
+  int rc = find_float64(s, name, &v, err, errlen);
+  if (rc < 0) {
+    return rc;
   }
   if (s->state != LC_INITIALIZED && s->state != LC_RUNNING) {
     snprintf(err, errlen, "cannot write '%s' in state %s", name, lifecycle_name(s->state));
-    return -1;
+    return -ERR_BAD_STATE;
   }
-
-  cmd_t c = {.vr = v->vr, .value = value, .index = -1};
   if (v->causality == CAUS_INPUT) {
-    c.index = input_slot(s, v, err, errlen);
-    if (c.index < 0) {
-      return -1;
+    const int i = input_slot(s, v, err, errlen);
+    if (i < 0) {
+      return -ERR_NOT_WRITABLE;
     }
-    if (s->state == LC_INITIALIZED) {
-      set_src(s, c.index, (input_src_t){.kind = SRC_VALUE, .value = value});
-      return 0;
-    }
-    c.kind = CMD_WRITE_INPUT;
+    s->cmd_src[i] = (input_src_t){.kind = SRC_VALUE, .value = value};
+    *inputs |= 1u << i;
   } else if (v->causality == CAUS_PARAMETER && v->tunable) {
-    if (s->state == LC_INITIALIZED) {
-      fmu_result_t r = fmu_set_real(s->fmu, &c.vr, 1, &c.value);
-      if (r != FMU_OK) {
-        snprintf(err, errlen, "'%s': %s (%s)", name, fmu_result_str(r), fmu_last_message(s->fmu));
-        return -1;
-      }
-      return 0;
-    }
-    c.kind = CMD_WRITE_PARAM;
+    s->cmd_vr[*np] = v->vr;
+    s->cmd_value[(*np)++] = value;
   } else if (v->causality == CAUS_PARAMETER) {
     snprintf(err, errlen, "'%s' is a fixed parameter: set it in the scenario (model.params)",
              name);
-    return -1;
+    return -ERR_NOT_WRITABLE;
   } else {
     snprintf(err, errlen,
              "'%s' has causality '%s': only inputs and tunable parameters can be written", name,
              v->causality_str);
-    return -1;
-  }
-
-  if (roundtrip(s, &c, err, errlen) < 0) {
-    return -1;
-  }
-  if (c.status != FMU_OK) {
-    snprintf(err, errlen, "'%s': %s", name, fmu_result_str((fmu_result_t)c.status));
-    return -1;
-  }
-  if (c.kind == CMD_WRITE_INPUT) {
-    signal_free(c.sig); /* the replaced one */
+    return -ERR_NOT_WRITABLE;
   }
   return 0;
 }
 
-int session_read(session_t *s, const char *name, double *value, char *err, size_t errlen)
+int session_write(session_t *s, const char *const *names, const double *values, size_t n,
+                  char *err, size_t errlen)
 {
   reap(s);
-  const mvar_t *v = find_float64(s, name, err, errlen);
-  if (v == NULL) {
-    return -1;
-  }
-  if (s->state == LC_INITIALIZED || s->state == LC_STOPPED) {
-    uint32_t vr = v->vr;
-    fmu_result_t r = fmu_get_real(s->fmu, &vr, 1, value);
-    if (r != FMU_OK) {
-      snprintf(err, errlen, "'%s': %s", name, fmu_result_str(r));
-      return -1;
-    }
+  if (n == 0) {
     return 0;
   }
-  if (s->state != LC_RUNNING) {
-    snprintf(err, errlen, "cannot read '%s' in state %s", name, lifecycle_name(s->state));
-    return -1;
+  int rc = reserve(s, n, err, errlen);
+  size_t np = 0;
+  uint32_t inputs = 0;
+  const char *pname = NULL;
+  for (size_t i = 0; rc == 0 && i < n; i++) {
+    rc = stage(s, names[i], values[i], &np, &inputs, err, errlen);
+    pname = pname == NULL && np > 0 ? names[i] : pname;
   }
-  cmd_t c = {.kind = CMD_READ, .vr = v->vr};
-  if (roundtrip(s, &c, err, errlen) < 0) {
-    return -1;
+  if (rc < 0) {
+    memset(s->cmd_src, 0, sizeof s->cmd_src); /* values only: nothing to free */
+    return rc;
   }
-  if (c.status != FMU_OK) {
-    snprintf(err, errlen, "'%s': %s", name, fmu_result_str((fmu_result_t)c.status));
-    return -1;
+  return apply(s, np, inputs, pname, err, errlen);
+}
+
+int session_read(session_t *s, const char *const *names, size_t n, double *values, double *t,
+                 char *err, size_t errlen)
+{
+  reap(s);
+  *t = NAN;
+  int rc = reserve(s, n, err, errlen);
+  for (size_t i = 0; rc == 0 && i < n; i++) {
+    const mvar_t *v;
+    rc = find_float64(s, names[i], &v, err, errlen);
+    s->cmd_vr[i] = rc == 0 ? v->vr : 0;
   }
-  *value = c.value;
+  if (rc < 0) {
+    return rc;
+  }
+  const lifecycle_t st = s->state;
+  if (st != LC_INITIALIZED && st != LC_RUNNING && st != LC_STOPPED) {
+    if (n == 0) {
+      return 0;
+    }
+    snprintf(err, errlen, "cannot read '%s' in state %s", names[0], lifecycle_name(st));
+    return -ERR_BAD_STATE;
+  }
+  fmu_result_t r = FMU_OK;
+  if (st == LC_RUNNING) {
+    cmd_t c = {.kind = CMD_READ, .n = (uint32_t)n, .vrs = s->cmd_vr, .values = s->cmd_value};
+    if ((rc = roundtrip(s, &c, err, errlen)) < 0) {
+      return rc;
+    }
+    r = (fmu_result_t)c.status;
+    for (size_t i = 0; i < n; i++) {
+      values[i] = s->cmd_value[i];
+    }
+    *t = c.t;
+  } else {
+    r = n > 0 ? fmu_get_real(s->fmu, s->cmd_vr, n, values) : FMU_OK;
+    *t = (double)atomic_load(&s->ls.steps) * s->sc.step;
+  }
+  if (r != FMU_OK) {
+    snprintf(err, errlen, "'%s': %s", names[0], fmu_result_str(r));
+    return -ERR_FAULT;
+  }
   return 0;
 }
 
@@ -690,7 +801,7 @@ int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, s
   reap(s);
   if (s->state != LC_INITIALIZED && s->state != LC_RUNNING) {
     snprintf(err, errlen, "cannot start a capture in state %s", lifecycle_name(s->state));
-    return -1;
+    return -ERR_BAD_STATE;
   }
   int id = 0;
   while (id < SESSION_MAX_CAPTURES && s->caps[id] != NULL) {
@@ -698,7 +809,7 @@ int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, s
   }
   if (id == SESSION_MAX_CAPTURES) {
     snprintf(err, errlen, "at most %d captures per run", SESSION_MAX_CAPTURES);
-    return -1;
+    return -ERR_LIMIT;
   }
 
   capture_def_t d = {.n_in = s->sc.n_inputs, .duration = spec->duration};
@@ -709,7 +820,7 @@ int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, s
     }
   } else if (spec->n_vars > 2 * TELEM_MAX_CH) {
     snprintf(err, errlen, "a capture takes at most %d variables", 2 * TELEM_MAX_CH);
-    return -1;
+    return -ERR_LIMIT;
   }
   for (size_t i = 0; i < spec->n_vars; i++) {
     d.ch[i] = channel(s, spec->vars[i]);
@@ -717,17 +828,17 @@ int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, s
       snprintf(err, errlen,
                "'%s' is not one of the scenario's inputs or outputs (only those are captured)",
                spec->vars[i]);
-      return -1;
+      return -ERR_NOT_FOUND;
     }
     d.n_ch++;
   }
   if (resolve_cond(s, &spec->start, &d.start, err, errlen) < 0 ||
       resolve_cond(s, &spec->stop, &d.stop, err, errlen) < 0) {
-    return -1;
+    return -ERR_NOT_FOUND;
   }
   if (!(spec->duration >= 0) || !isfinite(spec->duration)) {
     snprintf(err, errlen, "capture duration must be >= 0");
-    return -1;
+    return -ERR_BAD_REQUEST;
   }
   d.max_rows = spec->max_rows;
   if (d.max_rows == 0) {
@@ -736,13 +847,13 @@ int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, s
   if (d.max_rows > CAPTURE_MAX_BYTES / ((1 + d.n_ch) * sizeof(double))) {
     snprintf(err, errlen, "capture buffer of %zu rows is over %u MB", d.max_rows,
              CAPTURE_MAX_BYTES >> 20);
-    return -1;
+    return -ERR_LIMIT;
   }
 
   capture_t *c = capture_create(&d);
   if (c == NULL) {
     snprintf(err, errlen, "out of memory");
-    return -1;
+    return -ERR_INTERNAL;
   }
   s->cap_names[id][0] = "t";
   for (size_t i = 0; i < d.n_ch; i++) {
@@ -764,27 +875,30 @@ static capture_t *find_capture(session_t *s, int id, char *err, size_t errlen)
   return s->caps[id];
 }
 
-int session_capture_fetch(session_t *s, int id, capture_data_t *out, char *err, size_t errlen)
+int session_capture_fetch(session_t *s, int id, size_t from, size_t max, capture_data_t *out,
+                          char *err, size_t errlen)
 {
   capture_t *c = find_capture(s, id, err, errlen);
   if (c == NULL) {
-    return -1;
+    return -ERR_NOT_FOUND;
   }
   *out = (capture_data_t){0};
-  pthread_mutex_lock(&s->cap_lock);
+  pthread_mutex_lock(&s->cap_lock); /* the writer thread adds rows meanwhile */
   const double *rows;
   out->state = capture_state(c);
   out->n_rows = capture_rows(c, &rows);
   out->n_cols = capture_cols(c);
-  size_t bytes = out->n_rows * out->n_cols * sizeof(double);
+  out->from = from < out->n_rows ? from : out->n_rows;
+  out->n = out->n_rows - out->from < max ? out->n_rows - out->from : max;
+  const size_t bytes = out->n * out->n_cols * sizeof(double);
   out->rows = malloc(bytes > 0 ? bytes : 1);
   if (out->rows != NULL) {
-    memcpy(out->rows, rows, bytes);
+    memcpy(out->rows, rows + out->from * out->n_cols, bytes);
   }
   pthread_mutex_unlock(&s->cap_lock);
   if (out->rows == NULL) {
     snprintf(err, errlen, "out of memory");
-    return -1;
+    return -ERR_INTERNAL;
   }
   memcpy(out->names, s->cap_names[id], out->n_cols * sizeof out->names[0]);
   return 0;
@@ -794,10 +908,23 @@ int session_capture_stop(session_t *s, int id, char *err, size_t errlen)
 {
   capture_t *c = find_capture(s, id, err, errlen);
   if (c == NULL) {
-    return -1;
+    return -ERR_NOT_FOUND;
   }
   pthread_mutex_lock(&s->cap_lock);
   capture_finish(c);
   pthread_mutex_unlock(&s->cap_lock);
+  return 0;
+}
+
+int session_capture_free(session_t *s, int id, char *err, size_t errlen)
+{
+  capture_t *c = find_capture(s, id, err, errlen);
+  if (c == NULL) {
+    return -ERR_NOT_FOUND;
+  }
+  pthread_mutex_lock(&s->cap_lock);
+  s->caps[id] = NULL;
+  pthread_mutex_unlock(&s->cap_lock);
+  capture_free(c);
   return 0;
 }

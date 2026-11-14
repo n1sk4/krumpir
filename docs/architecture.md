@@ -46,7 +46,7 @@ FMU is freed cleanly.
 | `core/loop` | Tick timing, step sequence, overrun monitor | isolated core |
 | `core/timing_pin` | The `rt.timing_gpio` line, high while each step runs (GPIO character device, one ioctl per edge) | isolated core |
 | `core/session` | One run with explicit phases (load, start, stop, unload); the loop runs on its own thread; reads and writes while it runs | Linux cores |
-| `core/cmdq` | Lock-free command and reply queues: input values and signals, tunable parameters and reads, handled at the start of a step | shared |
+| `core/cmdq` | Lock-free command and reply queues: input values and signals, tunable parameters and reads (a read or write of several variables is one command), handled at the start of a step | shared |
 | `core/siggen` | Signals from segments (const, ramp, sine, pulse, idle, data file), built before the run, evaluated per step | isolated core |
 | `fmi/loader` | Unzip (miniz) into a private temp directory, `dlopen` the binary | setup only |
 | `fmi/modeldesc`, `fmi/varmap` | Parse `modelDescription.xml` (expat); resolve the scenario's names to value references | setup only |

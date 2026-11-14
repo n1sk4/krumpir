@@ -111,6 +111,16 @@ def test_read_and_write(fake):
     assert fake.log[-1] == 0xFE  # disconnected
 
 
+def test_request(fake):
+    with EcuPort(A2L_FILE, port=fake.port) as ecu:
+        ecu.write(s_count=0x0501)
+        ecu.request("s_count", 2)  # sequence + 1, the command in the low byte
+        assert ecu.read("s_count") == 0x0602
+        ecu.write(s_count=0xFFFFFF01)
+        ecu.request("s_count", 3)
+        assert ecu.read("s_count") == 0x03
+
+
 def test_epk_mismatch():
     fake = FakeEcu(epk="other_build_")
     with pytest.raises(XcpError, match="EPK mismatch"):

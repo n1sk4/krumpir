@@ -28,7 +28,13 @@ __all__ = ["KrumpirError", "Testbench", "MAPort", "Signal", "Capture", "CaptureR
 
 
 class KrumpirError(RuntimeError):
-    """The service refused a request; the message is its reason."""
+    """The service refused a request; the message is its reason. `code` is the kind (bad_request,
+    bad_state, not_found, not_writable, bad_scenario, exists, limit, timeout, fault, internal,
+    busy), None from a service that sends none."""
+
+    def __init__(self, message, code=None):
+        super().__init__(message)
+        self.code = code
 
 
 class Testbench:
@@ -47,7 +53,7 @@ class Testbench:
             raise ConnectionError("the service closed the connection")
         reply = json.loads(line)
         if not reply.pop("ok"):
-            raise KrumpirError(f"{op}: {reply['error']}")
+            raise KrumpirError(f"{op}: {reply['error']}", reply.get("code"))
         return reply
 
     def info(self):
@@ -57,6 +63,27 @@ class Testbench:
         """A starter scenario (TOML text) for an FMU on the server, as `krumpir init` writes it.
         Loads as is with MAPort.load_toml."""
         return self.request("init", fmu=str(fmu))["toml"]
+
+    def files(self):
+        """{"scenarios": [path], "fmus": [path]}: scenarios/*.toml and fmus/*.fmu on the server."""
+        return self.request("files")
+
+    def text(self, path):
+        """The text of a scenario file on the server."""
+        return self.request("text", path=str(path))["text"]
+
+    def describe(self, **source):
+        """One of scenario=path, toml=text or fmu=path: {text, scenario, variables, problem}, the
+        scenario with every key and default, the FMU's variables; a wrong scenario has a problem."""
+        return self.request("describe", **{k: str(v) for k, v in source.items()})
+
+    def check(self, toml):
+        """Applies every check of a load to a scenario text; raises KrumpirError if it fails."""
+        self.request("check", toml=toml)
+
+    def save(self, path, toml, overwrite=False):
+        """Checks a scenario text and writes it to scenarios/<name>.toml on the server."""
+        self.request("save", path=str(path), toml=toml, overwrite=overwrite)
 
     def ma_port(self):
         """XIL: MAPortFactory.CreateMAPort."""
@@ -88,7 +115,8 @@ class MAPort:
         return self._tb.request("load", toml=text)["state"]
 
     def variables(self):
-        """{name: {vr, type, causality, tunable}} (XIL: GetVariableInfo)."""
+        """{name: {vr, type, causality, tunable, unit, start, description}}, and min, max (None:
+        not given) where the service sends them (XIL: GetVariableInfo)."""
         return {v.pop("name"): v for v in self._tb.request("variables")["variables"]}
 
     def variable_names(self):
@@ -227,6 +255,10 @@ class Capture:
     def stop(self):
         """Ends the capture now; it keeps its rows (XIL: Capture.Stop)."""
         self._tb.request("capture_stop", id=self.id)
+
+    def free(self):
+        """Gives the id back for a later capture; the rows are gone."""
+        self._tb.request("capture_free", id=self.id)
 
     def fetch(self, wait=False, timeout=None, page=20000):
         """The rows recorded so far; with wait=True, once the capture has finished

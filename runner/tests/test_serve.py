@@ -15,6 +15,20 @@ import time
 from pathlib import Path
 
 IN, OUT = "Float64_continuous_input", "Float64_continuous_output"
+CODES = {"bad_request", "bad_state", "not_found", "not_writable", "bad_scenario", "exists", "limit",
+         "timeout", "fault", "internal", "busy"}
+BUSY = {"ok": False, "code": "busy", "error": "another client is connected"}
+
+
+def refused(port, first=None):
+    """A second client: one busy line, then the service closes the connection."""
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as sock:
+        f = sock.makefile("rwb")
+        if first is not None:
+            f.write(first.encode() + b"\n")
+            f.flush()
+        assert json.loads(f.readline()) == BUSY
+        assert f.readline() == b""
 
 
 class Client:
@@ -32,9 +46,10 @@ class Client:
         assert reply["ok"], f"{op}: {reply}"
         return reply
 
-    def fails(self, op, why, **args):
+    def fails(self, op, why, code=None, **args):
         reply = self.raw(json.dumps({"op": op, **args}))
         assert not reply["ok"] and why in reply["error"], f"{op}: {reply}"
+        assert reply["code"] in CODES and code in (None, reply["code"]), f"{op}: {reply}"
 
     def close(self):
         self.file.close()
@@ -72,19 +87,45 @@ file = "{log}"
         c = Client(port)
         r = c.call("info", tag=7)
         assert r["tag"] == 7 and r["protocol"] == 1 and r["state"] == "IDLE"
-        assert not c.raw("not json")["ok"]
-        c.fails("nope", "unknown op")
-        c.fails("variables", "no scenario loaded")
-        c.fails("load", "scenario:", toml="[model]\n")
-        c.fails("init", "takes \"fmu\"")
-        c.fails("init", "cannot open", fmu="/nonexistent.fmu")
+        lim = r["limits"]
+        assert r["version"] and lim["request_bytes"] == 8 << 20 and lim["scenario_bytes"] == 1 << 20
+        assert lim["name_bytes"] == 63 and lim["inputs"] == lim["outputs"] == lim["params"] == 16
+        assert lim["segments"] == 8 and lim["captures"] == 8 and lim["capture_vars"] == 32
+        assert lim["capture_bytes"] == 256 << 20 and lim["files"] == 256
+        assert lim["reply_ms"] == 2000 and lim["clients"] == 1
+        r = c.raw("not json")
+        assert not r["ok"] and r["code"] == "bad_request", r
+        r = c.raw('{"tag": 1}')
+        assert r == {"tag": 1, "ok": False, "code": "bad_request", "error": 'missing "op"'}, r
+        c.fails("nope", "unknown op", "bad_request")
+        c.fails("variables", "no scenario loaded", "bad_state")
+        c.fails("load", "scenario:", "bad_scenario", toml="[model]\n")
+        c.fails("load", "cannot open", "not_found", scenario="nope.toml")
+        c.fails("init", "takes \"fmu\"", "bad_request")
+        c.fails("init", "cannot open", "not_found", fmu="/nonexistent.fmu")
+        c.fails("read", "no scenario loaded", "bad_state", names=[OUT])
+        assert c.call("read", names=[]) == {"ok": True, "values": {}}  # nothing read, no time
+        c.fails("capture_free", "no capture", "not_found", id=0)
+        c.fails("capture_free", "capture id", "bad_request")
+
+        # a second client is told at once and closed, the first one is still served
+        refused(port)
+        refused(port, json.dumps({"op": "info"}))
+        assert c.call("info")["state"] == "IDLE"
         files = c.call("files")  # the test runs from runner/
         assert "fmus/Feedthrough.fmu" in files["fmus"], files
         assert "scenarios/feedthrough.toml" in files["scenarios"], files
         assert "[model]" in c.call("text", path="scenarios/feedthrough.toml")["text"]
-        c.fails("text", "of a .toml file", path="fmus/Feedthrough.fmu")
-        c.fails("text", "cannot open", path="nope.toml")
-        assert "t" not in c.call("state")  # progress only once loaded
+        c.fails("text", "of a .toml file", "bad_request", path="fmus/Feedthrough.fmu")
+        c.fails("text", "of a .toml file", "bad_request", path="runs/../x.csv")
+        c.fails("text", "cannot open", "not_found", path="nope.toml")
+        c.fails("text", "cannot open", "not_found", path="runs/nope.csv")
+        st = c.call("state")
+        assert "t" not in st and "scenario" not in st  # progress only once loaded
+        dc = Path("fmus/dcmotor.fmu")
+        if dc.exists():  # a model that gives limits
+            v = {x["name"]: x for x in c.call("describe", fmu=str(dc))["variables"]}
+            assert v["duty"]["min"] == -1 and v["duty"]["max"] == 1, v["duty"]
         starter = c.call("init", fmu=str(fmu))["toml"]
         assert f'"{IN}",' in starter and f'"{OUT}",' in starter, starter
         starter = starter.replace('"runs/Feedthrough.csv"', f'"{log}"')
@@ -111,16 +152,17 @@ file = "{log}"
         st = c.call("describe", toml=seg)["scenario"]["io"]["stimulus"][0]
         assert st == {"input": IN, "loops": 2, "segments": [
             {"kind": "ramp", "duration": 0.5, "to": 2}, {"kind": "const", "duration": 1, "value": 1}]}, st
-        c.fails("describe", "describe takes", toml="x", fmu="y")
-        c.fails("describe", "cannot open", scenario="nope.toml")
+        c.fails("describe", "describe takes", "bad_request", toml="x", fmu="y")
+        c.fails("describe", "cannot open", "not_found", scenario="nope.toml")
         assert c.call("state")["state"] == "IDLE"  # nothing was loaded
 
         # check: as load would, without loading
         c.call("check", toml=scenario)
-        c.fails("check", "scenario: missing", toml="[model]\n")
-        c.fails("check", "cannot open", toml=scenario.replace(str(fmu), "/nonexistent.fmu"))
-        c.fails("check", "'nope' is not a variable", toml=scenario.replace(f'outputs = ["{OUT}"]',
-                                                                           'outputs = ["nope"]'))
+        c.fails("check", "scenario: missing", "bad_scenario", toml="[model]\n")
+        c.fails("check", "cannot open", "not_found",
+                toml=scenario.replace(str(fmu), "/nonexistent.fmu"))
+        c.fails("check", "'nope' is not a variable", "bad_scenario",
+                toml=scenario.replace(f'outputs = ["{OUT}"]', 'outputs = ["nope"]'))
         c.fails("check", "cannot open data file", toml=scenario.replace(
             'kind = "constant", value = 1.0', 'segments = [{ kind = "data", file = "/nope.csv" }]'))
 
@@ -129,12 +171,15 @@ file = "{log}"
         try:
             c.call("save", path=name, toml=scenario)
             assert Path(name).read_text() == scenario and not Path(name + ".tmp").exists()
-            c.fails("save", "exists", path=name, toml=scenario)
+            c.call("load", scenario=name)
+            assert c.call("state")["scenario"] == name
+            c.call("unload")
+            c.fails("save", "exists", "exists", path=name, toml=scenario)
             c.call("save", path=name, toml=seg, overwrite=True)
             assert Path(name).read_text() == seg
             for bad in ["x.toml", "../x.toml", "scenarios/../x.toml", "scenarios/a/b.toml",
                         "scenarios/x.txt", "/tmp/x.toml", "scenarios/.toml", "scenarios/.x.toml"]:
-                c.fails("save", "save takes", path=bad, toml=scenario)
+                c.fails("save", "save takes", "bad_request", path=bad, toml=scenario)
             c.fails("save", "scenario:", path=name, toml="[model]\n", overwrite=True)
             assert Path(name).read_text() == seg  # a refused save leaves the file alone
         finally:
@@ -162,9 +207,19 @@ file = "{log}"
             sub.rmdir()
 
         assert c.call("load", toml=scenario)["state"] == "INITIALIZED"
+        assert c.call("state")["scenario"] is None  # loaded from text
+        c.fails("load", "already loaded", "bad_state", toml=scenario)
         names = {v["name"]: v for v in c.call("variables")["variables"]}
         assert names[IN]["causality"] == "input" and names["Float64_tunable_parameter"]["tunable"]
         assert "unit" in names[IN] and "start" in names[IN] and "description" in names[IN]
+        assert names[IN]["min"] is None and names[IN]["max"] is None  # Feedthrough gives none
+        tun, fixed = "Float64_tunable_parameter", "Float64_fixed_parameter"
+        r = c.call("read", names=[OUT, tun])
+        assert r["t"] == 0 and r["values"] == {OUT: 0, tun: 0}, r
+        c.fails("write", "fixed parameter", "not_writable", values={tun: 2.5, fixed: 1})
+        assert c.call("read", names=[tun])["values"] == {tun: 0}  # all or none: tun not written
+        c.fails("write", "not a variable", "not_found", values={"nope": 1})
+        c.fails("write", "must be a number", "bad_request", values={IN: "x"})
 
         c.call("signal", stimulus={"input": IN, "segments": [{"kind": "const", "value": 4}]})
         c.fails("signal", "unknown key 'bogus'", stimulus={"input": IN, "kind": "constant",
@@ -187,15 +242,38 @@ file = "{log}"
         assert not c.call("wait", timeout_ms=100)["done"]
         assert c.call("read", names=[OUT])["values"][OUT] == 4.0
         c.call("write", values={IN: 6.0})
-        assert c.call("read", names=[OUT, IN])["values"] == {OUT: 6.0, IN: 6.0}
-        c.fails("write", "fixed parameter", values={"Float64_fixed_parameter": 1})
+        r = c.call("read", names=[OUT, IN])
+        assert r["values"] == {OUT: 6.0, IN: 6.0} and r["t"] > 0, r
+        assert abs(r["t"] / 0.001 - round(r["t"] / 0.001)) < 1e-6, r  # at a step boundary
+        c.fails("write", "fixed parameter", "not_writable", values={fixed: 1})
+        c.fails("write", "fixed parameter", "not_writable", values={IN: 9.0, fixed: 1})
+        assert c.call("read", names=[IN])["values"] == {IN: 6.0}  # all or none, running too
+        c.call("write", values={IN: 7.0, tun: 3.5})
+        assert c.call("read", names=[OUT, tun])["values"] == {OUT: 7.0, tun: 3.5}
+
+        # a client that connects during a wait is told at once, not when the wait returns
+        c.file.write(json.dumps({"op": "wait", "timeout_ms": 3000}).encode() + b"\n")
+        c.file.flush()
+        t0 = time.monotonic()
+        refused(port)
+        assert time.monotonic() - t0 < 2
+        assert json.loads(c.file.readline()) == {"ok": True, "done": False, "state": "RUNNING",
+                                                 "fault": ""}
 
         r = c.call("capture_fetch", id=cap)
         assert r["capture_state"] == "FINISHED" and r["n_rows"] == 50 and r["names"] == ["t", OUT]
         assert len(r["rows"]) == 50 and r["rows"][0][1] == 4.0
         page = c.call("capture_fetch", id=cap, **{"from": 10, "max": 5})
         assert page["from"] == 10 and page["rows"] == r["rows"][10:15]
-        c.fails("capture_fetch", "no capture", id=5)
+        page = c.call("capture_fetch", id=cap, **{"from": 48})
+        assert page["from"] == 48 and page["rows"] == r["rows"][48:] and page["n_rows"] == 50
+        page = c.call("capture_fetch", id=cap, **{"from": 99, "max": 5})
+        assert page["from"] == 50 and page["rows"] == []
+        assert c.call("capture_fetch", id=cap, max=0)["rows"] == []
+        c.fails("capture_fetch", "no capture", "not_found", id=5)
+        c.call("capture_free", id=cap)
+        c.fails("capture_fetch", "no capture", "not_found", id=cap)
+        assert c.call("capture_start", vars=[OUT], duration=0.01)["id"] == cap  # the id again
 
         assert c.call("stop")["state"] == "STOPPED"
         r = c.call("reset")  # STOPPED -> INITIALIZED: the same scenario again from t = 0
@@ -209,7 +287,26 @@ file = "{log}"
         assert c.call("stop")["state"] == "STOPPED"
         assert c.call("unload")["summary"]["steps"] > 0
         assert c.call("state")["state"] == "IDLE"
-        c.fails("reset", "cannot reset in state IDLE")
+        c.fails("reset", "cannot reset in state IDLE", "bad_state")
+
+        # the log in pages of lines
+        whole = log.read_text()
+        lines = whole.splitlines(keepends=True)
+        assert lines[0].startswith("n,t,") and len(lines) > 100
+        r = c.call("text", path=str(log), **{"from": 1, "max": 3})
+        assert r == {"ok": True, "text": "".join(lines[1:4]), "from": 1, "lines": 3, "more": True}
+        got, at = "", 0
+        while True:  # without max: as many as fit in 1 MiB
+            r = c.call("text", path=str(log), **{"from": at})
+            got, at = got + r["text"], at + r["lines"]
+            if not r["more"]:
+                break
+        assert got == whole and at == len(lines)
+        r = c.call("text", path=str(log), **{"from": len(lines) + 5})
+        assert r["text"] == "" and r["lines"] == 0 and not r["more"]
+        r = c.call("text", path=str(log), max=0)
+        assert r["text"] == "" and r["lines"] == 0 and r["more"]
+        c.fails("text", "must be a number", "bad_request", path=str(log), max="x")
         c.close()
 
         srv.send_signal(signal.SIGTERM)

@@ -25,7 +25,8 @@ From this folder:
 - Paths in a scenario are relative to the directory `krumpir` is started from. Ctrl-C stops a run
   cleanly after the current step. Exit status: 0 ok, 1 setup error, 2 fault during the run.
 - Every scenario key: [docs/scenario-reference.md](docs/scenario-reference.md). The service
-  protocol (JSON lines over TCP, one client at a time): [docs/service-protocol.md](docs/service-protocol.md).
+  protocol (JSON lines over TCP, one client at a time): [docs/service-protocol.md](docs/service-protocol.md); the
+  rules a client may rely on: [../docs/api-spec.md](../docs/api-spec.md).
 - On the Pi, `[rt]` pins the run to an isolated core with SCHED_FIFO (`cpu`, `priority`,
   `wait = "busy"`), and `rt.timing_gpio` toggles a GPIO per step for a logic analyzer.
 - With `backend = "uart"` a controller closes the loop: `scenarios/*_hil_pc.toml` run the

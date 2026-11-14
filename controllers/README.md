@@ -276,7 +276,7 @@ python tools/codegen/gen_controller.py controllers/esp32-motor-controller --chec
 | `[[telemetry.column]]` name, value, scale, nan | CSV header, row format, `CTRL_GEN_TELEM_VALUES` |
 | `[hil]` plant, cmd | the values on the HIL link in frame order, the `esp32dev-hil` env (built by `tools/ci.sh`) and the `host/` build |
 | `[[ci.step]]` name, run | `tools/ci.sh`: the controller's own CI steps, run by `.github/workflows/controllers.yml` after the common ones |
-| `[xcp]` running, trip, monitor | `src/gen/ctrl_gen.json`, the controller for tools such as the TUI |
+| `[xcp]` running, trip, monitor | `src/gen/ctrl_gen.json`, the controller description for tools such as the TUI; its `schema` (1) changes only when a key changes meaning or type |
 
 - Hand-written and never touched: `lib/<lib>`, the hooks in `src/control_task.c`, the handlers in
   `src/console.c`, `src/main.c`, `src/io_hil.c`. Generated files carry a "do not edit" banner and

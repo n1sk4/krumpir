@@ -9,6 +9,7 @@
 #include <atomic>
 #include <mutex>
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <thread>
 
@@ -76,6 +77,34 @@ TEST_CASE("service: request, reply, refusal, closed connection")
   CHECK_THROWS_AS(svc.call("info"), krumpir::LinkError);
 }
 
+TEST_CASE("service: a refusal's code; busy closes the link")
+{
+  FakeServer srv([](const json &req) -> json {
+    if (req["op"] == "read") {
+      return {{"ok", false}, {"code", "not_found"}, {"error", "'x' is not a variable"}};
+    }
+    if (req["op"] == "state") {
+      return {{"ok", false}, {"error", "an older service"}};
+    }
+    return {{"ok", false}, {"code", "busy"}, {"error", "another client is connected"}};
+  });
+  krumpir::Service svc;
+  svc.connect(srv.address());
+  auto code = [&](const char *op) {
+    try {
+      svc.call(op);
+    } catch (const krumpir::ServiceError &e) {
+      return e.code;
+    }
+    return std::string("none");
+  };
+  CHECK(code("read") == "not_found");
+  CHECK(code("state").empty());
+  CHECK(svc.is_open());
+  CHECK(code("info") == "busy");
+  CHECK_FALSE(svc.is_open());
+}
+
 TEST_CASE("service: a reply that never comes times out and closes")
 {
   FakeServer srv([](const json &) { return json(); });
@@ -141,7 +170,8 @@ static void watch(bool capture)
       ok["rows"] = json(rows.begin() + static_cast<std::ptrdiff_t>(from), rows.end());
     } else if (op == "variables") {
       ok["variables"] = {
-          {{"name", "x"}, {"type", "Float64"}, {"causality", "output"}, {"tunable", false}},
+          {{"name", "x"}, {"type", "Float64"}, {"causality", "output"}, {"tunable", false},
+           {"min", -1.5}, {"max", nullptr}},
           {{"name", "p"}, {"type", "Float64"}, {"causality", "parameter"}, {"tunable", true}},
           {{"name", "k"}, {"type", "Float64"}, {"causality", "parameter"}, {"tunable", false}},
           {{"name", "u"}, {"type", "Float64"}, {"causality", "input"}, {"tunable", false}},
@@ -181,6 +211,9 @@ static void watch(bool capture)
     REQUIRE(v.vars.size() == 3); // u, x, p: Float64 inputs, outputs, tunable parameters
     CHECK(v.vars[0].name == "u");
     CHECK(v.vars[1].name == "x");
+    CHECK(v.vars[1].min == -1.5);
+    CHECK(std::isnan(v.vars[1].max)); // null: no limit
+    CHECK(std::isnan(v.vars[0].min)); // absent: no limit
     CHECK(v.vars[2].kind == "param");
     const auto &h = v.history.at("x");
     for (std::size_t i = 1; i < h.size(); i++) {
@@ -230,6 +263,83 @@ TEST_CASE("model: disconnect closes the link and clears what was shown")
     CHECK(v.events.back().find("disconnected") != std::string::npos);
     return 0;
   });
+}
+
+TEST_CASE("model: a service busy with another client says so")
+{
+  FakeServer srv([](const json &) -> json {
+    return {{"ok", false}, {"code", "busy"}, {"error", "another client is connected"}};
+  });
+  krumpir::Model m([] {}, 10ms);
+  m.connect(srv.address());
+  bool told = false;
+  for (int i = 0; i < 300 && !told; i++) {
+    std::this_thread::sleep_for(10ms);
+    told = m.view([](const krumpir::Snapshot &v) {
+      return !v.events.empty() &&
+             v.events.back().find("cannot connect to") != std::string::npos &&
+             v.events.back().find("another client is connected") != std::string::npos;
+    });
+  }
+  CHECK(told);
+  CHECK_FALSE(m.view([](const krumpir::Snapshot &v) { return v.connected; }));
+}
+
+TEST_CASE("model: a second start frees the first capture; a refusal of that is ignored")
+{
+  std::vector<json> seen;
+  std::mutex mu;
+  std::string state = "INITIALIZED";
+  int next_id = 0;
+  FakeServer srv([&](const json &req) -> json {
+    std::lock_guard<std::mutex> lock(mu);
+    seen.push_back(req);
+    const std::string op = req["op"];
+    json ok = {{"ok", true}, {"fault", ""}, {"scenarios", json::array()}, {"fmus", json::array()},
+               {"variables", json::array()}, {"values", json::object()}};
+    if (op == "start") {
+      if (state != "INITIALIZED") {
+        return {{"ok", false}, {"code", "bad_state"}, {"error", "cannot start in " + state}};
+      }
+      state = "RUNNING";
+    } else if (op == "capture_start") {
+      ok["id"] = next_id++;
+    } else if (op == "capture_fetch") {
+      ok["capture_state"] = "RUNNING";
+      ok["names"] = {"t"};
+      ok["rows"] = json::array();
+    } else if (op == "capture_free") {
+      return {{"ok", false}, {"error", "unknown op 'capture_free'"}}; // an older runner
+    }
+    ok["state"] = state;
+    return ok;
+  });
+  auto starts = [&] {
+    std::lock_guard<std::mutex> lock(mu);
+    return std::count_if(seen.begin(), seen.end(), [](const json &r) { return r["op"] == "start"; });
+  };
+  {
+    krumpir::Model m([] {}, 10ms);
+    m.connect(srv.address());
+    m.start();
+    m.start();
+    for (int i = 0; i < 300 && starts() < 2; i++) {
+      std::this_thread::sleep_for(10ms);
+    }
+  }
+  std::lock_guard<std::mutex> lock(mu);
+  std::vector<std::string> ops;
+  for (const auto &r : seen) {
+    const std::string op = r["op"];
+    if (op == "capture_start" || op == "capture_free" || op == "start") {
+      ops.push_back(op);
+    }
+    if (op == "capture_free") {
+      CHECK(r["id"] == 0);
+    }
+  }
+  CHECK(ops == std::vector<std::string>{"capture_start", "start", "capture_free", "capture_start",
+                                        "start"});
 }
 
 TEST_CASE("presets: every kind builds the stimulus the service takes")

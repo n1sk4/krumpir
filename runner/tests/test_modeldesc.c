@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -14,12 +15,13 @@ static const char VALID[] = HEAD COSIM
     "<ModelVariables>\n"
     " <Float64 name=\"time\" valueReference=\"0\" causality=\"independent\" "
     "variability=\"continuous\"/>\n"
-    " <Float64 name=\"u\" valueReference=\"1\" causality=\"input\" start=\"0\"/>\n"
+    " <Float64 name=\"u\" valueReference=\"1\" causality=\"input\" start=\"0\" min=\"-1.5\" "
+    "max=\"2e3\"/>\n"
     " <Float64 name=\"y\" valueReference=\"2\" causality=\"output\"/>\n"
     " <Float64 name=\"k\" valueReference=\"3\" causality=\"parameter\" variability=\"fixed\" "
     "start=\"1\" unit=\"1/s\" description=\"Decay rate\"/>\n"
     " <Int32 name=\"n\" valueReference=\"4\" causality=\"parameter\" variability=\"fixed\" "
-    "start=\"1\"/>\n"
+    "start=\"1\" max=\"x\"/>\n"
     " <Float64 name=\"x\" valueReference=\"5\"/>\n"
     "</ModelVariables>\n"
     "<ModelStructure><Output valueReference=\"2\"/></ModelStructure>\n"
@@ -50,6 +52,7 @@ static void test_valid(void)
 
   const mvar_t *v = modeldesc_find(&md, "u");
   assert(v != NULL && v->vr == 1 && v->causality == CAUS_INPUT && mvar_is_float64(v));
+  assert(v->min == -1.5 && v->max == 2000.0);
   v = modeldesc_find(&md, "y");
   assert(v != NULL && v->vr == 2 && v->causality == CAUS_OUTPUT);
   v = modeldesc_find(&md, "k");
@@ -57,9 +60,11 @@ static void test_valid(void)
   assert(strcmp(v->start, "1") == 0 && strcmp(v->unit, "1/s") == 0 &&
          strcmp(v->description, "Decay rate") == 0);
   assert(modeldesc_find(&md, "y")->start[0] == '\0'); /* absent attributes stay empty */
+  assert(isnan(modeldesc_find(&md, "y")->min) && isnan(modeldesc_find(&md, "y")->max));
   assert(md.step_size == 0.01 && md.stop_time == 2.5);
   v = modeldesc_find(&md, "n");
   assert(v != NULL && !mvar_is_float64(v) && strcmp(v->type, "Int32") == 0);
+  assert(isnan(v->max)); /* not a number: as if absent */
   v = modeldesc_find(&md, "time");
   assert(v != NULL && v->causality == CAUS_OTHER && strcmp(v->causality_str, "independent") == 0);
   v = modeldesc_find(&md, "x"); /* causality defaults to local */

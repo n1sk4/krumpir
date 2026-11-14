@@ -3,7 +3,7 @@
 # Also builds the plant FMUs into fmus/ (libs/plants, with the Reference-FMUs submodule) and the
 # controllers for the PC (controllers/*/host, KRUMPIR_HIL_PC) for the closed-loop tests.
 cmake_minimum_required(VERSION 3.25)
-project(krumpir C)
+project(krumpir VERSION 0.1.0 LANGUAGES C)
 include(../cmake/krumpir.cmake)
 
 find_package(Threads REQUIRED)
@@ -60,6 +60,7 @@ target_link_libraries(krumpir_core PUBLIC Threads::Threads tomlc99 miniz EXPAT::
 
 add_executable(krumpir src/app/main.c src/app/serve.c)
 target_link_libraries(krumpir PRIVATE krumpir_core cjson krumpir::warnings)
+target_compile_definitions(krumpir PRIVATE KRUMPIR_VERSION="${PROJECT_VERSION}") # the service's info
 
 # The Reference FMUs for the tests (cmake/versions.cmake), into fmus/ when they are missing; no
 # network: a warning, and the tests that need them skip

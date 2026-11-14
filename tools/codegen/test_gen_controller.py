@@ -95,6 +95,7 @@ def main():
     assert "= {1.5f, 0.00072f, 0};" in files["ctrl_gen_task.inc"]
     assert "rte_calib_request(&s_calib, r, req);" in files["ctrl_gen_task.inc"]
     j = json.loads(files["ctrl_gen.json"])
+    assert j["schema"] == 1
     assert j["a2l"] == "docs/demo.a2l" and j["request"]["name"] == "demo_cal_page.request"
     assert j["params"][0]["cal"] == "demo_cal_page.setpoint" and j["params"][0]["unit"] == "rpm"
     assert j["status"] == {"running": "s_rte.run_applied", "trip": "s_trip"}

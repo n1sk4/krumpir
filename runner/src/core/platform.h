@@ -5,7 +5,8 @@
 #include <stdint.h>
 
 /* The whole file as malloc'd text with a NUL after it (*len without it, len may be NULL); NULL
- * with a message in err when it cannot be opened or read, or is larger than max bytes. */
+ * with a message in err when it cannot be opened or read, or is larger than max bytes (errno
+ * EFBIG). */
 char *plat_read_file(const char *path, size_t max, size_t *len, char *err, size_t errlen);
 
 /* Monotonic clock in nanoseconds. */

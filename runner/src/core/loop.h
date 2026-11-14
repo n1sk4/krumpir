@@ -22,6 +22,8 @@ typedef struct {
   double t0;
 } input_src_t;
 
+_Static_assert(TELEM_MAX_CH <= 32, "cmd_t.inputs has a bit per input slot");
+
 /* Step period in whole nanoseconds. */
 int64_t loop_step_ns(double step);
 
@@ -38,8 +40,8 @@ typedef struct {
   /* Commands handled at the start of each step, and their replies */
   cmdq_t *cmd;
   cmdq_t *reply;
-  /* Where each input slot gets its value (SRC_BACKEND: the I/O backend's). CMD_WRITE_INPUT and
-   * CMD_SET_SIGNAL change it while the loop runs. */
+  /* Where each input slot gets its value (SRC_BACKEND: the I/O backend's). CMD_WRITE changes it
+   * while the loop runs. */
   input_src_t *src;
   /* Optional (0: none): a timing_pin fd, high from each step's wake-up to the end of its work */
   int timing_fd;

@@ -25,6 +25,7 @@ char *plat_read_file(const char *path, size_t max, size_t *len, char *err, size_
       snprintf(err, errlen, "cannot read '%s'", path);
     }
     free(buf);
+    errno = more ? EFBIG : EIO;
     return NULL;
   }
   buf[n] = '\0';

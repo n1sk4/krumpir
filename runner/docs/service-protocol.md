@@ -14,13 +14,32 @@ other). Listen on `127.0.0.1` or a trusted LAN only.
 
 ## Framing
 
-One JSON object per line in each direction: a request, then its reply. One client at a time;
-another client waits until the first one disconnects. The session belongs to the service, not to
+One JSON object per line in each direction: a request, then its reply. One client at a time; a
+second one gets `{"ok":false,"code":"busy","error":"another client is connected"}` and is
+disconnected. The session belongs to the service, not to
 the connection: a run keeps going after its client disconnects, and the next client finds it as
 it was. SIGINT or SIGTERM stops the run, unloads it and ends the service.
 
 Every request has `op`. An optional `tag` (any JSON value) is copied into the reply. Every reply
-has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
+has `ok`; when it is `false`, `code` says what kind of failure it is, `error` says why in one line
+of English, and nothing else is in the reply. A client branches on `code`, never on `error`:
+
+| `code` | When |
+|--------|------|
+| `bad_request` | not JSON, no `op`, unknown `op`, a wrong or missing argument |
+| `bad_state` | the op is not allowed in the session's state |
+| `not_found` | no such variable, file, capture or FMU |
+| `not_writable` | output, fixed parameter, unmapped input |
+| `bad_scenario` | the scenario does not parse or does not match its FMU |
+| `exists` | `save` without `overwrite` |
+| `limit` | too many captures, too large a buffer, line or file |
+| `timeout` | the loop did not answer |
+| `fault` | the FMU or the I/O backend returned an error |
+| `internal` | out of memory and the like |
+| `busy` | another client is connected |
+
+The set is closed; a client treats a code it does not know as `internal`. The rules for changing
+the protocol, and for what a client may rely on, are in [../../docs/api-spec.md](../../docs/api-spec.md).
 
 ```json
 {"op": "read", "names": ["speed"], "tag": 12}
@@ -31,27 +50,28 @@ has `ok`; when it is `false`, `error` says why and nothing else is in the reply.
 
 | `op` | Request | Reply | XIL |
 |------|---------|-------|-----|
-| `info` | | `protocol` (1), `state`, `fault` | |
+| `info` | | `protocol` (1), `version` (the runner's build), `limits` (`{request_bytes, scenario_bytes, name_bytes, inputs, outputs, params, segments, captures, capture_vars, capture_bytes, files, reply_ms, clients}`), `state`, `fault` | |
 | `load` | `scenario`: path on the server, or `toml`: the scenario text | `state` | `LoadConfiguration`, `Configure` |
 | `init` | `fmu`: path on the server | `toml`: a starter scenario for it, as `krumpir init` prints it | |
-| `variables` | | `variables`: `[{name, vr, type, causality, tunable, unit, start, description}]` (the last three `""` when the FMU leaves them out) | `GetVariableNames`, `GetVariableInfo` |
+| `variables` | | `variables`: `[{name, vr, type, causality, tunable, unit, start, description, min, max}]` (`unit`, `start`, `description` are `""` when the FMU leaves them out; `min`, `max` are numbers or `null`) | `GetVariableNames`, `GetVariableInfo` |
 | `describe` | `scenario`: path on the server, `toml`: the text, or `fmu`: path on the server (its starter scenario) | `text`, `scenario` (as JSON), `variables` of its FMU, `problem` | |
 | `check` | `toml`: the scenario text | | |
 | `save` | `path`: `scenarios/<name>.toml`, `toml`: the text, `overwrite` (default false) | | |
 | `start` | | `state` | `StartSimulation` |
 | `stop` | | `state` | `StopSimulation` |
-| `state` | | `state`, `fault`; once loaded also `fmu`, `step`, `duration` (when set), `t`, `steps`, `overruns`, `max_step_ns`, `max_wake_ns`, `late` (steps the uart controller did not answer in time) of the run so far | `State` |
+| `state` | | `state`, `fault`; once loaded also `fmu`, `scenario` (the path it was loaded from, `null` for text), `step`, `duration` (when set), `t`, `steps`, `overruns`, `max_step_ns`, `max_wake_ns`, `late` (steps the uart controller did not answer in time) of the run so far | `State` |
 | `files` | | `scenarios`: `scenarios/*.toml`, `fmus`: `fmus/*.fmu` in the service's directory, sorted | |
-| `text` | `path`: a `.toml` file on the server (up to 64 kB) | `text` | |
+| `text` | `path`: a `.toml` file on the server (up to 1 MiB), or a log `runs/<...>.csv` with `from` (line, default 0) and `max` (lines) | `text` | |
 | `wait` | `timeout_ms` (default: forever) | `done`, `state` | |
 | `reset` | | `summary` (of the run that ended), `state` | |
 | `unload` | | `summary`, `state` | |
-| `read` | `names`: `[name, ...]` | `values`: `{name: number}` | `Read` |
+| `read` | `names`: `[name, ...]` | `values`: `{name: number}`, `t` (the time of the step it was read at) | `Read` |
 | `write` | `values`: `{name: number}` | | `Write` |
 | `signal` | `stimulus`: one `io.stimulus` entry as JSON | | `SignalGenerator` |
 | `capture_start` | `vars`, `start`, `stop`, `duration`, `max_rows` | `id` | `CreateCapture`, `Start` |
 | `capture_fetch` | `id`, `from` (row, default 0), `max` (rows, default all) | `capture_state`, `n_rows`, `from`, `names`, `rows` | `Fetch` |
 | `capture_stop` | `id` | | `Stop` |
+| `capture_free` | `id` | | |
 
 `state` is `IDLE`, `LOADED`, `INITIALIZED`, `RUNNING`, `STOPPED` or `FAULT`; `fault` says why a
 run went to `FAULT`.
@@ -70,8 +90,8 @@ directory the service was started in.
 
 **describe** lets a client show a scenario as a form without a TOML parser and without loading.
 `scenario` has every key, defaults filled in: `model` (`fmu`, `step`, `duration`: null when the
-run goes until stopped, `params`: `{name: number}`), `rt` (`wait`, `max_overruns`, `cpu` and
-`priority`: null when not set), `io` (`backend`, `device`: "" when not set, `baud`, `timeout_ms`,
+run goes until stopped, `params`: `{name: number}`), `rt` (`wait`, `max_overruns`, `cpu`, `priority`
+and `timing_gpio`: null when not set), `io` (`backend`, `device`: "" when not set, `baud`, `timeout_ms`,
 `late`, `max_late`, `inputs`, `outputs`, `stimulus`: entries as the
 `signal` op takes them) and `log` (`file`). `variables` are those of the FMU it names, as
 `variables` gives them. When the text is not a valid scenario the reply has `text` and `problem`
@@ -86,10 +106,17 @@ after the same check as `check` (which includes the `log.file` rule above). An e
 refused unless `overwrite` is true. The file
 is written to `<path>.tmp` and renamed, so a reader never sees half of it.
 
+**text** reads a scenario (`.toml`, up to 1 MiB) or, in pages, a log under `runs/` (`.csv`): the lines
+from `from` on (the header is line 0), at most `max` and at most 1 MiB a page. The reply of a log
+has `text`, `from`, `lines` (how many it holds) and `more` (false at the end of the file); a last
+line that is still being written is left for the next page. A log stays on the server; this is how
+a remote client reads it.
+
 **read** and **write** follow the session's rules: any Float64 variable can be read; only the
 scenario's inputs and tunable parameters can be written. While running, each takes effect at the
-next step boundary and the reply comes after it has. `write` stops at the first refused value;
-the values before it have been written.
+next step boundary and the reply comes after it has. `read` samples all its names at that one
+boundary, so a poll of many variables costs one step and its values belong together. `write`
+applies all its values at one boundary, or none when one is refused.
 
 **signal** replaces the value or signal of one input, from the start of the run when
 `INITIALIZED`, from the next step when `RUNNING`. The object has the keys of an `io.stimulus`
@@ -113,4 +140,7 @@ entry:
 
 A capture is `ARMED`, `RUNNING` or `FINISHED`; when the run ends all are `FINISHED`. Fetch returns
 `names` (`t`, then `vars`) and `rows` (`[t, v1, ...]`), `t` being the time after the step. Fetch
-large captures in pages with `from` and `max`. Up to 8 captures per load.
+large captures in pages with `from` and `max`; a fetch costs only the rows it returns, so polling
+with `from` set to the rows already held is cheap. Up to 8 captures per load: `capture_stop` ends
+the recording and keeps the rows, `capture_free` discards the capture and gives its id back, and
+`unload` and `reset` free all.

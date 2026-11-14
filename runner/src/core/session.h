@@ -27,6 +27,24 @@
  * handler or another thread. */
 typedef struct session session_t;
 
+/* Why a call failed: the functions here that return int return 0 (or an id), or one of these
+ * negated with a message in err (-1 is ERR_INTERNAL). */
+typedef enum {
+  ERR_INTERNAL = 1, /* out of memory, the OS refused, ... */
+  ERR_BAD_REQUEST,  /* a wrong or missing argument */
+  ERR_BAD_STATE,    /* not allowed in this state */
+  ERR_NOT_FOUND,    /* no such variable, file, capture or FMU */
+  ERR_NOT_WRITABLE, /* an output, a fixed parameter, an input the scenario does not map */
+  ERR_BAD_SCENARIO, /* the scenario does not parse or does not match its FMU */
+  ERR_EXISTS,
+  ERR_LIMIT, /* too many, too large */
+  ERR_TIMEOUT,
+  ERR_FAULT, /* the FMU or the I/O backend returned an error */
+  ERR_BUSY
+} err_code_t;
+
+#define SESSION_REPLY_TIMEOUT_MS 2000 /* the loop handles a command within this time */
+
 typedef struct {
   lifecycle_t state;
   bool stopped_early;
@@ -43,8 +61,8 @@ typedef struct {
 session_t *session_create(void);
 void session_destroy(session_t *s); /* stops and unloads first */
 
-/* Returns 0, or -1 with a one-line message in err (the session is then IDLE again). The scenario
- * is copied. */
+/* Returns 0, or -ERR_* with a one-line message in err (the session is then IDLE again). The
+ * scenario is copied. */
 int session_load(session_t *s, const scenario_t *sc, char *err, size_t errlen);
 int session_start(session_t *s, char *err, size_t errlen);
 void session_stop(session_t *s);
@@ -58,13 +76,13 @@ void session_unload(session_t *s, session_summary_t *out);
  * The log continues: the new run's rows are appended, n and t counting on from where the ended
  * run stopped (its own time, as session_live and captures see it, starts at 0). Values written
  * and signals set during the run are gone.
- * Returns 0, or -1 with a message in err (in the wrong state nothing changes; if loading fails
+ * Returns 0, or -ERR_* with a message in err (in the wrong state nothing changes; if loading fails
  * the session is IDLE). */
 int session_reset(session_t *s, session_summary_t *out, char *err, size_t errlen);
 
 /* What session_load checks before it starts anything, without a session: opens the FMU, maps the
  * scenario's names onto it and builds each stimulus's signal (reading its data files), then frees
- * it all. No I/O backend, no log file, no instance. Returns 0, or -1 with a message in err. */
+ * it all. No I/O backend, no log file, no instance. Returns 0, or -ERR_* with a message in err. */
 int scenario_check(const scenario_t *sc, char *err, size_t errlen);
 
 lifecycle_t session_state(session_t *s);
@@ -83,18 +101,23 @@ atomic_int *session_stop_flag(session_t *s);
 
 /* Plays a signal on the scenario input `st->input` from now on (replacing its value or signal):
  * from t = 0 when INITIALIZED, or from the next step boundary when RUNNING. Data files are read
- * here, before the loop sees the signal. Returns 0, or -1 with a message in err. */
+ * here, before the loop sees the signal. Returns 0, or -ERR_* with a message in err. */
 int session_set_signal(session_t *s, const stimulus_t *st, char *err, size_t errlen);
 
-/* Writes a Float64 variable: an input of the scenario (replaces its signal from then on) or a
- * tunable parameter. Fixed parameters, outputs and inputs the scenario does not map are refused.
- * Allowed when INITIALIZED (takes effect at the first step) or RUNNING (at the next step boundary,
- * and the call returns once the loop has applied it). Returns 0, or -1 with a message in err. */
-int session_write(session_t *s, const char *name, double value, char *err, size_t errlen);
+/* Writes n Float64 variables: inputs of the scenario (each replaces its signal from then on) or
+ * tunable parameters. Fixed parameters, outputs and inputs the scenario does not map are refused.
+ * Every name is checked first and one refusal writes nothing; the values are applied together:
+ * when INITIALIZED for the first step, when RUNNING at the next step boundary (the call returns
+ * once the loop has applied them). The parameters go first; if the FMU refuses them, no input
+ * changes. Returns 0, or -ERR_* with a message in err. */
+int session_write(session_t *s, const char *const *names, const double *values, size_t n,
+                  char *err, size_t errlen);
 
-/* Reads any Float64 variable of the model: when INITIALIZED or STOPPED directly, when RUNNING at
- * the next step boundary. Returns 0, or -1 with a message in err. */
-int session_read(session_t *s, const char *name, double *value, char *err, size_t errlen);
+/* Reads n Float64 variables of the model, all at one step boundary: when INITIALIZED or STOPPED
+ * directly, when RUNNING at the next one. *t gets the run's time of the sample (NAN when n is 0
+ * and nothing is loaded). Returns 0, or -ERR_* with a message in err. */
+int session_read(session_t *s, const char *const *names, size_t n, double *values, double *t,
+                 char *err, size_t errlen);
 
 /* Captures: record some of the scenario's inputs and outputs between a start and a stop trigger,
  * off the real-time thread (the log writer feeds them). Up to SESSION_MAX_CAPTURES per load; they
@@ -119,17 +142,22 @@ typedef struct {
 
 typedef struct {
   cap_state_t state;
-  size_t n_rows, n_cols;
+  size_t n_rows, n_cols;                   /* rows recorded so far */
+  size_t from, n;                          /* the rows copied: from .. from + n - 1 */
   const char *names[1 + 2 * TELEM_MAX_CH]; /* "t", then the variables; valid until unload */
-  double *rows;                            /* n_rows * n_cols, malloc'd: the caller frees it */
+  double *rows;                            /* n * n_cols, malloc'd: the caller frees it */
 } capture_data_t;
 
-/* Arms a capture when INITIALIZED or RUNNING. Returns its id (>= 0), or -1 with a message. */
+/* Arms a capture when INITIALIZED or RUNNING. Returns its id (>= 0), or -ERR_*. */
 int session_capture_start(session_t *s, const capture_spec_t *spec, char *err, size_t errlen);
-/* A copy of what capture `id` has recorded so far. Once the run has ended every capture is
- * FINISHED and holds every row. Returns 0, or -1 with a message. */
-int session_capture_fetch(session_t *s, int id, capture_data_t *out, char *err, size_t errlen);
-/* Ends capture `id` now (it keeps its rows). Returns 0, or -1 with a message. */
+/* A copy of at most max of the rows capture `id` has recorded so far, from row `from` on (past
+ * the end: none). Once the run has ended every capture is FINISHED and holds every row. Returns
+ * 0, or -ERR_* with a message. */
+int session_capture_fetch(session_t *s, int id, size_t from, size_t max, capture_data_t *out,
+                          char *err, size_t errlen);
+/* Ends capture `id` now (it keeps its rows). Returns 0, or -ERR_*. */
 int session_capture_stop(session_t *s, int id, char *err, size_t errlen);
+/* Frees capture `id`, so its id can be used again. Returns 0, or -ERR_*. */
+int session_capture_free(session_t *s, int id, char *err, size_t errlen);
 
 #endif

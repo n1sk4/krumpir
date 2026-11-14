@@ -26,7 +26,6 @@ static void test_null_backend(void)
   char err[256];
   io_t *io = io_open(&sc, err, sizeof err);
   assert(io != NULL);
-  assert(strcmp(io->api->name, "null") == 0);
 
   /* No device: every input reads 0 (stimuli are played by the loop, not the backend). */
   double in[2] = {7.0, 7.0};

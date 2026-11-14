@@ -114,7 +114,7 @@ static void test_lockstep(void)
   if (io == NULL) {
     fprintf(stderr, "%s\n", err);
   }
-  assert(io != NULL && strcmp(io->api->name, "uart") == 0);
+  assert(io != NULL);
   double in[2];
   assert(step(io, 10, in) == 0 && in[0] == 0 && in[1] == 0); /* step 0: nothing sent yet */
   for (int k = 1; k < 8; k++) {
@@ -147,7 +147,13 @@ static void test_late_faults(void)
   /* CMD 0 and 1 come; reads of steps 3, 4, 5 are late, the third faults. */
   assert(rc != 0 && k == 6);
   assert(strstr(io->error, "for 3 steps in a row") != NULL);
+  io->api->safe_state(io); /* as the session does on a fault, then close: one BYE */
   io->api->close(io);
+  for (int i = 0; i < 100 && fake.byes == 0; i++) {
+    poll(NULL, 0, 1);
+  }
+  poll(NULL, 0, 20);
+  assert(fake.byes == 1);
   stop();
 }
 

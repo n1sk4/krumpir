@@ -486,7 +486,7 @@ static int op_save(const cJSON *req, char *err, size_t errlen)
     snprintf(err, errlen, "%s exists (\"overwrite\": true replaces it)", path);
     return -1;
   }
-  mkdir("scenarios", 0777); /* fails harmlessly when it exists */
+  mkdir("scenarios", 0755); /* fails harmlessly when it exists */
   char tmp[128];
   snprintf(tmp, sizeof tmp, "%s.tmp", path);
   FILE *f = fopen(tmp, "wb");

@@ -14,10 +14,9 @@ struct writer {
   size_t n_out;
   atomic_bool stop;
   pthread_t thread;
-  uint64_t rows;
   writer_tap_t tap;
   void *tap_ctx;
-  _Atomic size_t done; /* records written and tapped */
+  _Atomic size_t done; /* records written (rows) and tapped */
   writer_cont_t off;   /* added to n and t in the file */
 };
 
@@ -31,7 +30,6 @@ static void write_row(writer_t *w, const telem_rec_t *rec)
     fprintf(w->fp, ",%.17g", rec->out[i]);
   }
   fprintf(w->fp, ",%" PRId64 ",%" PRId64 ",%" PRIu32 "\n", rec->wake_ns, rec->step_ns, rec->flags);
-  w->rows++;
 }
 
 static void *drain(void *arg)
@@ -120,7 +118,7 @@ uint64_t writer_stop(writer_t *w)
   atomic_store(&w->stop, true);
   pthread_join(w->thread, NULL);
   fclose(w->fp);
-  uint64_t rows = w->rows;
+  const uint64_t rows = atomic_load(&w->done);
   free(w);
   return rows;
 }

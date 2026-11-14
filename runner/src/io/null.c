@@ -22,7 +22,7 @@ static void null_safe_state(io_t *io) { (void)io; }
 
 static void null_close(io_t *io) { free(io); }
 
-static const io_api_t api = {"null", null_read, null_write, null_safe_state, null_close};
+static const io_api_t api = {null_read, null_write, null_safe_state, null_close};
 
 io_t *null_io_open(const scenario_t *sc, char *err, size_t errlen)
 {

@@ -10,7 +10,6 @@
 typedef struct io io_t;
 
 typedef struct io_api {
-  const char *name;
   /* Fills in[0..n) with the model inputs for the step starting at time t. Returns 0 on success. */
   int (*read)(io_t *io, double t, double *in, size_t n);
   /* Sends out[0..n), the model outputs after the step, to the device. Returns 0 on success. */

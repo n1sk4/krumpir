@@ -24,6 +24,7 @@
 
 #include "hil.h"
 #include "io.h"
+#include "platform.h"
 
 #define HELLO_WAIT_MS 2000
 #define HELLO_EVERY_MS 100
@@ -38,17 +39,13 @@ typedef struct {
   float hold[TELEM_MAX_CH];      /* the last commands */
   uint16_t seq;                  /* of the next PLANT */
   bool sent;                     /* a PLANT went out, so a CMD is due */
+  bool bye_sent;
   int timeout_ms;
   bool late_fault;
   int max_late, run_late;
 } uart_t;
 
-static int64_t now_ms(void)
-{
-  struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-}
+static int64_t now_ms(void) { return plat_now_ns() / 1000000; }
 
 static int set_error(uart_t *u, const char *fmt, ...)
 {
@@ -164,10 +161,13 @@ static int uart_write(io_t *io, double t, const double *out, size_t n)
   return 0;
 }
 
-static void send_bye(uart_t *u)
+static void send_bye(uart_t *u) /* once: a fault sends it, then close */
 {
   const hil_frame_t f = {HIL_BYE, u->seq, 0, {0}};
-  send_frame(u, &f);
+  if (!u->bye_sent) {
+    send_frame(u, &f);
+    u->bye_sent = true;
+  }
 }
 
 static void uart_safe_state(io_t *io) { send_bye((uart_t *)io); }
@@ -180,7 +180,7 @@ static void uart_close(io_t *io)
   free(u);
 }
 
-static const io_api_t api = {"uart", uart_read, uart_write, uart_safe_state, uart_close};
+static const io_api_t api = {uart_read, uart_write, uart_safe_state, uart_close};
 
 static speed_t baud_code(int baud)
 {

@@ -369,7 +369,7 @@ fail:
 
 int scenario_check(const scenario_t *sc, char *err, size_t errlen)
 {
-  static varmap_t vm; /* Limitation: large; one control thread */
+  varmap_t vm;
   fmu_pkg_t pkg = {0};
   err[0] = '\0';
   int rc = fmu_open(sc->fmu, &pkg, err, errlen);

@@ -15,7 +15,6 @@
 
 #define MAX_ENTRIES 100000
 #define MAX_TOTAL_BYTES (512ull << 20)
-#define MAX_XML_BYTES (16u << 20)
 
 static int rm_cb(const char *p, const struct stat *sb, int type, struct FTW *f)
 {
@@ -165,8 +164,8 @@ int fmu_open(const char *path, fmu_pkg_t *pkg, char *err, size_t errlen)
   if (extract(&zip, pkg->dir, err, errlen) < 0) {
     goto done;
   }
-  snprintf(file, sizeof file, "%s/modelDescription.xml", pkg->dir);
-  if ((xml = plat_read_file(file, MAX_XML_BYTES, &xml_len, err, errlen)) == NULL) {
+  if ((xml = mz_zip_reader_extract_file_to_heap(&zip, "modelDescription.xml", &xml_len, 0)) ==
+      NULL) {
     snprintf(err, errlen, "'%s' has no readable modelDescription.xml", path);
     goto done;
   }
@@ -194,7 +193,7 @@ int fmu_open(const char *path, fmu_pkg_t *pkg, char *err, size_t errlen)
   rc = 0;
 
 done:
-  free(xml);
+  mz_free(xml);
   mz_zip_reader_end(&zip);
   if (rc != 0) {
     fmu_close(pkg);

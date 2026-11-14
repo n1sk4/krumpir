@@ -50,10 +50,9 @@ set(srcs
   src/telemetry/ring.c
   src/telemetry/writer.c)
 add_library(krumpir_core STATIC ${srcs})
-add_library(krumpir::core ALIAS krumpir_core)
 target_include_directories(krumpir_core PUBLIC src/app src/core src/fmi src/io src/telemetry)
 target_include_directories(krumpir_core SYSTEM PUBLIC vendor/fmi3) # FMI 3.0 headers (BSD-2)
-# Strict C11 hides POSIX; the runner needs clock_nanosleep, nanosleep, termios, mkstemp, nftw.
+# Strict C11 hides POSIX; the runner needs clock_nanosleep, nanosleep, termios, mkdtemp, nftw.
 target_compile_definitions(krumpir_core PUBLIC _XOPEN_SOURCE=700)
 target_link_libraries(krumpir_core PUBLIC Threads::Threads tomlc99 miniz EXPAT::EXPAT hil
                                           ${CMAKE_DL_LIBS} m

@@ -243,11 +243,7 @@ signal_t *signal_create(const stimulus_t *s, char *err, size_t errlen)
     prev = q->v1;
     t += q->dur;
   }
-  g->total = t;
-  if (g->loops != 1 && isinf(g->total)) {
-    snprintf(err, errlen, "signal for '%s': loops needs a duration on every segment", s->input);
-    return fail(g);
-  }
+  g->total = t; /* finite when loops != 1: config_parse checks it */
   return g;
 }
 

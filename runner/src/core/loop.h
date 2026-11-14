@@ -35,11 +35,11 @@ typedef struct {
   io_t *io;
   ring_t *ring;
   const atomic_int *stop; /* set from a signal handler or another thread to end the run */
-  /* Optional (NULL for none): commands handled at the start of each step, and their replies */
+  /* Commands handled at the start of each step, and their replies */
   cmdq_t *cmd;
   cmdq_t *reply;
-  /* Optional (NULL: every input from the I/O backend): where each input slot gets its value.
-   * CMD_WRITE_INPUT and CMD_SET_SIGNAL change it while the loop runs. */
+  /* Where each input slot gets its value (SRC_BACKEND: the I/O backend's). CMD_WRITE_INPUT and
+   * CMD_SET_SIGNAL change it while the loop runs. */
   input_src_t *src;
   /* Optional (0: none): a timing_pin fd, high from each step's wake-up to the end of its work */
   int timing_fd;

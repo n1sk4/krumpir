@@ -21,7 +21,7 @@ static void handle_commands(const loop_ctx_t *c, double t)
     switch (cmd.kind) {
     case CMD_WRITE_INPUT:
     case CMD_SET_SIGNAL:
-      if (c->src != NULL && cmd.index >= 0 && (size_t)cmd.index < c->vm->n_in) {
+      if (cmd.index >= 0 && (size_t)cmd.index < c->vm->n_in) {
         input_src_t *src = &c->src[cmd.index];
         signal_t *old = src->kind == SRC_SIGNAL ? src->sig : NULL;
         if (cmd.kind == CMD_WRITE_INPUT) {
@@ -41,9 +41,7 @@ static void handle_commands(const loop_ctx_t *c, double t)
       cmd.status = (int)fmu_get_real(c->fmu, &cmd.vr, 1, &cmd.value);
       break;
     }
-    if (c->reply != NULL) {
-      cmdq_push(c->reply, &cmd);
-    }
+    cmdq_push(c->reply, &cmd);
   }
 }
 
@@ -116,22 +114,18 @@ void loop_run(const loop_ctx_t *c, loop_counters_t *st)
       timing_pin_set(c->timing_fd, true);
     }
     const double t = loop_time(n, sc->step);
-    if (c->cmd != NULL) {
-      handle_commands(c, t);
-    }
+    handle_commands(c, t);
 
     if (c->io->api->read(c->io, t, in, vm->n_in) != 0) {
       st->end = LOOP_IO_FAIL;
       return;
     }
-    if (c->src != NULL) {
-      for (size_t i = 0; i < vm->n_in; i++) {
-        const input_src_t *src = &c->src[i];
-        if (src->kind == SRC_VALUE) {
-          in[i] = src->value;
-        } else if (src->kind == SRC_SIGNAL) {
-          in[i] = signal_value(src->sig, t - src->t0);
-        }
+    for (size_t i = 0; i < vm->n_in; i++) {
+      const input_src_t *src = &c->src[i];
+      if (src->kind == SRC_VALUE) {
+        in[i] = src->value;
+      } else if (src->kind == SRC_SIGNAL) {
+        in[i] = signal_value(src->sig, t - src->t0);
       }
     }
     fmu_result_t r = FMU_OK;

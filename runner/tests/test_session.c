@@ -136,9 +136,12 @@ static void test_drive_running(void)
   assert(session_state(s) == LC_INITIALIZED); /* a refused reset changes nothing */
   assert(session_start(s, err, sizeof err) == 0);
   assert(session_wait(s, 5000));
+  assert(session_reset(s, NULL, err, sizeof err) == 0); /* a second reset counts on from both */
+  assert(session_start(s, err, sizeof err) == 0);
+  assert(session_wait(s, 5000));
   session_unload(s, &sum);
   assert(sum.steps == 100 && !sum.stopped_early && sum.rows == 100);
-  /* the log continued: one header, both runs' rows, n and t rising through the restart */
+  /* the log continued: one header, all three runs' rows, n and t rising through the restarts */
   FILE *fp = fopen(logp, "r");
   char line[512];
   int lines = 0, headers = 0;
@@ -155,8 +158,8 @@ static void test_drive_running(void)
     prev_n = n;
     prev_t = t;
   }
-  assert(fp != NULL && lines == 201 && headers == 1);
-  assert(prev_n == 199 && fabs(prev_t - 0.2) < 1e-9);
+  assert(fp != NULL && lines == 301 && headers == 1);
+  assert(prev_n == 299 && fabs(prev_t - 0.3) < 1e-9);
   fclose(fp);
 
   assert(session_reset(s, NULL, err, sizeof err) == -1); /* nothing loaded */

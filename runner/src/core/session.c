@@ -159,14 +159,15 @@ int session_reset(session_t *s, session_summary_t *out, char *err, size_t errlen
     return -1;
   }
   *sc = s->sc;
+  const writer_cont_t cont = s->log_cont; /* unload clears it */
   session_summary_t sum;
   session_unload(s, &sum);
   if (out != NULL) {
     *out = sum;
   }
   /* The new run's rows go after the old ones, n and t counting on from where it ended */
-  s->log_cont.n += sum.steps;
-  s->log_cont.t += (double)sum.steps * sc->step;
+  s->log_cont.n = cont.n + sum.steps;
+  s->log_cont.t = cont.t + (double)sum.steps * sc->step;
   s->append_log = true;
   const int rc = session_load(s, sc, err, errlen);
   s->append_log = false;

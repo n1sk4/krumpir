@@ -44,7 +44,8 @@ struct EcuSnapshot {
 
   std::string address; // host:port in use
   bool connected = false, busy = false;
-  double rtt_ms = 0; // last poll: round trip of one read
+  bool reconnecting = false; // the link was lost: tried again every `retry` until Disconnect
+  double rtt_ms = 0;         // last poll: round trip of one read
 
   bool running = false;
   long long trip = 0; // 0: none
@@ -64,7 +65,7 @@ struct EcuSnapshot {
 
 // A controller as the UI sees it, like Model for the runner: a worker thread owns the XCP link,
 // runs the commands the UI posts in order and polls the status, the calibration values and the
-// watched signals every `period`.
+// watched signals every `period`. A lost link is tried again every `retry`, keeping the history.
 class EcuModel
 {
 public:
@@ -73,7 +74,8 @@ public:
 
   explicit EcuModel(std::function<void()> on_change,
                     std::chrono::milliseconds period = std::chrono::milliseconds(50),
-                    std::chrono::milliseconds timeout = std::chrono::milliseconds(500));
+                    std::chrono::milliseconds timeout = std::chrono::milliseconds(500),
+                    std::chrono::milliseconds retry = std::chrono::seconds(2));
   ~EcuModel();
   EcuModel(const EcuModel &) = delete;
   EcuModel &operator=(const EcuModel &) = delete;
@@ -96,6 +98,7 @@ private:
   void post(std::function<void()> job);
   void worker();
   void guarded(const std::function<void()> &job);
+  void reconnect(); // worker thread
   void poll();
   void restart_daq(); // the watched signals with an event by DAQ (worker thread)
   void take_daq();    // waits up to period_ for DAQ samples (worker thread)
@@ -107,8 +110,10 @@ private:
   std::chrono::steady_clock::time_point t0_;
   std::vector<std::string> daq_names_; // what DAQ measures, in daq_start's order (worker thread)
   double daq_t0_ = 0;                  // s since t0_ when DAQ started: its samples' time origin
+  bool want_ = false; // connected by the user: a lost link is tried again (worker thread only)
+  std::chrono::steady_clock::time_point tried_; // the last loss or attempt
   std::function<void()> on_change_;
-  std::chrono::milliseconds period_;
+  std::chrono::milliseconds period_, retry_;
 
   mutable std::mutex mu_; // guards snap_
   EcuSnapshot snap_;

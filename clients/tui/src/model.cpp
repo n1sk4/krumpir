@@ -82,8 +82,10 @@ json preset(const std::string &input, std::size_t kind, const std::vector<double
   }
 }
 
-Model::Model(std::function<void()> on_change, std::chrono::milliseconds period)
-    : on_change_(std::move(on_change)), period_(period), thread_([this] { worker(); })
+Model::Model(std::function<void()> on_change, std::chrono::milliseconds period,
+             std::chrono::milliseconds retry)
+    : on_change_(std::move(on_change)), period_(period), retry_(retry),
+      thread_([this] { worker(); })
 {
 }
 
@@ -119,7 +121,8 @@ void Model::event(const std::string &text)
 }
 
 // Runs one step of work and turns its failure into an event: a refused request leaves the
-// connection as it is, a broken link marks the model disconnected.
+// connection as it is, a broken link marks the model disconnected (reconnecting, when the user
+// connected it).
 void Model::guarded(const std::function<void()> &job)
 {
   try {
@@ -127,11 +130,17 @@ void Model::guarded(const std::function<void()> &job)
   } catch (const ServiceError &e) {
     event(std::string("error: ") + e.what());
   } catch (const LinkError &e) {
+    bool told;
     {
       std::lock_guard<std::mutex> lock(mu_);
+      told = snap_.reconnecting;
       snap_.connected = false;
+      snap_.reconnecting = want_;
     }
-    event(std::string("disconnected: ") + e.what());
+    if (!told) {
+      tried_ = std::chrono::steady_clock::now();
+      event(std::string("disconnected: ") + e.what() + (want_ ? ", reconnecting" : ""));
+    }
   } catch (const json::exception &e) {
     event(std::string("bad reply: ") + e.what());
   }
@@ -162,6 +171,9 @@ void Model::worker()
       break;
     }
     lock.unlock();
+    if (want_ && !svc_.is_open() && std::chrono::steady_clock::now() - tried_ >= retry_) {
+      guarded([this] { reconnect(); });
+    }
     if (svc_.is_open()) {
       guarded([this] { poll(); });
     }
@@ -215,7 +227,14 @@ void Model::poll()
     return;
   }
   if (cap_id_ >= 0) {
-    fetch_capture();
+    try {
+      fetch_capture();
+    } catch (const ServiceError &e) { // e.g. a restarted runner: the id is gone
+      cap_id_ = -1;
+      cap_from_ = 0;
+      captured_.clear();
+      event(std::string("capture lost, polling instead: ") + e.what());
+    }
   }
   {
     std::lock_guard<std::mutex> lock(mu_);
@@ -313,9 +332,43 @@ void Model::fetch_vars()
   snap_.vars = std::move(vars);
 }
 
+// The same runner again after a lost link: the snapshot and the capture are kept (a serve
+// that kept running still has it). A refused or busy attempt waits for the next one.
+void Model::reconnect()
+{
+  tried_ = std::chrono::steady_clock::now();
+  std::string address;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    address = snap_.address;
+  }
+  json files;
+  try {
+    svc_.connect(address);
+    files = svc_.call("files");
+  } catch (const LinkError &) {
+    return;
+  } catch (const ServiceError &e) {
+    if (e.code != "busy") {
+      svc_.close(); // not connected: tried again
+      throw;
+    }
+    return;
+  }
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    snap_.connected = true;
+    snap_.reconnecting = false;
+    snap_.scenarios = files.at("scenarios").get<std::vector<std::string>>();
+    snap_.fmus = files.at("fmus").get<std::vector<std::string>>();
+  }
+  event("reconnected to " + address);
+}
+
 void Model::connect(std::string address)
 {
   post([this, address] {
+    want_ = false;
     {
       std::lock_guard<std::mutex> lock(mu_);
       auto events = std::move(snap_.events);
@@ -343,6 +396,7 @@ void Model::connect(std::string address)
       std::lock_guard<std::mutex> lock(mu_);
       snap_.connected = true;
     }
+    want_ = true;
     event("connected to " + address);
     std::lock_guard<std::mutex> lock(mu_);
     snap_.scenarios = files.at("scenarios").get<std::vector<std::string>>();
@@ -353,6 +407,7 @@ void Model::connect(std::string address)
 void Model::disconnect()
 {
   post([this] {
+    want_ = false;
     svc_.close();
     cap_id_ = -1;
     cap_from_ = 0;

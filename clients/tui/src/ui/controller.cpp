@@ -31,8 +31,9 @@ std::string Name(const EcuSnapshot &v)
 
 Element Link(const EcuSnapshot &v)
 {
-  return hbox({v.connected ? text("  * connected") | color(Color::Green)
-                           : text("  o disconnected") | color(Color::Red),
+  return hbox({v.connected      ? text("  * connected") | color(Color::Green)
+               : v.reconnecting ? text("  ~ reconnecting") | color(Color::Yellow)
+                                : text("  o disconnected") | color(Color::Red),
                text(v.epk.empty() ? "" : "  EPK " + v.epk) | dim,
                text(v.connected ? Format("  rtt %.1f ms", v.rtt_ms) : "") | dim,
                text(v.busy ? "  ..." : "") | dim});
@@ -279,7 +280,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
           !s->fallback.empty() && v.watched.size() == 1 && v.watched[0] == s->fallback;
       s->watched = only_fallback ? std::vector<std::string>{} : v.watched;
       s->connected = v.connected;
-      want_fallback = v.connected && s->watched.empty();
+      want_fallback = (v.connected || v.reconnecting) && s->watched.empty(); // kept while away
       s->writable.clear();
       s->param_rows.clear();
       for (const auto &p : v.params) {
@@ -304,8 +305,10 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
       data = Gather(v.history, v.watched, s->plot);
       const std::string run = v.running ? "RUNNING" : "STOPPED";
-      const Element state = !v.connected ? text(" not connected: connect on F1 ") | dim
-                                         : text(" " + run + " ") | bold | color(StateColor(run));
+      const Element state =
+          !v.connected
+              ? text(v.reconnecting ? " reconnecting " : " not connected: connect on F1 ") | dim
+              : text(" " + run + " ") | bold | color(StateColor(run));
       const Element trip =
           v.trip != 0 ? text("  trip: " + v.trip_name + " (c clears) ") | bold | color(Color::Red)
                       : text(v.connected ? "  no trip" : "") | dim;

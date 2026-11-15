@@ -20,40 +20,58 @@ using asio::ip::tcp;
 using krumpir::json;
 using namespace std::chrono_literals;
 
-// Answers one connection, line by line, with `reply(request)`; a null reply sends nothing.
+// Answers connections one at a time, line by line, with `reply(request)`; a null reply sends
+// nothing. With `drop` set, the next request closes the connection instead (and clears it).
 class FakeServer
 {
 public:
+  std::atomic<int> accepted{0};
+  std::atomic<bool> drop{false};
+
   explicit FakeServer(std::function<json(const json &)> reply)
       : acceptor_(io_, tcp::endpoint(asio::ip::make_address("127.0.0.1"), 0)),
         thread_([this, reply] {
-          std::error_code ec;
-          tcp::socket sock(io_);
-          acceptor_.accept(sock, ec);
-          asio::streambuf buf;
-          while (!ec) {
-            std::size_t n = asio::read_until(sock, buf, '\n', ec);
-            if (ec) {
+          for (;;) {
+            std::error_code ec;
+            tcp::socket sock(io_);
+            acceptor_.accept(sock, ec);
+            if (ec || done_) {
               break;
             }
-            std::string line(asio::buffers_begin(buf.data()),
-                             asio::buffers_begin(buf.data()) + static_cast<std::ptrdiff_t>(n));
-            buf.consume(n);
-            json r = reply(json::parse(line));
-            if (!r.is_null()) {
-              asio::write(sock, asio::buffer(r.dump() + "\n"), ec);
+            accepted++;
+            asio::streambuf buf;
+            while (!ec) {
+              std::size_t n = asio::read_until(sock, buf, '\n', ec);
+              if (ec || drop.exchange(false)) {
+                break;
+              }
+              std::string line(asio::buffers_begin(buf.data()),
+                               asio::buffers_begin(buf.data()) + static_cast<std::ptrdiff_t>(n));
+              buf.consume(n);
+              json r = reply(json::parse(line));
+              if (!r.is_null()) {
+                asio::write(sock, asio::buffer(r.dump() + "\n"), ec);
+              }
             }
           }
         })
   {
   }
-  ~FakeServer() { thread_.join(); }
+  ~FakeServer()
+  {
+    done_ = true;
+    std::error_code ec;
+    tcp::socket wake(io_); // out of accept
+    wake.connect(acceptor_.local_endpoint(), ec);
+    thread_.join();
+  }
   std::string address() const
   {
     return "127.0.0.1:" + std::to_string(acceptor_.local_endpoint().port());
   }
 
 private:
+  std::atomic<bool> done_{false};
   asio::io_context io_;
   tcp::acceptor acceptor_;
   std::thread thread_;
@@ -466,3 +484,166 @@ TEST_CASE("model: start on a stopped run resets it first")
 
 TEST_CASE("model: connect, load, run, watch by polling") { watch(false); }
 TEST_CASE("model: connect, load, run, watch by capture") { watch(true); }
+
+// A running session with a capture (x, rows of -1; polled x = 2 t) whose connection is dropped.
+// After the drop, `busy` attempts are refused as busy; `restarted`: the capture is gone, as on a
+// runner that was started again.
+static void lost_link(int busy, bool restarted)
+{
+  std::mutex mu;
+  std::vector<json> seen;
+  std::string state = "INITIALIZED";
+  double t = 0;
+  json rows = json::array();
+  std::size_t fetched = 0, seen_at_drop = 0, from_after = 0, fetched_before = 0;
+  int connections = 0; // each starts with `files`
+  bool dropped = false, fetched_after = false;
+  const int refusals = busy;
+  FakeServer srv([&](const json &req) -> json {
+    std::lock_guard<std::mutex> lock(mu);
+    seen.push_back(req);
+    const std::string op = req["op"];
+    json ok = {{"ok", true}, {"fault", ""}, {"scenarios", json::array()}, {"fmus", json::array()}};
+    if (op == "files") {
+      dropped = ++connections > 1;
+    }
+    if (op == "files" && dropped && busy > 0) {
+      busy--;
+      return {{"ok", false}, {"code", "busy"}, {"error", "another client is connected"}};
+    } else if (op == "state") {
+      if (state == "RUNNING") {
+        t += 0.1;
+        rows.push_back({t, -1.0});
+      }
+      ok["state"] = state;
+      ok["t"] = t;
+      ok["step"] = 0.001;
+    } else if (op == "start") {
+      state = "RUNNING";
+    } else if (op == "capture_start") {
+      ok["id"] = 0;
+    } else if (op == "capture_fetch") {
+      if (dropped && restarted) {
+        return {{"ok", false}, {"code", "not_found"}, {"error", "no capture 0"}};
+      }
+      const std::size_t from = req["from"];
+      if (dropped && !fetched_after) {
+        fetched_after = true;
+        from_after = from;
+        fetched_before = fetched;
+      }
+      ok["capture_state"] = "RUNNING";
+      ok["names"] = {"t", "x"};
+      ok["rows"] = json(rows.begin() + static_cast<std::ptrdiff_t>(from), rows.end());
+      fetched = rows.size();
+    } else if (op == "variables") {
+      ok["variables"] = {{{"name", "x"}, {"type", "Float64"}, {"causality", "output"}},
+                         {{"name", "u"}, {"type", "Float64"}, {"causality", "input"}}};
+    } else if (op == "read") {
+      ok["values"] = {{"x", 2 * t}, {"u", 0.5}};
+    }
+    return ok;
+  });
+
+  krumpir::Model m([] {}, 10ms, 50ms);
+  auto until = [&](const std::function<bool(const krumpir::Snapshot &)> &cond) {
+    for (int i = 0; i < 300; i++) {
+      if (m.view(cond)) {
+        return true;
+      }
+      std::this_thread::sleep_for(10ms);
+    }
+    return false;
+  };
+  auto x_size = [](const krumpir::Snapshot &v) {
+    const auto it = v.history.find("x");
+    return it == v.history.end() ? std::size_t(0) : it->second.size();
+  };
+  auto has = [](const krumpir::Snapshot &v, const char *what) {
+    return std::count_if(v.events.begin(), v.events.end(), [what](const std::string &e) {
+      return e.find(what) != std::string::npos;
+    });
+  };
+
+  m.connect(srv.address());
+  REQUIRE(until([](const krumpir::Snapshot &v) { return v.connected; }));
+  m.write("u", 0.5); // a setpoint: replayed after a reset, never after a reconnect
+  m.start();
+  REQUIRE(until([&](const krumpir::Snapshot &v) { return x_size(v) >= 4; }));
+  std::size_t before;
+  const double first =
+      m.view([](const krumpir::Snapshot &v) { return v.history.at("x").front().t; });
+  {
+    std::lock_guard<std::mutex> lock(mu);
+    before = m.view(x_size);
+    seen_at_drop = seen.size();
+    srv.drop = true;
+  }
+  REQUIRE(until([&](const krumpir::Snapshot &v) { return has(v, "reconnected to") == 1; }));
+  REQUIRE(until([&](const krumpir::Snapshot &v) { return x_size(v) > before + 2; }));
+  m.view([&](const krumpir::Snapshot &v) {
+    CHECK(v.connected);
+    CHECK_FALSE(v.reconnecting);
+    CHECK(v.state == "RUNNING");
+    CHECK(has(v, "disconnected: ") == 1);
+    CHECK(has(v, ", reconnecting") == 1);
+    CHECK(has(v, "cannot connect") == 0);
+    const auto &h = v.history.at("x");
+    CHECK(h.front().t == first); // the history is kept
+    for (std::size_t i = 1; i < h.size(); i++) {
+      CHECK(h[i].t > h[i - 1].t);
+    }
+    CHECK(h.back().v == doctest::Approx(restarted ? 2 * h.back().t : -1.0));
+    CHECK(has(v, "capture lost") == (restarted ? 1 : 0));
+    return 0;
+  });
+  CHECK(srv.accepted >= 2 + refusals);
+  std::lock_guard<std::mutex> lock(mu);
+  CHECK(busy == 0);
+  if (!restarted) {
+    CHECK(fetched_after);
+    CHECK(from_after == fetched_before); // where it left off: no rows twice, none missed
+  }
+  for (std::size_t i = seen_at_drop; i < seen.size(); i++) {
+    const std::string op = seen[i]["op"];
+    CHECK(op != "start");
+    CHECK(op != "write");
+    CHECK(op != "signal");
+    CHECK(op != "capture_start");
+    CHECK(op != "load");
+  }
+}
+
+TEST_CASE("model: a lost link is tried again; the capture goes on, nothing is sent again")
+{
+  lost_link(0, false);
+}
+TEST_CASE("model: a reconnect refused as busy is tried again") { lost_link(3, false); }
+TEST_CASE("model: after a reconnect a capture the runner forgot is dropped, polling goes on")
+{
+  lost_link(0, true);
+}
+
+TEST_CASE("model: after Disconnect a lost link is not tried again")
+{
+  FakeServer srv([](const json &) -> json {
+    return {{"ok", true},
+            {"state", "IDLE"},
+            {"fault", ""},
+            {"scenarios", json::array()},
+            {"fmus", json::array()}};
+  });
+  krumpir::Model m([] {}, 10ms, 20ms);
+  m.connect(srv.address());
+  for (int i = 0; i < 300 && !m.view([](const krumpir::Snapshot &v) { return v.connected; }); i++) {
+    std::this_thread::sleep_for(10ms);
+  }
+  m.disconnect();
+  std::this_thread::sleep_for(300ms);
+  CHECK(srv.accepted == 1);
+  m.view([](const krumpir::Snapshot &v) {
+    CHECK_FALSE(v.connected);
+    CHECK_FALSE(v.reconnecting);
+    return 0;
+  });
+}

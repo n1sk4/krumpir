@@ -1,6 +1,7 @@
 // A2L parsing, the XCP master against a fake ECU on localhost, and the controller model.
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <asio.hpp>
 #include <atomic>
 #include <cstdlib>
@@ -159,10 +160,10 @@ private:
   void receive()
   {
     sock_.async_receive_from(asio::buffer(buf_), peer_, [this](std::error_code ec, std::size_t n) {
-      if (ec) {
+      if (ec == asio::error::operation_aborted) {
         return;
       }
-      if (!silent && n >= 5) {
+      if (!ec && !silent && n >= 5) { // an error: on Windows, a packet sent to a closed port
         answer(std::vector<std::uint8_t>(buf_ + 4, buf_ + n), buf_[2] | (buf_[3] << 8));
       }
       receive();
@@ -451,16 +452,9 @@ TEST_CASE("xcp: connect, read and write a fake ECU")
   CHECK_FALSE(ecu.is_open());
 }
 
-TEST_CASE("ecu model: status, calibration, requests, watched signals")
+// controllers/demo-controller under a fresh root: kA2l and a description for it.
+static fs::path demo_controller(const fs::path &root)
 {
-  FakeEcu fake;
-  fake.set<float>(0x4000, 350.0f);
-  fake.set<std::uint32_t>(0x4004, 0x0501);
-  fake.set<std::uint8_t>(0x2004, 1);
-  fake.set<std::uint32_t>(0x1000, 1);
-  fake.set<float>(0x3000, 25.5f);
-
-  const fs::path root = fs::temp_directory_path() / "krumpir_test_ecu";
   fs::remove_all(root);
   const fs::path dir = root / "controllers" / "demo-controller";
   fs::create_directories(dir / "src" / "gen");
@@ -475,6 +469,20 @@ TEST_CASE("ecu model: status, calibration, requests, watched signals")
     "request": {"name": "demo_cal_page.request", "start": 1, "stop": 2, "clear": 3},
     "status": {"running": "s_rte.run_applied", "trip": "s_trip"},
     "monitor": ["s_loop.temp", "nope"]})";
+  return dir;
+}
+
+TEST_CASE("ecu model: status, calibration, requests, watched signals")
+{
+  FakeEcu fake;
+  fake.set<float>(0x4000, 350.0f);
+  fake.set<std::uint32_t>(0x4004, 0x0501);
+  fake.set<std::uint8_t>(0x2004, 1);
+  fake.set<std::uint32_t>(0x1000, 1);
+  fake.set<float>(0x3000, 25.5f);
+
+  const fs::path root = fs::temp_directory_path() / "krumpir_test_ecu";
+  const fs::path dir = demo_controller(root);
 
   std::atomic<int> changes{0};
   {
@@ -539,6 +547,70 @@ TEST_CASE("ecu model: status, calibration, requests, watched signals")
     CHECK(fake.disconnects == 1);
   }
   CHECK(changes > 0);
+  fs::remove_all(root);
+}
+
+TEST_CASE("ecu model: a lost link is tried again, the history goes on")
+{
+  FakeEcu fake;
+  fake.set<float>(0x4000, 350.0f);
+  fake.set<std::uint32_t>(0x4004, 0x0501);
+  fake.set<std::uint8_t>(0x2004, 1);
+  fake.set<std::uint32_t>(0x1000, 0);
+  fake.set<float>(0x3000, 25.5f);
+  const fs::path root = fs::temp_directory_path() / "krumpir_test_ecu_reconnect";
+  const fs::path dir = demo_controller(root);
+  {
+    EcuModel m([] {}, std::chrono::milliseconds(10), std::chrono::milliseconds(300),
+               std::chrono::milliseconds(20));
+    m.scan(root.generic_string());
+    m.open(dir.generic_string());
+    m.connect(fake.address());
+    auto temp = [](const EcuSnapshot &s) {
+      const auto it = s.history.find("s_loop.temp");
+      return it == s.history.end() ? std::deque<Sample>{} : it->second;
+    };
+    auto has = [](const EcuSnapshot &s, const char *what) {
+      return std::count_if(s.events.begin(), s.events.end(), [what](const std::string &e) {
+        return e.find(what) != std::string::npos;
+      });
+    };
+    std::uint32_t ts = 0;
+    REQUIRE(eventually([&] {
+      fake.trigger(1, ts += 1000);
+      return m.view([&](const EcuSnapshot &s) { return s.connected && temp(s).size() >= 3; });
+    }));
+
+    fake.silent = true; // the link is lost: the next read gets no answer
+    REQUIRE(
+        eventually([&] { return m.view([&](const EcuSnapshot &s) { return s.reconnecting; }); }));
+    CHECK_FALSE(m.view([](const EcuSnapshot &s) { return s.connected; }));
+    const auto before = m.view(temp);
+    CHECK(fake.connects == 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300)); // attempts with no answer
+    fake.silent = false;
+    REQUIRE(eventually([&] {
+      fake.trigger(1, ts += 1000);
+      return m.view(
+          [&](const EcuSnapshot &s) { return s.connected && temp(s).size() > before.size() + 2; });
+    }));
+    m.view([&](const EcuSnapshot &s) {
+      CHECK_FALSE(s.reconnecting);
+      CHECK(s.daq_signals == 1); // DAQ started again
+      CHECK(s.watched == std::vector<std::string>{"s_loop.temp"});
+      const auto h = temp(s);
+      CHECK(h.front().t == before.front().t); // the history is kept
+      CHECK(h.back().t > before.back().t);    // and its time goes on
+      CHECK(has(s, ", reconnecting") == 1);
+      CHECK(has(s, "reconnected to") == 1);
+      return 0;
+    });
+    CHECK(fake.connects == 2);
+    m.disconnect();
+    REQUIRE(eventually([&] {
+      return m.view([](const EcuSnapshot &s) { return !s.connected && !s.reconnecting; });
+    }));
+  }
   fs::remove_all(root);
 }
 

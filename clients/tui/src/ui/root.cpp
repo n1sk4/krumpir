@@ -80,8 +80,9 @@ Element StatusBar(const Snapshot &v)
 {
   Elements e{text(" krumpir-tui ") | bold | inverted, text("  runner "),
              text(v.address.empty() ? "-" : v.address),
-             v.connected ? text("  * connected") | color(Color::Green)
-                         : text("  o disconnected") | color(Color::Red)};
+             v.connected      ? text("  * connected") | color(Color::Green)
+             : v.reconnecting ? text("  ~ reconnecting") | color(Color::Yellow)
+                              : text("  o disconnected") | color(Color::Red)};
   const std::string &what = !v.loaded.empty() ? v.loaded : v.fmu;
   if (!what.empty()) {
     e.push_back(text("  | " + what));

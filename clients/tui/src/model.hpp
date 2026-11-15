@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cmath>
 #include <condition_variable>
 #include <cstddef>
@@ -31,7 +32,8 @@ struct Sample {
 struct Snapshot {
   std::string address;
   bool connected = false;
-  bool busy = false; // a command is on its way
+  bool reconnecting = false; // the link was lost: tried again every `retry` until Disconnect
+  bool busy = false;         // a command is on its way
   std::vector<std::string> scenarios, fmus;
   // The runner's `describe` reply for described_path (a scenario, or an FMU's starter)
   std::string described_path;
@@ -56,7 +58,8 @@ struct Snapshot {
 
 // The runner as the UI sees it. A worker thread owns the connection: it runs the commands the UI
 // posts, in order, and polls the session every `period` (state, then the variables). The UI never
-// waits on the network; it reads the snapshot and is told when it changed.
+// waits on the network; it reads the snapshot and is told when it changed. A lost link is tried
+// again every `retry`, keeping what is shown; nothing is sent again.
 class Model
 {
 public:
@@ -64,7 +67,8 @@ public:
   static constexpr std::size_t kEvents = 200;
 
   explicit Model(std::function<void()> on_change,
-                 std::chrono::milliseconds period = std::chrono::milliseconds(100));
+                 std::chrono::milliseconds period = std::chrono::milliseconds(100),
+                 std::chrono::milliseconds retry = std::chrono::seconds(2));
   ~Model();
   Model(const Model &) = delete;
   Model &operator=(const Model &) = delete;
@@ -94,6 +98,7 @@ private:
   void post(std::function<void()> job);
   void worker();
   void guarded(const std::function<void()> &job);
+  void reconnect(); // worker thread
   void poll();
   void fetch_vars();
   void fetch_capture();
@@ -111,8 +116,10 @@ private:
   int cap_id_ = -1;                   // the capture armed at start, -1: none (worker thread only)
   std::size_t cap_from_ = 0;          // rows of it fetched so far
   std::vector<std::string> captured_; // its variables; the others are polled
+  bool want_ = false; // connected by the user: a lost link is tried again (worker thread only)
+  std::chrono::steady_clock::time_point tried_; // the last loss or attempt
   std::function<void()> on_change_;
-  std::chrono::milliseconds period_;
+  std::chrono::milliseconds period_, retry_;
 
   mutable std::mutex mu_; // guards snap_
   Snapshot snap_;

@@ -55,8 +55,8 @@ std::vector<Controller> find_controllers(const std::string &root)
 }
 
 EcuModel::EcuModel(std::function<void()> on_change, std::chrono::milliseconds period,
-                   std::chrono::milliseconds timeout)
-    : ecu_(timeout), on_change_(std::move(on_change)), period_(period),
+                   std::chrono::milliseconds timeout, std::chrono::milliseconds retry)
+    : ecu_(timeout), on_change_(std::move(on_change)), period_(period), retry_(retry),
       thread_([this] { worker(); })
 {
 }
@@ -92,7 +92,8 @@ void EcuModel::event(const std::string &text)
   }
 }
 
-// A refused command or a bad value leaves the link as it is; a lost link marks it disconnected.
+// A refused command or a bad value leaves the link as it is; a lost link marks it disconnected
+// (reconnecting, when the user connected it).
 void EcuModel::guarded(const std::function<void()> &job)
 {
   try {
@@ -104,11 +105,17 @@ void EcuModel::guarded(const std::function<void()> &job)
   } catch (const json::exception &e) {
     event(std::string("bad controller description: ") + e.what());
   } catch (const LinkError &e) {
+    bool told;
     {
       std::lock_guard<std::mutex> lock(mu_);
+      told = snap_.reconnecting;
       snap_.connected = false;
+      snap_.reconnecting = want_;
     }
-    event(std::string("disconnected: ") + e.what());
+    if (!told) {
+      tried_ = std::chrono::steady_clock::now();
+      event(std::string("disconnected: ") + e.what() + (want_ ? ", reconnecting" : ""));
+    }
   }
 }
 
@@ -143,6 +150,9 @@ void EcuModel::worker()
       break;
     }
     lock.unlock();
+    if (want_ && !ecu_.is_open() && std::chrono::steady_clock::now() - tried_ >= retry_) {
+      guarded([this] { reconnect(); });
+    }
     if (ecu_.is_open()) {
       guarded([this] { poll(); });
     }
@@ -300,6 +310,7 @@ void EcuModel::open(std::string dir)
       }
       c = *it;
     }
+    want_ = false; // another controller: not the lost link's
     ecu_.close();
     daq_names_.clear();
     desc_ = c.desc;
@@ -339,9 +350,44 @@ void EcuModel::open(std::string dir)
   });
 }
 
+// The same controller again after a lost link: t0_, the history and the watched signals are
+// kept, DAQ starts again. No answer waits for the next attempt; a refusal (another build: EPK)
+// ends the attempts.
+void EcuModel::reconnect()
+{
+  tried_ = std::chrono::steady_clock::now();
+  std::string to;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    to = snap_.address;
+  }
+  try {
+    ecu_.connect(to, a2l_);
+  } catch (const LinkError &) {
+    return;
+  } catch (const XcpError &e) {
+    ecu_.close();
+    want_ = false;
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      snap_.reconnecting = false;
+    }
+    event(std::string("disconnected: ") + e.what() + ", not reconnecting");
+    return;
+  }
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    snap_.connected = true;
+    snap_.reconnecting = false;
+  }
+  event("reconnected to " + to);
+  restart_daq();
+}
+
 void EcuModel::connect(std::string address)
 {
   post([this, address] {
+    want_ = false;
     if (a2l_.symbols.empty()) {
       throw A2lError("no A2L loaded");
     }
@@ -350,10 +396,12 @@ void EcuModel::connect(std::string address)
       std::lock_guard<std::mutex> lock(mu_);
       snap_.address = to;
       snap_.connected = false;
+      snap_.reconnecting = false;
       snap_.history.clear();
     }
     ecu_.connect(to, a2l_);
     t0_ = std::chrono::steady_clock::now();
+    want_ = true;
     {
       std::lock_guard<std::mutex> lock(mu_);
       snap_.connected = true;
@@ -373,11 +421,13 @@ void EcuModel::connect(std::string address)
 void EcuModel::disconnect()
 {
   post([this] {
+    want_ = false;
     ecu_.close();
     daq_names_.clear();
     {
       std::lock_guard<std::mutex> lock(mu_);
       snap_.connected = false;
+      snap_.reconnecting = false;
       snap_.daq_signals = 0;
     }
     event("disconnected");

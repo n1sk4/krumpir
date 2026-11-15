@@ -46,7 +46,7 @@ struct TimeWindow {
 constexpr double kMinSpan = 1e-4; // s; ponytail: fixed floor, the runner steps at >= 1e-4 s
 
 // The window to draw for data covering [d0, d1]; remembers the range. The newest time going back
-// means the history was cleared (reset, reload, reconnect): following again, cursors off. A
+// means the history was cleared (reset, reload, Connect): following again, cursors off. A
 // frozen window the data has left (the oldest samples dropped) follows again too.
 TimeWindow Visible(PlotView &v, double d0, double d1);
 void Zoom(PlotView &v, double factor, double around); // < 1: in. Around a time, NaN: see .cpp

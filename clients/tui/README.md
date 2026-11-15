@@ -91,6 +91,10 @@ Both tabs have a card per target on the left: the runner, then each controller o
   others polled every 50 ms. A controller with a HIL link also gets a card for its PC build
   ([XCP on the PC build](../../controllers/README.md#xcp-on-the-pc-build)).
 
+A lost link (not Disconnect) is tried again every 2 s until it is back (`~ reconnecting`); what is
+shown is kept, and nothing is sent again: a run started before goes on in its plot, a controller's
+DAQ starts again. Disconnect stops trying; Connect starts afresh.
+
 The controller takes one XCP master at a time, and the service one client: while the TUI is
 connected, `xcpclient` and `EcuPort` cannot connect to the controller, and a script using
 `tools/krumpir` is refused with the code `busy`.

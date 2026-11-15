@@ -46,6 +46,12 @@ krumpir-tui --repo ~/krumpir                  # where controllers/ is (default: 
 | s / x / c | (Monitor, a controller) start / stop / clear a latched trip |
 | space, Enter | (Monitor, a controller) on a signal: plot it or not |
 | m | (Monitor) one graph each / all in one |
+| + / -, wheel | (Monitor) zoom the plot in / out in time (`=` is `+`) |
+| < / > | (Monitor) pan the plot a quarter of its width; freezes it |
+| f | (Monitor) freeze the plot while the run goes on / follow the newest samples again |
+| 0 | (Monitor) the whole history, following |
+| a / b, click / right click | (Monitor) cursor A / B on at the centre or off; a click puts it there |
+| , / . | (Monitor) the last placed cursor one column left / right |
 | v | (Monitor) hide or show the variables pane; the plot takes the room |
 | [ / ] | (Monitor) the variables pane narrower / wider by 4 columns |
 | Esc | close a dialog |
@@ -66,6 +72,13 @@ Both tabs have a card per target on the left: the runner, then each controller o
   capture of the scenario's inputs and outputs, so the plot holds every step; other variables are
   sampled at 10 Hz. A filter box above the list narrows it by name. The pane and the plot share
   the room: drag the divider, or `[`, `]`, `v`.
+- **The plot** (runner and controllers) follows the newest samples (`LIVE`) or stays where it is
+  (`FROZEN`) while they keep coming. Zoomed in, it draws every sample of the window, and y fits
+  what is shown. Cursor A (solid) and B (dotted) read the nearest sample, value and its own t,
+  never an interpolation; with both on, the difference (`B-A`, `dt`) for each series. Zooming
+  a frozen plot keeps the cursor (or the mouse pointer) where it is on screen. The history keeps
+  200 000 samples per variable on the runner (300 000 on a controller), oldest dropped, also
+  while frozen; a reset or a new load starts the history again and the plot follows.
 - A written value takes effect at the next step, and on an input replaces its signal. Signal
   presets: constant (value), step (from, after s, to), ramp (from, to, over s), sine (offset,
   amplitude, freq Hz), pulse (low, high, period s, duty). Outputs and fixed parameters are refused.

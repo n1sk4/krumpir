@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -56,15 +57,38 @@ ftxui::InputOption OneLine(); // a text box that stays on one line
 bool EscapeCloses(const ftxui::Event &e, const std::function<void()> &close);
 
 // Shared pieces (plot.cpp)
-std::vector<Sample> Thin(const std::deque<Sample> &h); // at most ~4000 points, to draw
+// The samples of h in [t0, t1] and one either side, so lines reach the edges; at most ~4000, to
+// draw. ponytail: a stride, so a one-step spike can drop out of a wide window; min/max per column
+// if that is ever missed (zooming in shows it).
+std::vector<Sample> Thin(const std::deque<Sample> &h, double t0, double t1);
+const Sample *Nearest(const std::deque<Sample> &h, double t); // nullptr when h is empty or t NaN
 bool ParseNumber(const std::string &s, double *out);   // the whole text as a finite number
 // The text typed in a value box: a number and, when min and max are both finite, inside them.
 // Returns "" with the number in *out, or why it is refused. Every place that writes a value to a
 // target uses this, so the checks are the same.
 std::string CheckValue(const std::string &text, double min, double max, double *out);
+// The plot of a Monitor page: its view in time (layout.hpp) and where it was drawn (the mouse,
+// the cursor's column step).
+struct PlotState {
+  PlotView view;
+  ftxui::Box box;
+};
+// What one frame plots: the samples in the window, and what the cursors read. A cursor reads the
+// nearest sample of the full history, with that sample's own t, never an interpolation.
+struct PlotData {
+  std::vector<std::string> names;
+  std::vector<std::vector<Sample>> samples; // thinned to the window
+  std::vector<double> at_a, at_b;           // per name: the value at the cursor, NaN: none
+  double ta = NAN, tb = NAN;                // the t of those samples (the first name that has one)
+  TimeWindow win{NAN, NAN};                 // NaN: no samples yet
+};
+// Call inside the model's view(): takes what the plot shows out of the history.
+PlotData Gather(const std::map<std::string, std::deque<Sample>> &history,
+                const std::vector<std::string> &names, PlotState &p);
 // One graph per name stacked, or all in one each scaled to its range (single).
-ftxui::Element PlotPane(const std::vector<std::string> &names,
-                        const std::vector<std::vector<Sample>> &samples, bool single);
+ftxui::Element PlotPane(const PlotData &d, PlotState &p, bool single);
+// Zoom, pan, freeze and the cursors, by key or mouse over the plot. True when it was one of them.
+bool PlotKeys(const ftxui::Event &e, PlotState &p);
 ftxui::Element EventsPane(const std::deque<std::string> &events);
 constexpr int kEventsRows = 8;       // the height of the events pane, the same on every page
 constexpr int kAddressWidth = 24;    // the address box of a Load tab, the same for every target

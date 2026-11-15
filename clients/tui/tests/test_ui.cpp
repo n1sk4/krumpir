@@ -1,6 +1,8 @@
 // The screens drawn without a terminal: a FTXUI Screen of a fixed size, events sent to the
 // component. Covers the variables pane of the Monitor pages (hide, resize, drag, limits).
 #include <chrono>
+#include <deque>
+#include <map>
 #include <memory>
 #include <string>
 
@@ -365,4 +367,167 @@ TEST_CASE("ui root: the Load tab is not affected by the pane keys")
   const Screen s = draw(r.root, 130, 36);
   CHECK(has(s, " Targets "));
   CHECK_FALSE(has(s, " Variables "));
+}
+
+// The plot on its own, fed a history of its own: t in s, v = 100 t.
+namespace
+{
+
+struct PlotRig {
+  std::map<std::string, std::deque<krumpir::Sample>> history;
+  std::vector<std::string> names{"speed"};
+  krumpir::ui::PlotState p;
+  bool single = false;
+  Component c;
+
+  PlotRig()
+  {
+    c = CatchEvent(Renderer([this] {
+                     const auto d = krumpir::ui::Gather(history, names, p);
+                     return krumpir::ui::PlotPane(d, p, single);
+                   }),
+                   [this](const Event &e) { return krumpir::ui::PlotKeys(e, p); });
+    fill("speed", 10);
+  }
+  void fill(const std::string &name, double until) // on from the last sample, every 10 ms
+  {
+    auto &h = history[name];
+    for (int i = static_cast<int>(h.size()); i * 0.01 <= until + 1e-9; i++) {
+      h.push_back({i * 0.01, i * 1.0});
+    }
+  }
+  int cols() const { return p.box.x_max - p.box.x_min + 1; }
+};
+
+Event button(int x, int y, Mouse::Button b)
+{
+  Mouse m;
+  m.button = b;
+  m.motion = Mouse::Pressed;
+  m.x = x;
+  m.y = y;
+  return Event::Mouse("", m);
+}
+
+} // namespace
+
+TEST_CASE("ui thin: the window and one sample either side, at most ~4000")
+{
+  using krumpir::ui::Thin;
+  std::deque<krumpir::Sample> h;
+  for (int i = 0; i < 100000; i++) {
+    h.push_back({static_cast<double>(i), 2.0 * i});
+  }
+  auto t = Thin(h, 10, 20); // full resolution in a narrow window
+  CHECK(t.size() == 13);
+  CHECK(t.front().t == 9);
+  CHECK(t.back().t == 21);
+  t = Thin(h, 0, 99999);
+  CHECK(t.size() <= 4001);
+  CHECK(t.front().t == 0);
+  CHECK(t.back().t == 99999); // the newest is always drawn
+  CHECK(Thin(h, 200000, 300000).size() == 1); // past the data: the last sample, for the edge
+  CHECK(Thin({}, 0, 1).empty());
+}
+
+TEST_CASE("ui nearest: the sample closest in time, the earlier one on a tie")
+{
+  using krumpir::ui::Nearest;
+  const std::deque<krumpir::Sample> h{{0, 10}, {1, 11}, {2, 12}};
+  CHECK(Nearest(h, 1.4)->t == 1);
+  CHECK(Nearest(h, 1.6)->t == 2);
+  CHECK(Nearest(h, 0.5)->t == 0);
+  CHECK(Nearest(h, -5)->t == 0);
+  CHECK(Nearest(h, 50)->t == 2);
+  CHECK(Nearest(h, NAN) == nullptr);
+  CHECK(Nearest({}, 1) == nullptr);
+}
+
+TEST_CASE("ui plot: + shows the last half, - and 0 the whole history again")
+{
+  PlotRig r;
+  CHECK(has(draw(r.c, 100, 24), "t 0.000 .. 10.000 s"));
+  CHECK(has(draw(r.c, 100, 24), " LIVE"));
+  r.c->OnEvent(Event::Character('+'));
+  CHECK(has(draw(r.c, 100, 24), "t 5.000 .. 10.000 s"));
+  r.c->OnEvent(Event::Character('-'));
+  CHECK(has(draw(r.c, 100, 24), "t 0.000 .. 10.000 s"));
+  r.c->OnEvent(Event::Character('+'));
+  r.c->OnEvent(Event::Character('0'));
+  CHECK(has(draw(r.c, 100, 24), "t 0.000 .. 10.000 s"));
+}
+
+TEST_CASE("ui plot: f freezes the window while samples come in, f again follows them")
+{
+  PlotRig r;
+  draw(r.c, 100, 24);
+  r.c->OnEvent(Event::Character('+'));
+  r.c->OnEvent(Event::Character('f'));
+  r.fill("speed", 20);
+  Screen s = draw(r.c, 100, 24);
+  CHECK(has(s, " FROZEN"));
+  CHECK(has(s, "t 5.000 .. 10.000 s"));
+  r.c->OnEvent(Event::Character('f'));
+  s = draw(r.c, 100, 24);
+  CHECK(has(s, " LIVE"));
+  CHECK(has(s, "t 15.000 .. 20.000 s"));
+}
+
+TEST_CASE("ui plot: a reads the nearest sample, b and a step give the difference")
+{
+  PlotRig r;
+  draw(r.c, 100, 24);
+  r.c->OnEvent(Event::Character('a')); // at the centre: t 5, v 500
+  Screen s = draw(r.c, 100, 24);
+  CHECK(has(s, "A 500"));
+  CHECK(has(s, "A 5.0000 s"));
+  r.c->OnEvent(Event::Character('b'));
+  for (int i = 0; i < 10; i++) {
+    r.c->OnEvent(Event::Character('.')); // B, the last placed, 10 columns right
+  }
+  const auto *b = krumpir::ui::Nearest(r.history["speed"], r.p.view.b);
+  REQUIRE(b != nullptr);
+  CHECK(b->t > 5);
+  s = draw(r.c, 100, 24);
+  CHECK(has(s, krumpir::ui::Format("dt %.4f s", b->t - 5)));
+  CHECK(has(s, "B-A " + krumpir::ui::Number(b->v - 500)));
+  r.c->OnEvent(Event::Character('a')); // A off: no difference any more
+  CHECK_FALSE(has(draw(r.c, 100, 24), "dt "));
+}
+
+TEST_CASE("ui plot: a click places A, a right click B, the wheel zooms")
+{
+  PlotRig r;
+  draw(r.c, 100, 24);
+  const int x = r.p.box.x_min + 10, y = r.p.box.y_min + 5;
+  const double t = krumpir::TimeAt(r.p.view, 10, r.cols());
+  CHECK(r.c->OnEvent(button(x, y, Mouse::Left)));
+  CHECK(r.p.view.a == doctest::Approx(t));
+  CHECK(r.c->OnEvent(button(x + 20, y, Mouse::Right)));
+  CHECK(r.p.view.b > r.p.view.a);
+  CHECK_FALSE(r.c->OnEvent(button(r.p.box.x_max + 5, y, Mouse::Left))); // outside the plot
+  r.c->OnEvent(button(x, y, Mouse::WheelUp));
+  CHECK(has(draw(r.c, 100, 24), "t 5.000 .. 10.000 s")); // following: the right edge stays
+}
+
+TEST_CASE("ui plot: all in one graph has the readout in the legend")
+{
+  PlotRig r;
+  r.names = {"speed", "current"};
+  r.fill("current", 10);
+  r.single = true;
+  draw(r.c, 120, 24);
+  r.c->OnEvent(Event::Character('a'));
+  const Screen s = draw(r.c, 120, 24);
+  CHECK(has(s, "-- current"));
+  CHECK(has(s, "A 500"));
+}
+
+TEST_CASE("ui root: both Monitor pages have the plot's keys in its title")
+{
+  Rig r;
+  r.root->OnEvent(Event::F2);
+  CHECK(has(draw(r.root, 160, 36), "+- zoom"));
+  r.root->OnEvent(Event::ArrowDown); // the controller's card
+  CHECK(has(draw(r.root, 160, 36), "+- zoom"));
 }

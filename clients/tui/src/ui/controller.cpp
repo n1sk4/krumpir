@@ -182,6 +182,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
     int selected = 0;
     int row = 1; // focus in the signals pane: starts on the list, so the keys work
     bool single = false;
+    PlotState plot; // zoom, freeze, cursors
     std::string hint; // one-line feedback under the header
     bool connected = false;
 
@@ -271,8 +272,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
     split->frame();
     const int nw = split->name_width(16); // the other columns of a row
     Element header, events;
-    std::vector<std::string> plotted;
-    std::vector<std::vector<Sample>> samples;
+    PlotData data;
     bool want_fallback = false;
     ecu.view([&](const EcuSnapshot &v) {
       const bool only_fallback =
@@ -302,11 +302,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
         s->names.push_back(name);
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
-      for (const auto &name : v.watched) {
-        const auto it = v.history.find(name);
-        plotted.push_back(name);
-        samples.push_back(it != v.history.end() ? Thin(it->second) : std::vector<Sample>{});
-      }
+      data = Gather(v.history, v.watched, s->plot);
       const std::string run = v.running ? "RUNNING" : "STOPPED";
       const Element state = !v.connected ? text(" not connected: connect on F1 ") | dim
                                          : text(" " + run + " ") | bold | color(StateColor(run));
@@ -339,7 +335,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "), clear->Render(),
               text(" ")}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
-        split->render(PlotPane(plotted, samples, s->single)),
+        split->render(PlotPane(data, s->plot, s->single)),
         events | size(HEIGHT, EQUAL, kEventsRows),
     });
   });
@@ -381,6 +377,9 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
                       if (s->show_write) { // the dialog gets the keys
                         return EscapeCloses(e, close);
                       }
+                      if (e.is_mouse()) { // over the plot: zoom and the cursors
+                        return PlotKeys(e, s->plot);
+                      }
                       if (filter->Focused()) {
                         return false; // typing
                       }
@@ -391,7 +390,7 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
                         s->hint = "the signals are hidden: v shows them";
                         return true;
                       }
-                      if (split->on_key(e)) {
+                      if (split->on_key(e) || PlotKeys(e, s->plot)) {
                         return true;
                       }
                       if (e == Event::Character('w')) {

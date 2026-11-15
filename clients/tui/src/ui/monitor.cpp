@@ -47,7 +47,8 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     int selected = 0;
     std::set<std::string> checked; // plotted; none: the selected one
     bool single = false;           // checked ones in one graph instead of one graph each
-    Variable sel;                  // the selected row, as last rendered
+    PlotState plot;                // zoom, freeze, cursors
+    Variable sel;                 // the selected row, as last rendered
     std::string hint;              // one-line feedback under the header
 
     std::string head;               // the column titles of the variables pane
@@ -152,7 +153,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     const int nw = split->name_width(24); // the other columns of a row
     Element header, events;
     std::vector<std::string> plotted;
-    std::vector<std::vector<Sample>> samples;
+    PlotData data;
     m.view([&](const Snapshot &v) {
       s->rows.clear();
       s->shown.clear();
@@ -174,10 +175,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
       if (plotted.empty() && !s->sel.name.empty()) {
         plotted.push_back(s->sel.name);
       }
-      for (const auto &name : plotted) {
-        const auto it = v.history.find(name);
-        samples.push_back(it != v.history.end() ? Thin(it->second) : std::vector<Sample>{});
-      }
+      data = Gather(v.history, plotted, s->plot);
       header = Header(v);
       events = EventsPane(v.events);
       return 0;
@@ -188,7 +186,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
         hbox({header | flex, start->Render(), text(" "), stop->Render(), text(" "), reset->Render(),
               text(" "), unload->Render(), text(" ")}),
         s->hint.empty() ? text("") : text(" " + s->hint) | color(Color::Yellow),
-        split->render(PlotPane(plotted, samples, s->single)),
+        split->render(PlotPane(data, s->plot, s->single)),
         events | size(HEIGHT, EQUAL, kEventsRows),
     });
   });
@@ -256,6 +254,9 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     if (s->show_write || s->show_signal) { // the dialog gets the keys
       return EscapeCloses(e, close);
     }
+    if (e.is_mouse()) { // over the plot: zoom and the cursors; elsewhere the page's own
+      return PlotKeys(e, s->plot);
+    }
     if (filter->Focused()) {
       return false; // typing
     }
@@ -266,7 +267,7 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
       s->hint = "the variables are hidden: v shows them";
       return true;
     }
-    if (split->on_key(e)) {
+    if (split->on_key(e) || PlotKeys(e, s->plot)) {
       return true;
     }
     if (e == Event::Character('s')) {

@@ -531,3 +531,52 @@ TEST_CASE("ui root: both Monitor pages have the plot's keys in its title")
   r.root->OnEvent(Event::ArrowDown); // the controller's card
   CHECK(has(draw(r.root, 160, 36), "+- zoom"));
 }
+
+TEST_CASE("ui gather: a shifted source, its window, thinning and cursors in shifted time")
+{
+  std::deque<krumpir::Sample> runner, ctrl;
+  for (int i = 0; i <= 100; i++) {
+    runner.push_back({i * 0.1, double(i)});     // runner t 0 .. 10
+    ctrl.push_back({50 + i * 0.1, -double(i)}); // its own t 50 .. 60: runner t 0 .. 10
+  }
+  krumpir::ui::PlotState p;
+  auto d = krumpir::ui::Gather({{"x", &runner}, {"c.y", &ctrl, -50}}, p);
+  CHECK(d.win.t0 == doctest::Approx(0));
+  CHECK(d.win.t1 == doctest::Approx(10));
+  REQUIRE(d.samples.size() == 2);
+  CHECK(d.samples[1].front().t == doctest::Approx(0));
+  CHECK(d.samples[1].back().t == doctest::Approx(10));
+  p.view.follow = false; // frozen on 2 .. 3
+  p.view.span = 1;
+  p.view.end = 3;
+  p.view.a = 2.5;
+  d = krumpir::ui::Gather({{"c.y", &ctrl, -50}}, p);
+  CHECK(d.samples[0].front().t == doctest::Approx(1.9)); // and one either side
+  CHECK(d.samples[0].back().t == doctest::Approx(3.1));
+  CHECK(d.ta == doctest::Approx(2.5));
+  CHECK(d.at_a[0] == doctest::Approx(-25));
+  CHECK(d.names == std::vector<std::string>{"c.y"});
+}
+
+TEST_CASE("ui gather: samples before a source's from do not widen the window")
+{
+  std::deque<krumpir::Sample> runner, ctrl;
+  for (int i = 0; i <= 100; i++) {
+    runner.push_back({i * 0.1, double(i)});
+  }
+  for (int i = 0; i <= 200; i++) {
+    ctrl.push_back({i * 0.1, double(i)}); // shifted by -10: runner t -10 .. 10
+  }
+  krumpir::ui::PlotState p;
+  auto d = krumpir::ui::Gather({{"x", &runner}, {"c.y", &ctrl, -10, 0}}, p);
+  CHECK(d.win.t0 == doctest::Approx(0));
+  CHECK(d.win.t1 == doctest::Approx(10));
+  CHECK(d.samples[1].front().t >= 0);
+  p.view.a = -5; // a cursor before it reads the first sample shown
+  d = krumpir::ui::Gather({{"c.y", &ctrl, -10, 0}}, p);
+  CHECK(d.at_a[0] == doctest::Approx(100));
+  CHECK(d.win.t0 == doctest::Approx(0));
+  d = krumpir::ui::Gather({{"c.y", &ctrl, -30, 0}}, p); // all of it before: nothing to show
+  CHECK(std::isnan(d.win.t0));
+  CHECK(d.samples[0].empty());
+}

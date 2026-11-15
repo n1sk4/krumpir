@@ -60,6 +60,7 @@ struct EcuSnapshot {
   std::uint64_t daq_lost = 0;           // DAQ packets lost since it started
   std::map<std::string, double> values; // last values of the watched names
   std::map<std::string, std::deque<Sample>> history; // t: s since connecting
+  double origin = NAN; // steady_s() of the history's t = 0 (set on connect, kept on reconnect)
   std::deque<std::string> events;
 };
 
@@ -110,7 +111,7 @@ private:
   json desc_;
   std::chrono::steady_clock::time_point t0_;
   std::vector<std::string> daq_names_; // what DAQ measures, in daq_start's order (worker thread)
-  double daq_t0_ = 0;                  // s since t0_ when DAQ started: its samples' time origin
+  double daq_t0_ = INFINITY; // s since t0_ at DAQ time 0, from the arrivals (INFINITY: none yet)
   bool want_ = false; // connected by the user: a lost link is tried again (worker thread only)
   std::chrono::steady_clock::time_point tried_; // the last loss or attempt
   std::function<void()> on_change_;

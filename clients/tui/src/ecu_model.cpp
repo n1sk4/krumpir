@@ -194,10 +194,13 @@ void EcuModel::poll()
   for (const auto &c : cals) {
     cal_values.push_back(c.empty() ? NAN : read1(c));
   }
+  const auto t_reads = std::chrono::steady_clock::now();
   for (const auto &w : watched) {
     values.push_back(read1(w));
   }
-  const double t = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0_).count();
+  const auto t_end = std::chrono::steady_clock::now();
+  const double t = // the midpoint of the reads
+      std::chrono::duration<double>(t_reads - t0_ + (t_end - t_reads) / 2).count();
 
   const long long tr = std::isfinite(trip) ? static_cast<long long>(trip) : 0;
   std::string trip_name;
@@ -251,7 +254,7 @@ void EcuModel::restart_daq()
     try {
       ecu_.daq_start(signals);
       daq_names_ = names;
-      daq_t0_ = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0_).count();
+      daq_t0_ = INFINITY; // the ECU's time starts again
     } catch (const XcpError &e) {
       event(std::string("DAQ refused, polling instead: ") + e.what());
     }
@@ -266,12 +269,27 @@ void EcuModel::take_daq()
 {
   const auto start = std::chrono::steady_clock::now();
   const auto samples = ecu_.daq_take(period_);
-  const double dt = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+  const auto now = std::chrono::steady_clock::now();
+  const double dt = std::chrono::duration<double>(now - start).count();
+  // A packet cannot arrive before it was stamped: now - the newest ECU time bounds the first
+  // packet's arrival from above, and the least such bound is the best.
+  double newest = -INFINITY;
+  for (const auto &s : samples) {
+    newest = std::max(newest, s.t);
+  }
+  if (!samples.empty()) {
+    daq_t0_ = std::min(daq_t0_, std::chrono::duration<double>(now - t0_).count() - newest);
+  }
   std::lock_guard<std::mutex> lock(mu_);
   for (const auto &s : samples) {
     const std::string &name = daq_names_.at(s.signal);
     snap_.values[name] = s.v;
     auto &h = snap_.history[name];
+    // ponytail: stored samples keep the anchor they got; one that a lower anchor puts before the
+    // last stored is dropped, so the history stays sorted (only while the anchor settles)
+    if (!h.empty() && daq_t0_ + s.t <= h.back().t) {
+      continue;
+    }
     h.push_back({daq_t0_ + s.t, s.v});
     if (h.size() > kHistory) {
       h.pop_front();
@@ -405,6 +423,7 @@ void EcuModel::connect(std::string address)
     {
       std::lock_guard<std::mutex> lock(mu_);
       snap_.connected = true;
+      snap_.origin = std::chrono::duration<double>(t0_.time_since_epoch()).count();
       if (snap_.watched.empty()) {
         for (const auto &m : snap_.monitor) {
           if (a2l_.symbols.count(m)) {

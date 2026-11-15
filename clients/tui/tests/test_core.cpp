@@ -373,6 +373,88 @@ TEST_CASE("model: a second start frees the first capture; a refusal of that is i
                                         "start"});
 }
 
+TEST_CASE("clock fit: the shortest round trip gives the offset; t running ahead is not paced")
+{
+  krumpir::ClockFit c;
+  CHECK(std::isnan(c.offset));
+  CHECK_FALSE(c.paced);
+  // t = clock + 100, read somewhere in each call; round trips 3, 1, 4, 0.5 (the shortest), 2 ms
+  const double rtt[] = {0.003, 0.001, 0.004, 0.0005, 0.002}, at[] = {0.2, 0.9, 0.5, 0.1, 0.7};
+  for (int k = 0; k < 5; k++) {
+    const double send = 10.0 + k;
+    c.add(send, send + rtt[k], send + at[k] * rtt[k] + 100);
+  }
+  CHECK(c.paced);
+  CHECK(c.err == doctest::Approx(0.00025));
+  CHECK(std::abs(c.offset - 100) <= c.err + 1e-9);
+  const double kept = c.offset;
+  c.add(20.0, 20.1, 20.0 + 100); // a longer round trip, within its own err: kept, still paced
+  CHECK(c.offset == kept);
+  CHECK(c.err == doctest::Approx(0.00025));
+  CHECK(c.paced);
+
+  krumpir::ClockFit fast; // t runs twice as fast as the clock
+  for (int k = 0; k < 20; k++) {
+    const double send = 0.1 * k;
+    fast.add(send, send + 0.001, 2 * (send + 0.0005));
+  }
+  CHECK_FALSE(fast.paced);
+  CHECK(fast.offset == doctest::Approx(0.0005)); // the first one, kept
+}
+
+// A run whose t is the steady clock + 100, stopped, then run again at + 200.
+TEST_CASE("model: a paced run's t against the steady clock, fresh for each run")
+{
+  std::mutex mu;
+  std::string state = "RUNNING";
+  double offset = 100;
+  FakeServer srv([&](const json &req) -> json {
+    std::lock_guard<std::mutex> lock(mu);
+    json ok = {{"ok", true},
+               {"fault", ""},
+               {"scenarios", json::array()},
+               {"fmus", json::array()},
+               {"variables", json::array()},
+               {"values", json::object()}};
+    if (req["op"] == "state") {
+      ok["t"] = krumpir::steady_s() + offset;
+    }
+    ok["state"] = state;
+    return ok;
+  });
+  krumpir::Model m([] {}, 10ms);
+  auto until = [&](const std::function<bool(const krumpir::Snapshot &)> &cond) {
+    for (int i = 0; i < 300; i++) {
+      if (m.view(cond)) {
+        return true;
+      }
+      std::this_thread::sleep_for(10ms);
+    }
+    return false;
+  };
+  auto fits = [](const krumpir::ClockFit &c, double offset) {
+    return c.paced && std::abs(c.offset - offset) <= c.err + 0.05;
+  };
+  m.connect(srv.address());
+  REQUIRE(until([](const krumpir::Snapshot &v) { return v.state == "RUNNING"; }));
+  std::this_thread::sleep_for(200ms); // more triples
+  CHECK(m.view([&](const krumpir::Snapshot &v) { return fits(v.clock, 100); }));
+  {
+    std::lock_guard<std::mutex> lock(mu);
+    state = "STOPPED";
+  }
+  REQUIRE(until([](const krumpir::Snapshot &v) { return v.state == "STOPPED"; }));
+  CHECK(m.view([&](const krumpir::Snapshot &v) { return fits(v.clock, 100); })); // kept
+  {
+    std::lock_guard<std::mutex> lock(mu);
+    state = "RUNNING";
+    offset = 200;
+  }
+  REQUIRE(until([](const krumpir::Snapshot &v) { return v.state == "RUNNING"; }));
+  std::this_thread::sleep_for(200ms);
+  CHECK(m.view([&](const krumpir::Snapshot &v) { return fits(v.clock, 200); }));
+}
+
 TEST_CASE("presets: every kind builds the stimulus the service takes")
 {
   using krumpir::preset;
@@ -750,4 +832,24 @@ TEST_CASE("model: export needs no link; nothing plotted writes nothing")
     });
   }
   CHECK(told);
+}
+
+TEST_CASE("csv: series copied already to a file")
+{
+  namespace fs = std::filesystem;
+  const fs::path dir = fs::temp_directory_path() / "krumpir_test_csv_series";
+  fs::remove_all(dir);
+  fs::create_directories(dir);
+  const std::vector<std::vector<krumpir::Sample>> series{{{0, 1}, {0.5, 2}}, {{0.25, -1}}};
+  const std::string e = krumpir::write_csv_file({"x", "Motor.y"}, series, "runner", dir.string());
+  CHECK(e.rfind("exported 3 rows of 2 signals, t 0 .. 0.5 s, to ", 0) == 0);
+  const std::string path = e.substr(e.rfind(" to ") + 4);
+  CHECK(fs::path(path).filename().string().rfind("krumpir-runner-", 0) == 0);
+  {
+    std::ifstream f(path, std::ios::binary);
+    CHECK(std::string(std::istreambuf_iterator<char>(f), {}) ==
+          "t,x,Motor.y\n0,1,\n0.25,,-1\n0.5,2,\n");
+  }
+  CHECK(krumpir::write_csv_file({"x"}, {{}}, "runner", dir.string()) == "nothing to export");
+  fs::remove_all(dir);
 }

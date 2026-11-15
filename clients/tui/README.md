@@ -55,6 +55,7 @@ krumpir-tui --repo ~/krumpir                  # where controllers/ is (default: 
 | v | (Monitor) hide or show the variables pane; the plot takes the room |
 | [ / ] | (Monitor) the variables pane narrower / wider by 4 columns |
 | e | (Monitor) write the plotted signals in the shown window to a CSV in the current directory |
+| { / } | (Monitor, runner) move the controller signals 1 ms earlier / later on the run's t |
 | Esc | close a dialog |
 | F10, Ctrl+C | quit |
 
@@ -73,6 +74,18 @@ Both tabs have a card per target on the left: the runner, then each controller o
   capture of the scenario's inputs and outputs, so the plot holds every step; other variables are
   sampled at 10 Hz. A filter box above the list narrows it by name. The pane and the plot share
   the room: drag the divider, or `[`, `]`, `v`.
+- **Runner and controllers in one plot**: below the runner's variables, each connected
+  controller's watched signals are rows too (`<card>.<signal>`, kind `ctrl`, read-only: they are
+  written on the controller's page). Checked, they are plotted with the runner's variables on the
+  run's `t`, from `t = 0`, while the run is paced (`rt.wait` `sleep` or `busy`); otherwise the rows
+  are dim and the plot's title says why (`no run yet`, `the run is not paced`). The runner's `t`
+  and the controller's samples are put on the TUI's clock, accurate to a few ms (not to a step).
+  The title gives the bound (`ctrl ±1.2 ms`): half the shortest round trip of the runner's
+  `state` poll; a controller's DAQ times add a little (their anchor is the earliest arrival),
+  polled ones up to half their read. There is no drift correction (a crystal's ~50 ppm, a few ms
+  a minute). To check it on the bench, plot one quantity seen from both sides, e.g. the duty the
+  runner receives and the controller's duty, and move the controller's signals with `{` / `}`
+  until they line up; the trim is shown (`trim +3 ms`) and starts at 0 for each run.
 - **The plot** (runner and controllers) follows the newest samples (`LIVE`) or stays where it is
   (`FROZEN`) while they keep coming. Zoomed in, it draws every sample of the window, and y fits
   what is shown. Cursor A (solid) and B (dotted) read the nearest sample, value and its own t,
@@ -86,7 +99,8 @@ Both tabs have a card per target on the left: the runner, then each controller o
   history the TUI holds, so it works disconnected too, but a long fast run gives only its newest
   samples (the limit above). Columns `t,<name>,...`, one row per distinct t, numbers `%.17g`; a
   signal without a sample at that t (polled ones have their own times) is an empty cell, never
-  interpolated. The event names the file, the rows and the t range.
+  interpolated. The event names the file, the rows and the t range. On the runner's page the
+  controller signals plotted are written too, on the run's `t` as shown (trim included).
 - A written value takes effect at the next step, and on an input replaces its signal. Signal
   presets: constant (value), step (from, after s, to), ramp (from, to, over s), sine (offset,
   amplitude, freq Hz), pulse (low, high, period s, duty). Outputs and fixed parameters are refused.

@@ -29,6 +29,20 @@ struct Sample {
   double t, v;
 };
 
+// Seconds on the steady clock: the time both models' snapshots share.
+double steady_s();
+
+// The runner's t against the steady clock, from (send, recv, t) triples: t was read between send
+// and recv. The triple with the shortest round trip gives offset = t - (send + recv) / 2 and
+// err = (recv - send) / 2, so runner t = steady s + offset, within err. Paced while every triple
+// agrees with it; one that does not (t runs faster or slower than the clock) ends that for good.
+// ponytail: no drift correction (crystal ~50 ppm, a few ms a minute); a slope fit if it shows.
+struct ClockFit {
+  double offset = NAN, err = NAN;
+  bool paced = false;
+  void add(double send, double recv, double t);
+};
+
 // What the UI shows. Written by the model's worker, read under Model::view.
 struct Snapshot {
   std::string address;
@@ -49,6 +63,7 @@ struct Snapshot {
   double steps = 0, overruns = 0, max_step_ns = 0, max_wake_ns = 0;
   double late = 0;    // steps the uart controller did not answer in time
   std::string loaded; // what this client loaded ("" when it found the run already loaded)
+  ClockFit clock;     // fitted while RUNNING, fresh for each run, kept once it stops
 
   std::vector<Variable> vars; // inputs, outputs, tunable parameters
   // Per variable. Inputs and outputs come from a capture armed at start (every step, also for
@@ -97,6 +112,8 @@ public:
   // The samples of names with t in [t0, t1] (NaN: all) to a CSV in the current directory; the
   // event says where. Needs no link.
   void export_csv(std::vector<std::string> names, double t0, double t1);
+  // Series copied already (series[k] is names[k]'s, sorted by t), as the other export writes them.
+  void export_csv(std::vector<std::string> names, std::vector<std::vector<Sample>> series);
 
 private:
   void post(std::function<void()> job);
@@ -148,6 +165,10 @@ std::size_t write_csv(std::ostream &out, const std::vector<std::string> &names,
 std::string write_csv_file(std::mutex &mu, const std::map<std::string, std::deque<Sample>> &history,
                            const std::vector<std::string> &names, double t0, double t1,
                            const std::string &stem, const std::string &dir);
+// The same for series copied already (series[k] is names[k]'s, sorted by t). Worker thread.
+std::string write_csv_file(const std::vector<std::string> &names,
+                           const std::vector<std::vector<Sample>> &series, const std::string &stem,
+                           const std::string &dir);
 
 // Signal presets for an input, as the `signal` op takes them. Each has up to four numbers, in
 // the order of its `fields` (the UI's labels and defaults).

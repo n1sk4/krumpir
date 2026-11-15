@@ -15,6 +15,11 @@
 #include "ecu_model.hpp"
 #include "xcp.hpp"
 
+#include <ftxui/component/event.hpp>
+#include <ftxui/screen/screen.hpp>
+
+#include "ui.hpp"
+
 using namespace krumpir;
 namespace fs = std::filesystem;
 
@@ -550,6 +555,130 @@ TEST_CASE("ecu model: status, calibration, requests, watched signals")
   fs::remove_all(root);
 }
 
+// The ECU stamps its packets in us of the steady clock, a sample's value is its packet's number:
+// the history's t - the ECU's time since the first packet is the anchor, which never goes up.
+TEST_CASE("ecu model: the origin of the history and the DAQ anchor")
+{
+  FakeEcu fake;
+  fake.set<float>(0x4000, 350.0f);
+  fake.set<std::uint32_t>(0x4004, 0x0501);
+  fake.set<std::uint8_t>(0x2004, 1);
+  fake.set<std::uint32_t>(0x1000, 0);
+  const fs::path root = fs::temp_directory_path() / "krumpir_test_ecu_anchor";
+  const fs::path dir = demo_controller(root);
+  {
+    EcuModel m([] {}, std::chrono::milliseconds(10), std::chrono::milliseconds(300));
+    m.scan(root.generic_string());
+    m.open(dir.generic_string());
+    REQUIRE(eventually(
+        [&] { return m.view([](const EcuSnapshot &s) { return !s.selected.empty(); }); }));
+    CHECK(std::isnan(m.view([](const EcuSnapshot &s) { return s.origin; })));
+    const double before = steady_s();
+    m.connect(fake.address());
+    REQUIRE(eventually([&] {
+      return m.view([](const EcuSnapshot &s) { return s.connected && s.daq_signals == 1; });
+    }));
+    const double origin = m.view([](const EcuSnapshot &s) { return s.origin; });
+    CHECK(origin >= before);
+    CHECK(origin <= steady_s());
+
+    // One packet at a time, so each carries its own number; a lost one is not waited for
+    const auto start = std::chrono::steady_clock::now();
+    std::vector<std::uint32_t> ts;
+    for (int k = 0, got = 0; got < 30 && k < 300; k++) {
+      fake.set<float>(0x3000, static_cast<float>(k));
+      ts.push_back(static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                                  std::chrono::steady_clock::now() - start)
+                                                  .count()));
+      fake.trigger(1, ts.back());
+      for (int i = 0; i < 50; i++) {
+        if (m.view([k](const EcuSnapshot &s) {
+              const auto it = s.values.find("s_loop.temp");
+              return it != s.values.end() && it->second == k;
+            })) {
+          got++;
+          break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1 + k % 7));
+    }
+    m.view([&](const EcuSnapshot &s) {
+      const auto &h = s.history.at("s_loop.temp");
+      CHECK(h.size() >= 2);
+      const std::uint32_t first = ts.at(static_cast<std::size_t>(h.front().v));
+      double anchor = INFINITY;
+      for (const auto &x : h) {
+        const double a = x.t - (ts.at(static_cast<std::size_t>(x.v)) - first) * 1e-6;
+        CHECK(a <= anchor + 1e-9);
+        anchor = a;
+      }
+      for (std::size_t i = 1; i < h.size(); i++) {
+        CHECK(h[i].t > h[i - 1].t); // sorted
+      }
+      return 0;
+    });
+  }
+  fs::remove_all(root);
+}
+
+TEST_CASE("ui monitor: a connected controller's signals are rows of the runner's list")
+{
+  FakeEcu fake;
+  fake.set<float>(0x4000, 350.0f);
+  fake.set<std::uint32_t>(0x4004, 0x0501);
+  fake.set<std::uint8_t>(0x2004, 1);
+  fake.set<std::uint32_t>(0x1000, 0);
+  const fs::path root = fs::temp_directory_path() / "krumpir_test_ecu_merged";
+  const fs::path dir = demo_controller(root);
+  {
+    krumpir::Model runner([] {}, std::chrono::milliseconds(10));
+    EcuModel m([] {}, std::chrono::milliseconds(10), std::chrono::milliseconds(300));
+    m.scan(root.generic_string());
+    m.open(dir.generic_string());
+    REQUIRE(eventually(
+        [&] { return m.view([](const EcuSnapshot &s) { return !s.selected.empty(); }); }));
+    m.connect(fake.address());
+    REQUIRE(eventually([&] {
+      return m.view([](const EcuSnapshot &s) { return s.connected && !s.watched.empty(); });
+    }));
+    auto page = krumpir::ui::MonitorTab(runner, {{"Motor", &m}},
+                                        std::make_shared<krumpir::MonitorLayout>());
+    const auto draw = [&] {
+      auto sc = ftxui::Screen::Create(ftxui::Dimension::Fixed(160), ftxui::Dimension::Fixed(30));
+      for (int i = 0; i < 2; i++) {
+        sc = ftxui::Screen::Create(ftxui::Dimension::Fixed(160), ftxui::Dimension::Fixed(30));
+        ftxui::Render(sc, page->Render());
+      }
+      std::string out;
+      for (int y = 0; y < sc.dimy(); y++) {
+        for (int x = 0; x < sc.dimx(); x++) {
+          out += sc.PixelAt(x, y).character;
+        }
+        out += '\n';
+      }
+      return out;
+    };
+    std::string sc = draw();
+    CHECK(sc.find("Motor.s_loop.temp") != std::string::npos);
+    CHECK(sc.find(" ctrl ") != std::string::npos);
+    CHECK(sc.find("ctrl: no run yet") != std::string::npos);
+    page->OnEvent(ftxui::Event::Character(' '));
+    sc = draw();
+    CHECK(sc.find("[x] Motor.s_loop.temp") != std::string::npos);
+    page->OnEvent(ftxui::Event::Character('w'));
+    CHECK(draw().find("a controller signal: write it on the controller's page") !=
+          std::string::npos);
+    page->OnEvent(ftxui::Event::Character('e'));
+    CHECK(eventually([&] {
+      return runner.view([](const krumpir::Snapshot &v) {
+        return !v.events.empty() && krumpir::ends_with(v.events.back(), "nothing to export");
+      });
+    }));
+  }
+  fs::remove_all(root);
+}
+
 TEST_CASE("ecu model: a lost link is tried again, the history goes on")
 {
   FakeEcu fake;
@@ -586,6 +715,8 @@ TEST_CASE("ecu model: a lost link is tried again, the history goes on")
         eventually([&] { return m.view([&](const EcuSnapshot &s) { return s.reconnecting; }); }));
     CHECK_FALSE(m.view([](const EcuSnapshot &s) { return s.connected; }));
     const auto before = m.view(temp);
+    const double origin = m.view([](const EcuSnapshot &s) { return s.origin; });
+    CHECK(std::isfinite(origin));
     CHECK(fake.connects == 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(300)); // attempts with no answer
     fake.silent = false;
@@ -601,6 +732,7 @@ TEST_CASE("ecu model: a lost link is tried again, the history goes on")
       const auto h = temp(s);
       CHECK(h.front().t == before.front().t); // the history is kept
       CHECK(h.back().t > before.back().t);    // and its time goes on
+      CHECK(s.origin == origin);              // and its origin
       CHECK(has(s, ", reconnecting") == 1);
       CHECK(has(s, "reconnected to") == 1);
       return 0;

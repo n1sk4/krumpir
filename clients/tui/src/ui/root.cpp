@@ -147,7 +147,7 @@ Component Root(Model &m, Controllers ecus, std::string address, std::function<vo
         {" Tab/arrows move   Enter load   F2 monitor   F10 quit",
          " Tab/arrows move   Enter in the grid: write   F2 monitor   F10 quit"},
         {" s start  x stop  r reset  u unload  space check  c uncheck all  m one/many graphs  "
-         "w/Enter write  e export  v hide  [ ] resize  Esc close  F1 load  F10 quit",
+         "w/Enter write  e export  v hide  [ ] resize  { } trim ctrl  Esc close  F1 load  F10 quit",
          " s start  x stop  c clear trip  w write  space/Enter plot a signal  m one/many graphs  "
          "e export  v hide  [ ] resize  F1 load  F10 quit"}};
   };
@@ -155,7 +155,7 @@ Component Root(Model &m, Controllers ecus, std::string address, std::function<vo
 
   auto pane = std::make_shared<MonitorLayout>(); // one variables pane size for every Monitor page
   Components load{LoadTab(m, std::move(address), [s] { s->tab = 1; })},
-      monitor{MonitorTab(m, pane)};
+      monitor{MonitorTab(m, ecus, pane)};
   for (const auto &e : ecus) {
     load.push_back(ControllerSetup(*e.second));
     monitor.push_back(ControllerMonitor(*e.second, pane));

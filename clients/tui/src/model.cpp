@@ -55,6 +55,28 @@ bool readable(const std::string &state)
 
 } // namespace
 
+double steady_s()
+{
+  return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+// A triple agrees when its offset is within its own err of the kept one, plus a margin for the
+// runner's steps and pacing jitter.
+void ClockFit::add(double send, double recv, double t)
+{
+  const double o = t - (send + recv) / 2, e = (recv - send) / 2;
+  if (std::isnan(offset)) {
+    offset = o;
+    err = e;
+    paced = true;
+  } else if (paced && std::abs(o - offset) > std::max(0.01, 4 * err) + e) {
+    paced = false;
+  } else if (paced && e < err) {
+    offset = o;
+    err = e;
+  }
+}
+
 bool ends_with(const std::string &s, const std::string &tail)
 {
   return s.size() >= tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0;
@@ -96,10 +118,8 @@ std::string write_csv_file(std::mutex &mu, const std::map<std::string, std::dequ
                            const std::vector<std::string> &names, double t0, double t1,
                            const std::string &stem, const std::string &dir)
 {
-  namespace fs = std::filesystem;
   const bool all = std::isnan(t0) || std::isnan(t1);
   std::vector<std::vector<Sample>> series(names.size());
-  double first = INFINITY, last = -INFINITY;
   {
     std::lock_guard<std::mutex> lock(mu);
     for (std::size_t k = 0; k < names.size(); k++) {
@@ -112,10 +132,21 @@ std::string write_csv_file(std::mutex &mu, const std::map<std::string, std::dequ
           series[k].push_back(x);
         }
       }
-      if (!series[k].empty()) {
-        first = std::min(first, series[k].front().t);
-        last = std::max(last, series[k].back().t);
-      }
+    }
+  }
+  return write_csv_file(names, series, stem, dir);
+}
+
+std::string write_csv_file(const std::vector<std::string> &names,
+                           const std::vector<std::vector<Sample>> &series, const std::string &stem,
+                           const std::string &dir)
+{
+  namespace fs = std::filesystem;
+  double first = INFINITY, last = -INFINITY;
+  for (const auto &x : series) {
+    if (!x.empty()) {
+      first = std::min(first, x.front().t);
+      last = std::max(last, x.back().t);
     }
   }
   if (!(last >= first)) {
@@ -298,7 +329,9 @@ void Model::worker()
 
 void Model::poll()
 {
+  const double send = steady_s();
   const json st = svc_.call("state");
+  const double recv = steady_s();
   const std::string state = str(st, "state");
   std::string from;
   bool need_vars = false, read = false;
@@ -317,10 +350,17 @@ void Model::poll()
     snap_.late = num(st, "late");
     snap_.max_step_ns = num(st, "max_step_ns");
     snap_.max_wake_ns = num(st, "max_wake_ns");
+    if (state == "RUNNING") {
+      if (from != "RUNNING") {
+        snap_.clock = ClockFit{};
+      }
+      snap_.clock.add(send, recv, snap_.t);
+    }
     if (state == "IDLE") {
       snap_.vars.clear();
       snap_.history.clear();
       snap_.loaded.clear();
+      snap_.clock = ClockFit{};
     }
     need_vars = state != "IDLE" && snap_.vars.empty();
     read = readable(state);
@@ -594,6 +634,7 @@ void Model::do_load(const std::string &label, const json &args)
     snap_.loaded = label;
     snap_.vars.clear();
     snap_.history.clear();
+    snap_.clock = ClockFit{};
   }
   note("loaded " + label, true);
 }
@@ -693,6 +734,11 @@ void Model::export_csv(std::vector<std::string> names, double t0, double t1)
   });
 }
 
+void Model::export_csv(std::vector<std::string> names, std::vector<std::vector<Sample>> series)
+{
+  post([this, names, series] { event(write_csv_file(names, series, "runner", "")); });
+}
+
 void Model::do_reset()
 {
   const json s = svc_.call("reset").at("summary");
@@ -700,6 +746,7 @@ void Model::do_reset()
   {
     std::lock_guard<std::mutex> lock(mu_);
     snap_.history.clear();
+    snap_.clock = ClockFit{};
   }
   char line[160];
   std::snprintf(line, sizeof line, "reset: the run of %.0f steps ended, again from t = 0",

@@ -32,8 +32,9 @@ ftxui::Component LoadTab(Model &m, std::string address, std::function<void()> on
 
 // F2: run state and controls, live variables, plot of the selected one, events. The variables pane
 // can be hidden (v) and resized (drag the divider, [ and ]); layout is shared by every Monitor
-// page.
-ftxui::Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> layout);
+// page. The connected controllers' watched signals are rows too, plotted on the run's t while it
+// is paced.
+ftxui::Component MonitorTab(Model &m, Controllers ecus, std::shared_ptr<MonitorLayout> layout);
 
 // A controller's card on Load: address, connect, calibration grid.
 ftxui::Component ControllerSetup(EcuModel &ecu);
@@ -81,8 +82,19 @@ struct PlotData {
   std::vector<double> at_a, at_b;           // per name: the value at the cursor, NaN: none
   double ta = NAN, tb = NAN;                // the t of those samples (the first name that has one)
   TimeWindow win{NAN, NAN};                 // NaN: no samples yet
+  std::string note;                         // in the title, after the mode ("" none)
 };
-// Call inside the model's view(): takes what the plot shows out of the history.
+// One series to plot: a history whose t is shifted by shift s; samples before from (shifted) are
+// not shown. The window, the cursors and what is returned are in shifted time.
+struct Source {
+  std::string name;
+  const std::deque<Sample> *h; // nullptr: no samples yet
+  double shift = 0;
+  double from = -INFINITY;
+};
+// Call inside the views of the models whose histories the sources point into.
+PlotData Gather(const std::vector<Source> &sources, PlotState &p);
+// The names of history, unshifted.
 PlotData Gather(const std::map<std::string, std::deque<Sample>> &history,
                 const std::vector<std::string> &names, PlotState &p);
 // One graph per name stacked, or all in one each scaled to its range (single).

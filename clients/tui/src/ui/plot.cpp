@@ -178,40 +178,60 @@ const Sample *Nearest(const std::deque<Sample> &h, double t)
   return &*it;
 }
 
-PlotData Gather(const std::map<std::string, std::deque<Sample>> &history,
-                const std::vector<std::string> &names, PlotState &p)
+PlotData Gather(const std::vector<Source> &sources, PlotState &p)
 {
   static const std::deque<Sample> none;
-  std::vector<const std::deque<Sample> *> hs;
   double d0 = INFINITY, d1 = -INFINITY;
-  for (const auto &name : names) {
-    const auto it = history.find(name);
-    hs.push_back(it != history.end() ? &it->second : &none);
-    if (!hs.back()->empty()) {
-      d0 = std::min(d0, hs.back()->front().t);
-      d1 = std::max(d1, hs.back()->back().t);
+  PlotData d;
+  for (const auto &src : sources) {
+    d.names.push_back(src.name);
+    const auto &h = src.h ? *src.h : none;
+    const auto first = std::lower_bound(h.begin(), h.end(), src.from - src.shift, Before);
+    if (first != h.end()) {
+      d0 = std::min(d0, first->t + src.shift);
+      d1 = std::max(d1, h.back().t + src.shift);
     }
   }
-  PlotData d;
-  d.names = names;
   const bool any = d1 >= d0;
   if (any) {
     d.win = Visible(p.view, d0, d1);
   }
   const PlotView &v = p.view;
-  for (const auto *h : hs) {
-    d.samples.push_back(any ? Thin(*h, d.win.t0, d.win.t1) : std::vector<Sample>{});
-    const Sample *a = Nearest(*h, v.a), *b = Nearest(*h, v.b);
+  for (const auto &src : sources) {
+    const auto &h = src.h ? *src.h : none;
+    std::vector<Sample> thin;
+    if (any) {
+      for (auto x : Thin(h, d.win.t0 - src.shift, d.win.t1 - src.shift)) {
+        x.t += src.shift;
+        if (x.t >= src.from) {
+          thin.push_back(x);
+        }
+      }
+    }
+    d.samples.push_back(std::move(thin));
+    const Sample *a = Nearest(h, std::max(v.a, src.from) - src.shift),
+                 *b = Nearest(h, std::max(v.b, src.from) - src.shift);
     d.at_a.push_back(a ? a->v : NAN);
     d.at_b.push_back(b ? b->v : NAN);
     if (a && std::isnan(d.ta)) {
-      d.ta = a->t;
+      d.ta = a->t + src.shift;
     }
     if (b && std::isnan(d.tb)) {
-      d.tb = b->t;
+      d.tb = b->t + src.shift;
     }
   }
   return d;
+}
+
+PlotData Gather(const std::map<std::string, std::deque<Sample>> &history,
+                const std::vector<std::string> &names, PlotState &p)
+{
+  std::vector<Source> sources;
+  for (const auto &name : names) {
+    const auto it = history.find(name);
+    sources.push_back({name, it != history.end() ? &it->second : nullptr});
+  }
+  return Gather(sources, p);
 }
 
 bool PlotKeys(const Event &e, PlotState &p)
@@ -317,9 +337,10 @@ Element PlotPane(const PlotData &d, PlotState &p, bool single)
   }
   // The plot's own keys in its title, where the eye is: the key bar is full
   const std::string keys = "  +- zoom  <> pan  f freeze  a b cursors  ,. move  0 all ";
-  return window(text(single ? " Plot: all in one (m: one each)" + keys
-                            : " Plot: one each (m: all in one)" + keys),
-                vbox(std::move(plots)) | reflect(p.box));
+  return window(
+      text((single ? " Plot: all in one (m: one each)" : " Plot: one each (m: all in one)") +
+           d.note + keys),
+      vbox(std::move(plots)) | reflect(p.box));
 }
 
 Element EventsPane(const std::deque<std::string> &events)

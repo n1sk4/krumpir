@@ -8,6 +8,7 @@
 #include <functional>
 #include <map>
 #include <mutex>
+#include <ostream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -93,6 +94,9 @@ public:
   void unload();
   void write(std::string name, double value); // an input (replaces its signal) or a tunable param
   void signal(json stimulus);                 // one io.stimulus entry, see preset()
+  // The samples of names with t in [t0, t1] (NaN: all) to a CSV in the current directory; the
+  // event says where. Needs no link.
+  void export_csv(std::vector<std::string> names, double t0, double t1);
 
 private:
   void post(std::function<void()> job);
@@ -132,6 +136,18 @@ private:
 };
 
 bool ends_with(const std::string &s, const std::string &tail);
+
+// The series as CSV: `t,<name>,...`, one row per distinct t of any of them, ascending; a series
+// without a sample at that t, or a NaN or inf value, is an empty cell (never interpolated).
+// Numbers %.17g, \n line ends. series[k] is names[k]'s, sorted by t. Returns the rows written.
+std::size_t write_csv(std::ostream &out, const std::vector<std::string> &names,
+                      const std::vector<std::vector<Sample>> &series);
+// The samples of names in history with t in [t0, t1] (NaN: all), copied under mu, written to
+// dir/krumpir-<stem>-YYYYMMDD-HHMMSS.csv (dir "": the current directory); a file that exists is
+// never written over: -2, -3, ... Returns the event text. Worker thread (std::localtime).
+std::string write_csv_file(std::mutex &mu, const std::map<std::string, std::deque<Sample>> &history,
+                           const std::vector<std::string> &names, double t0, double t1,
+                           const std::string &stem, const std::string &dir);
 
 // Signal presets for an input, as the `signal` op takes them. Each has up to four numbers, in
 // the order of its `fields` (the UI's labels and defaults).

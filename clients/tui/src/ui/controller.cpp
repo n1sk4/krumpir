@@ -186,6 +186,9 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
     PlotState plot; // zoom, freeze, cursors
     std::string hint; // one-line feedback under the header
     bool connected = false;
+    // What the last frame plotted, for e
+    std::vector<std::string> plotted;
+    TimeWindow win{NAN, NAN};
 
     // The write dialog: pick a calibration parameter, type a value, the limits are checked
     bool show_write = false;
@@ -304,6 +307,8 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
       }
       s->selected = std::clamp(s->selected, 0, std::max(0, static_cast<int>(s->rows.size()) - 1));
       data = Gather(v.history, v.watched, s->plot);
+      s->plotted = data.names;
+      s->win = data.win;
       const std::string run = v.running ? "RUNNING" : "STOPPED";
       const Element state =
           !v.connected
@@ -408,6 +413,8 @@ Component ControllerMonitor(EcuModel &ecu, std::shared_ptr<MonitorLayout> lay)
                         toggle();
                       } else if (e == Event::Character('m')) {
                         s->single = !s->single;
+                      } else if (e == Event::Character('e')) {
+                        ecu.export_csv(s->plotted, s->win.t0, s->win.t1);
                       } else {
                         return false;
                       }

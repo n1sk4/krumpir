@@ -51,6 +51,10 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
     Variable sel;                 // the selected row, as last rendered
     std::string hint;              // one-line feedback under the header
 
+    // What the last frame plotted, for e
+    std::vector<std::string> plotted;
+    TimeWindow win{NAN, NAN};
+
     std::string head;               // the column titles of the variables pane
     std::string filter;             // narrows the list to the names that contain it
     int row = 1;                    // focus in the pane: starts on the list, so the keys work
@@ -176,6 +180,8 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
         plotted.push_back(s->sel.name);
       }
       data = Gather(v.history, plotted, s->plot);
+      s->plotted = data.names;
+      s->win = data.win;
       header = Header(v);
       events = EventsPane(v.events);
       return 0;
@@ -288,6 +294,8 @@ Component MonitorTab(Model &m, std::shared_ptr<MonitorLayout> lay)
       s->checked.clear();
     } else if (e == Event::Character('m')) {
       s->single = !s->single;
+    } else if (e == Event::Character('e')) {
+      m.export_csv(s->plotted, s->win.t0, s->win.t1);
     } else {
       return false;
     }

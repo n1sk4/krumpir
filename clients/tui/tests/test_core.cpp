@@ -9,8 +9,12 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <mutex>
+#include <sstream>
 #include <thread>
 
 #include "model.hpp"
@@ -646,4 +650,104 @@ TEST_CASE("model: after Disconnect a lost link is not tried again")
     CHECK_FALSE(v.reconnecting);
     return 0;
   });
+}
+
+TEST_CASE("csv: series merged by t, empty cells, quoted names, exact numbers")
+{
+  using krumpir::Sample;
+  std::ostringstream out;
+  const std::vector<std::vector<Sample>> series{
+      {{0, 1}, {0.5, NAN}, {1, 0.1}},
+      {{0.25, 2}, {1, INFINITY}, {2, -3}},
+  };
+  CHECK(krumpir::write_csv(out, {"a", "b,\"x\""}, series) == 5);
+  CHECK(out.str() == "t,a,\"b,\"\"x\"\"\"\n"
+                     "0,1,\n"
+                     "0.25,,2\n"
+                     "0.5,,\n"
+                     "1,0.10000000000000001,\n"
+                     "2,,-3\n");
+
+  std::ostringstream one;
+  const double v = 1.0 / 3, t = 0.1 + 0.2;
+  CHECK(krumpir::write_csv(one, {"v"}, {{{t, v}}}) == 1);
+  const std::string row = one.str().substr(one.str().find('\n') + 1);
+  char *end;
+  CHECK(std::strtod(row.c_str(), &end) == t);
+  CHECK(std::strtod(end + 1, nullptr) == v);
+
+  std::ostringstream none;
+  CHECK(krumpir::write_csv(none, {}, {}) == 0);
+  CHECK(none.str() == "t\n");
+}
+
+TEST_CASE("csv: the window of a history to a file, never written over")
+{
+  namespace fs = std::filesystem;
+  const fs::path dir = fs::temp_directory_path() / "krumpir_test_csv";
+  fs::remove_all(dir);
+  fs::create_directories(dir);
+  std::mutex mu;
+  std::map<std::string, std::deque<krumpir::Sample>> h;
+  for (int i = 0; i < 10; i++) { // exact in binary: the times compare equal
+    h["x"].push_back({i * 0.25, double(i)});
+    if (i % 2 == 0) {
+      h["y"].push_back({i * 0.25 + 0.125, -double(i)});
+    }
+  }
+  const auto file = [](const std::string &event) {
+    const auto at = event.rfind(" to ");
+    return at == std::string::npos ? std::string() : event.substr(at + 4);
+  };
+  const auto read = [](const std::string &path) {
+    std::ifstream f(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(f), {});
+  };
+
+  const std::string e1 = krumpir::write_csv_file(mu, h, {"x", "y"}, 0.5, 1, "runner", dir.string());
+  CHECK(e1.rfind("exported 4 rows of 2 signals, t 0.5 .. 1 s, to ", 0) == 0);
+  const std::string p1 = file(e1);
+  CHECK(fs::path(p1).is_absolute());
+  CHECK(fs::path(p1).filename().string().rfind("krumpir-runner-", 0) == 0);
+  const std::string want = "t,x,y\n0.5,2,\n0.625,,-2\n0.75,3,\n1,4,\n";
+  CHECK(read(p1) == want);
+  const std::string e2 = krumpir::write_csv_file(mu, h, {"x"}, NAN, NAN, "runner", dir.string());
+  CHECK(e2.rfind("exported 10 rows of 1 signals, t 0 .. 2.25 s, to ", 0) == 0);
+  const std::string p2 = file(e2);
+  const std::string p3 =
+      file(krumpir::write_csv_file(mu, h, {"x"}, NAN, NAN, "runner", dir.string()));
+  CHECK(p2 != p1);
+  CHECK(p3 != p1);
+  CHECK(p3 != p2);
+  // Two of the three share a second: the later one got the next free name
+  const auto suffixed = [](const std::string &p) { return krumpir::ends_with(p, "-2.csv"); };
+  CHECK((suffixed(p2) || suffixed(p3)));
+  CHECK(read(p1) == want); // the first file is as it was
+
+  CHECK(krumpir::write_csv_file(mu, h, {"x"}, 5, 6, "runner", dir.string()) == "nothing to export");
+  CHECK(krumpir::write_csv_file(mu, h, {"z"}, NAN, NAN, "runner", dir.string()) ==
+        "nothing to export");
+  const std::string bad =
+      krumpir::write_csv_file(mu, h, {"x"}, NAN, NAN, "runner", (dir / "missing").string());
+  CHECK(bad.rfind("export failed: ", 0) == 0);
+  int n = 0;
+  for (const auto &f : fs::directory_iterator(dir)) {
+    n += f.path().extension() == ".csv";
+  }
+  CHECK(n == 3);
+  fs::remove_all(dir);
+}
+
+TEST_CASE("model: export needs no link; nothing plotted writes nothing")
+{
+  krumpir::Model m([] {}, 10ms);
+  m.export_csv({"x"}, NAN, NAN);
+  bool told = false;
+  for (int i = 0; i < 300 && !told; i++) {
+    std::this_thread::sleep_for(10ms);
+    told = m.view([](const krumpir::Snapshot &v) {
+      return !v.events.empty() && v.events.back().find("nothing to export") != std::string::npos;
+    });
+  }
+  CHECK(told);
 }

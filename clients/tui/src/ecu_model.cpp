@@ -498,4 +498,20 @@ void EcuModel::watch(std::vector<std::string> names)
   });
 }
 
+void EcuModel::export_csv(std::vector<std::string> names, double t0, double t1)
+{
+  post([this, names, t0, t1] {
+    std::string stem = "controller";
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      for (const auto &c : snap_.controllers) {
+        if (c.dir == snap_.selected) {
+          stem = c.name;
+        }
+      }
+    }
+    event(write_csv_file(mu_, snap_.history, names, t0, t1, stem, ""));
+  });
+}
+
 } // namespace krumpir

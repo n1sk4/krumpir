@@ -54,6 +54,7 @@ krumpir-tui --repo ~/krumpir                  # where controllers/ is (default: 
 | , / . | (Monitor) the last placed cursor one column left / right |
 | v | (Monitor) hide or show the variables pane; the plot takes the room |
 | [ / ] | (Monitor) the variables pane narrower / wider by 4 columns |
+| e | (Monitor) write the plotted signals in the shown window to a CSV in the current directory |
 | Esc | close a dialog |
 | F10, Ctrl+C | quit |
 
@@ -79,6 +80,13 @@ Both tabs have a card per target on the left: the runner, then each controller o
   a frozen plot keeps the cursor (or the mouse pointer) where it is on screen. The history keeps
   200 000 samples per variable on the runner (300 000 on a controller), oldest dropped, also
   while frozen; a reset or a new load starts the history again and the plot follows.
+- **Export** (`e`, runner and controllers) writes what is plotted, in the window shown (`0` first
+  for the whole history), at full resolution to `krumpir-<runner or controller>-YYYYMMDD-HHMMSS.csv`
+  in the directory the TUI was started in (`-2`, `-3`, ... rather than over a file). It is the
+  history the TUI holds, so it works disconnected too, but a long fast run gives only its newest
+  samples (the limit above). Columns `t,<name>,...`, one row per distinct t, numbers `%.17g`; a
+  signal without a sample at that t (polled ones have their own times) is an empty cell, never
+  interpolated. The event names the file, the rows and the t range.
 - A written value takes effect at the next step, and on an input replaces its signal. Signal
   presets: constant (value), step (from, after s, to), ramp (from, to, over s), sine (offset,
   amplitude, freq Hz), pulse (low, high, period s, duty). Outputs and fixed parameters are refused.

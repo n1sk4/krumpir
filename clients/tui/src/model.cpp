@@ -1,8 +1,12 @@
 #include "model.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
+#include <filesystem>
+#include <fstream>
 
 namespace krumpir
 {
@@ -22,6 +26,28 @@ std::string str(const json &j, const char *key)
   return it != j.end() && it->is_string() ? it->get<std::string>() : std::string();
 }
 
+// A CSV cell: quoted when it holds a comma, a quote or a line break, the quotes doubled.
+std::string cell(const std::string &s)
+{
+  if (s.find_first_of(",\"\r\n") == std::string::npos) {
+    return s;
+  }
+  std::string q = "\"";
+  for (const char c : s) {
+    q += c == '"' ? "\"\"" : std::string(1, c);
+  }
+  return q + '"';
+}
+
+void number(std::ostream &out, double v)
+{
+  if (std::isfinite(v)) {
+    char b[32];
+    std::snprintf(b, sizeof b, "%.17g", v);
+    out << b;
+  }
+}
+
 bool readable(const std::string &state)
 {
   return state == "INITIALIZED" || state == "RUNNING" || state == "STOPPED";
@@ -32,6 +58,94 @@ bool readable(const std::string &state)
 bool ends_with(const std::string &s, const std::string &tail)
 {
   return s.size() >= tail.size() && s.compare(s.size() - tail.size(), tail.size(), tail) == 0;
+}
+
+std::size_t write_csv(std::ostream &out, const std::vector<std::string> &names,
+                      const std::vector<std::vector<Sample>> &series)
+{
+  out << 't';
+  for (const auto &name : names) {
+    out << ',' << cell(name);
+  }
+  out << '\n';
+  std::vector<std::size_t> at(series.size(), 0);
+  std::size_t rows = 0;
+  for (;;) {
+    double t = INFINITY;
+    for (std::size_t k = 0; k < series.size(); k++) {
+      if (at[k] < series[k].size()) {
+        t = std::min(t, series[k][at[k]].t);
+      }
+    }
+    if (t == INFINITY) {
+      return rows;
+    }
+    number(out, t);
+    for (std::size_t k = 0; k < series.size(); k++) {
+      out << ',';
+      if (at[k] < series[k].size() && series[k][at[k]].t == t) {
+        number(out, series[k][at[k]++].v);
+      }
+    }
+    out << '\n';
+    rows++;
+  }
+}
+
+std::string write_csv_file(std::mutex &mu, const std::map<std::string, std::deque<Sample>> &history,
+                           const std::vector<std::string> &names, double t0, double t1,
+                           const std::string &stem, const std::string &dir)
+{
+  namespace fs = std::filesystem;
+  const bool all = std::isnan(t0) || std::isnan(t1);
+  std::vector<std::vector<Sample>> series(names.size());
+  double first = INFINITY, last = -INFINITY;
+  {
+    std::lock_guard<std::mutex> lock(mu);
+    for (std::size_t k = 0; k < names.size(); k++) {
+      const auto it = history.find(names[k]);
+      if (it == history.end()) {
+        continue;
+      }
+      for (const auto &x : it->second) {
+        if (all || (x.t >= t0 && x.t <= t1)) {
+          series[k].push_back(x);
+        }
+      }
+      if (!series[k].empty()) {
+        first = std::min(first, series[k].front().t);
+        last = std::max(last, series[k].back().t);
+      }
+    }
+  }
+  if (!(last >= first)) {
+    return "nothing to export";
+  }
+  char stamp[32];
+  const std::time_t now = std::time(nullptr);
+  std::strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", std::localtime(&now));
+  const std::string base = "krumpir-" + stem + "-" + stamp;
+  fs::path path = fs::path(dir) / (base + ".csv");
+  std::error_code ec;
+  for (int n = 2; fs::exists(path, ec); n++) {
+    path = fs::path(dir) / (base + "-" + std::to_string(n) + ".csv");
+  }
+  const fs::path abs = fs::absolute(path, ec);
+  const std::string shown = (ec ? path : abs).string();
+  std::ofstream f(path, std::ios::binary); // \n stays \n
+  if (!f) {
+    return "export failed: " + shown + ": " + std::strerror(errno);
+  }
+  const std::size_t rows = write_csv(f, names, series);
+  f.close();
+  if (!f) {
+    fs::remove(path, ec);
+    return "export failed: " + shown + ": write failed";
+  }
+  char line[96];
+  std::snprintf(line, sizeof line, "exported %zu rows of %zu signals, t %g .. %g s, to ", rows,
+                names.size(), first, last);
+  return line + shown;
 }
 
 const std::vector<Preset> &presets()
@@ -569,6 +683,13 @@ void Model::signal(json stimulus)
     json what = stimulus;
     what.erase("input");
     event(stimulus["input"].get<std::string>() + ": " + what.dump());
+  });
+}
+
+void Model::export_csv(std::vector<std::string> names, double t0, double t1)
+{
+  post([this, names, t0, t1] {
+    event(write_csv_file(mu_, snap_.history, names, t0, t1, "runner", ""));
   });
 }
 

@@ -93,6 +93,7 @@ public:
   void write(std::string param, double value); // by parameter name, checked against its limits
   void request(std::string command);           // "start", "stop" or "clear"
   void watch(std::vector<std::string> names);  // the signals to poll and keep a history of
+  void export_csv(std::vector<std::string> names, double t0, double t1); // as Model's
 
 private:
   void post(std::function<void()> job);
